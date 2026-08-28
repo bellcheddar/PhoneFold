@@ -1,7 +1,7 @@
 # PhoneFold — STATE
 
 **Current phase:** 1 (fold engine and frame stream). Phase 0 has deferred items, listed below.
-**Current task:** P1-04
+**Current task:** P1-05
 **Last updated:** 2026-08-28
 
 Status vocabulary: `todo` / `doing` / `blocked` / `done`.
@@ -96,7 +96,7 @@ into a smooth 60 fps stream of enriched `FoldFrame` values. No UI. Human-verifia
 | P1-01 | `FoldCore.ProteinSequence`: FASTA parsing (multi-record, wrapped lines, ambiguity codes, `*` and `-` stripping) with helpful validation errors | — | done |
 | P1-02 | UniProt fetch from `rest.uniprot.org` | P1-01 | **deferred: no consumer** |
 | P1-03 | ~~ESM-2 tokeniser in pure Swift~~ | — | **dropped** |
-| P1-04 | `FoldGeometry`: Kabsch superposition of each frame onto the previous, so the molecule stops tumbling | — | todo |
+| P1-04 | `FoldGeometry`: Kabsch superposition of each frame onto the previous, so the molecule stops tumbling | — | done |
 | P1-05 | Interpolation to 60 fps: quaternion slerp on residue frames, linear on translations, Catmull-Rom in time. Interpolated frames flagged | P1-04 | todo |
 | P1-06 | P-SEA secondary structure, CA-only, with ~3-frame temporal hysteresis and per-residue confidence | — | todo |
 | P1-07 | Contact map and `ContactEvent` emission on inward 8 A crossing, tagged by separation and hydrophobicity | — | todo |
