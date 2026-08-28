@@ -211,3 +211,32 @@ available; the live engine runs on the GPU. Recorded in BLOCKERS.md as something
 want to reframe, not as a blocker.
 
 **Invariants:** GREEN.
+
+## 2026-08-28 — Phase 1 begins: P1-01, P1-04, P1-05
+
+Moved to Phase 1 after deferring the rest of Phase 0 with reasons recorded in STATE.md.
+PLAN.md is explicit that Phases 1 to 5 must never block on Phase 0's hardest problem, and
+everything Phase 1 needs already exists on disk.
+
+**P1-01, FASTA parsing.** Multi-record, wrapped lines, CRLF, gap and stop stripping, UniProt
+header fields. Ambiguity codes are kept and resolve to `unknown` rather than being rejected.
+A test caught a real Swift trap: `"\r\n"` is a single Character, a grapheme cluster, so
+`split(separator: "\n")` never matches it and a Windows FASTA arrived as one line with the
+header glued to the residues. Split on `isNewline` instead.
+
+**P1-04, Kabsch superposition.** Horn's quaternion method, chosen because it can only produce
+a proper rotation; the SVD form has to detect a negative determinant and flip a singular
+vector, and getting that wrong silently mirrors the molecule. Double accumulation, closed-form
+RMSD, nil rather than a trap on bad input. A reflection test asserts a mirrored structure does
+*not* fit.
+
+**P1-05, interpolation.** Catmull-Rom in time so the spline passes exactly through every raw
+readout: a readout is real model output and must not be smoothed away. The alignment step is
+tested by the property it exists for, that interpolating between two orientations of the same
+structure without aligning first collapses it through its own centre.
+
+Two deferrals recorded with reasons: P1-02 (on-device UniProt fetch) has no consumer in the
+chosen design, and P1-03 (ESM-2 tokeniser) is dropped because nothing tokenises for a language
+model any more.
+
+**Test result:** 88 tests in 20 suites pass. **Invariants:** GREEN.
