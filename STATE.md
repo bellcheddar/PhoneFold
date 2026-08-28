@@ -1,7 +1,7 @@
 # PhoneFold — STATE
 
 **Current phase:** 2 (Aurora Stage, the renderer). Phase 1 is complete, gate GREEN. Phase 0 has deferred items, listed below.
-**Current task:** P2-01
+**Current task:** P2-02
 **Last updated:** 2026-08-28
 
 Status vocabulary: `todo` / `doing` / `blocked` / `done`.
@@ -141,7 +141,7 @@ visual headline. Built multiplatform from the start so Phase 5 is additive.
 
 | ID | Task | Deps | Status |
 |---|---|---|---|
-| P2-01 | `FoldRender`: backbone tube geometry. Catmull-Rom spline through CA, swept with a cross section that morphs with per-residue secondary structure confidence | — | todo |
+| P2-01 | `FoldRender`: backbone tube geometry. Catmull-Rom spline through CA, swept with a cross section that morphs with per-residue secondary structure confidence | — | done |
 | P2-02 | `LowLevelMesh` writer so vertex buffers are rewritten per frame by a compute shader with no CPU round trip. Never rebuild `MeshResource` | P2-01 | todo |
 | P2-03 | The four colour modes: confidence (AlphaFold ramp), secondary structure, rainbow N to C, Kyte-Doolittle hydrophobicity, with animated cross-fade | P2-01 | todo |
 | P2-04 | Contact flashes: a short-lived emissive line and particle burst at the midpoint, brighter and longer for long-range contacts | P2-02 | todo |
@@ -152,7 +152,7 @@ visual headline. Built multiplatform from the start so Phase 5 is additive.
 | P2-09 | **Marc's addition:** a GPU / ANE utilisation meter during folding | P2-07 | todo |
 | P2-10 | **Marc's addition:** the folding-progress counters panel | P2-08 | todo |
 | P2-11 | Snapshot tests of all four colour modes against reference images | P2-03 | todo |
-| P2-12 | Assert zero geometry NaNs across a full sample trajectory | P2-01 | todo |
+| P2-12 | Assert zero geometry NaNs across a full sample trajectory | P2-01 | done |
 
 ### Phase 2 exit gate
 
@@ -160,7 +160,7 @@ Machine-verifiable:
 - [ ] Renderer builds and runs on iOS Simulator and macOS from the sample provider
 - [ ] Snapshot tests of all four colour modes against reference images
 - [ ] No frame-time regression above 20% versus the recorded baseline in `METRICS.md`
-- [ ] Zero geometry NaNs across a full sample trajectory
+- [x] Zero geometry NaNs across a full sample trajectory — asserted over three real trajectories and four degenerate-input classes
 
 Human-verifiable (**halt**):
 - [ ] 60 fps sustained on device with 300 residues, confirmed in Instruments
