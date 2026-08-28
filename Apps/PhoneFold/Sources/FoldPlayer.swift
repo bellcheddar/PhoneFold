@@ -20,6 +20,10 @@ final class FoldPlayer: ObservableObject {
     @Published private(set) var isPlaying = false
     @Published private(set) var progress: Double = 0
     @Published var colourMode: ColourMode = .confidence
+    /// Accumulated progress for the traces. Marc's Phase 2 addition: use metrics to show the
+    /// progress of folding.
+    @Published private(set) var history = FoldHistory()
+    @Published private(set) var meter = ComputeMeter()
 
     private(set) var provider: (any FoldFrameProvider)?
     private var task: Task<Void, Never>?
@@ -35,6 +39,11 @@ final class FoldPlayer: ObservableObject {
         stop()
         self.provider = provider
         flashPool = ContactFlashPool(frameRate: 60)
+        history.reset()
+        // Playback, not inference: the app replays a precomputed trajectory, so there is no
+        // compute unit to report yet. Saying so is better than implying a utilisation
+        // reading that does not exist.
+        meter.configure(workload: .playback, unit: .none)
         isPlaying = true
 
         let engine = FoldEngine(configuration: .init(frameRate: 60,
@@ -57,6 +66,7 @@ final class FoldPlayer: ObservableObject {
     }
 
     private func consume(_ frame: FoldFrame, of total: Int, residues: [AminoAcid]) {
+        let started = Date()
         let ca = frame.backbone.map(\.ca)
 
         flashPool.add(frame.newContacts, atFrame: frame.index)
@@ -69,6 +79,21 @@ final class FoldPlayer: ObservableObject {
         self.metrics = Metrics.compute(caPositions: ca, residues: residues,
                                        confidence: frame.pLDDT)
         self.progress = total > 1 ? Double(frame.index) / Double(total - 1) : 0
+
+        let fractions = frame.structureFractions
+        history.append(HistorySample(
+            frameIndex: frame.index,
+            progress: self.progress,
+            radiusOfGyration: metrics?.radiusOfGyration ?? 0,
+            compactness: metrics?.compactness ?? 0,
+            contactCount: metrics?.contactCount ?? 0,
+            meanConfidence: frame.meanPLDDT,
+            helixFraction: fractions.helix,
+            sheetFraction: fractions.sheet,
+            coilFraction: fractions.coil,
+            newContacts: frame.newContacts.count,
+            isRawFrame: !frame.isInterpolated))
+        meter.record(frameCostMilliseconds: Date().timeIntervalSince(started) * 1000)
     }
 
     func stop() {

@@ -25,7 +25,13 @@ struct StageView: View {
                            residueCount: player.provider?.residueCount ?? 0,
                            residueConfidence: player.frame?.pLDDT ?? [])
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                readouts
+                FoldHUD(history: player.history, meter: player.meter,
+                        confidenceSource: player.confidenceSource,
+                        progress: player.progress)
+                    // Without priority the RealityView above, which takes all the space it
+                    // is offered, squeezes the panel until the charts collapse to zero
+                    // height and simply vanish.
+                    .layoutPriority(1)
                 gallery
             }
         }
@@ -60,42 +66,6 @@ struct StageView: View {
         }
         .padding(.horizontal, 20)
         .padding(.top, 14)
-    }
-
-    private var readouts: some View {
-        HStack(spacing: 22) {
-            if let metrics = player.metrics {
-                readout("Rg", String(format: "%.1f Å", metrics.radiusOfGyration))
-                readout("Compact", String(format: "%.2f", metrics.compactness))
-                readout("Contacts", "\(metrics.contactCount)")
-                readout(player.confidenceSource.displayName,
-                        String(format: "%.0f", metrics.meanConfidence))
-                if let frame = player.frame {
-                    let f = frame.structureFractions
-                    readout("H / E / C", String(format: "%.0f / %.0f / %.0f",
-                                                f.helix * 100, f.sheet * 100, f.coil * 100))
-                }
-            }
-            Spacer()
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 10)
-        .overlay(alignment: .bottom) {
-            ProgressView(value: player.progress)
-                .tint(Color(hex: 0x22E5FF))
-                .padding(.horizontal, 20)
-        }
-    }
-
-    private func readout(_ label: String, _ value: String) -> some View {
-        VStack(alignment: .leading, spacing: 1) {
-            Text(label.uppercased())
-                .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                .foregroundStyle(Color(hex: 0x6B7C93))
-            Text(value)
-                .font(.system(.body, design: .monospaced))
-                .foregroundStyle(.white)
-        }
     }
 
     private var gallery: some View {

@@ -1,7 +1,7 @@
 # PhoneFold — STATE
 
 **Current phase:** 2 (Aurora Stage, the renderer). Phase 1 is complete, gate GREEN. Phase 0 has deferred items, listed below.
-**Current task:** P2-08 (readouts and timeline), then P2-09/P2-10 (Marc's HUD), then P2-11 snapshots
+**Current task:** P2-13 (main-actor and Release rendering), then P2-11 snapshots
 **Last updated:** 2026-08-28
 
 Status vocabulary: `todo` / `doing` / `blocked` / `done`.
@@ -148,9 +148,10 @@ visual headline. Built multiplatform from the start so Phase 5 is additive.
 | P2-05 | Materials: per-residue colour via mesh parts and stock materials (CustomMaterial's pipeline fails on the Simulator, see METRICS.md). Bloom, depth of field, vignette and the Aurora grade outstanding | P2-02 | part |
 | P2-06 | Camera: auto-orbit, drag, pinch, pan, double-tap reframe, follow-the-action. `StageCamera` fully tested | P2-02 | done |
 | P2-07 | A minimal iOS/macOS app target that plays a bundled trajectory, so the renderer can actually be run and filmed | P2-02 | done |
-| P2-08 | Readouts: timeline scrubber with recycle boundaries, live stacked area chart of helix/sheet/coil, radius of gyration trace, sequence ribbon | P2-07 | todo |
-| P2-09 | **Marc's addition:** a GPU / ANE utilisation meter during folding | P2-07 | todo |
-| P2-10 | **Marc's addition:** the folding-progress counters panel | P2-08 | todo |
+| P2-08 | Readouts: counters, stacked structure chart, radius of gyration trace, timeline with contact ticks. Charts need P2-13 before they accumulate enough samples to show | P2-07 | mostly done |
+| P2-09 | **Marc's addition:** compute meter. Reports measured frame cost against the 60 fps budget and the configured compute unit; iOS exposes no public GPU/ANE utilisation API, so it does not claim one | P2-07 | done |
+| P2-10 | **Marc's addition:** the folding-progress counters panel | P2-08 | done |
+| P2-13 | Move frame production off the main actor, and diagnose why the Release build renders nothing (see BLOCKERS.md) | P2-08 | todo |
 | P2-11 | Snapshot tests of all four colour modes against reference images | P2-03 | todo |
 | P2-12 | Assert zero geometry NaNs across a full sample trajectory | P2-01 | done |
 

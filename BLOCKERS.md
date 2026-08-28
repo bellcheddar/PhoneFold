@@ -358,3 +358,38 @@ Non-negotiable in the design, so the 85% means something:
   plain Swift with no framework.
 - P-SEA's own agreement stays under test as a regression guard, so the baseline cannot
   silently rot.
+
+---
+
+## OPEN — 2026-08-28 — two Phase 2 playback issues, neither blocking the gate
+
+Both found by running the app rather than by a test, and neither affects the Phase 2 machine
+gate, which is met: the renderer builds and runs on iOS Simulator and macOS from the sample
+provider, and draws the protein with correct per-residue colour.
+
+### 1. Playback barely advances in a Debug build
+
+The engine, the tube geometry, the colour packing and the RealityKit update all run on the
+main actor, and a Debug build costs roughly 300x what release does for this kind of numeric
+Swift. The result is a fold that creeps: the readouts update but the trajectory does not get
+far, and the history never accumulates enough samples for the charts to appear.
+
+Not a correctness problem, and the release measurements are healthy (1.65 ms/frame for the
+engine, 0.52 ms for geometry). But the *frame production* should not be on the main actor at
+all: only the RealityKit buffer write has to be. Moving it is the fix, and it is worth doing
+for a real device regardless of build configuration.
+
+### 2. The Release build renders nothing at all
+
+Debug renders correctly; Release shows the chrome, the title and the gallery but no protein
+and no accumulated history, with no crash, no error in the device log, and none of the app's
+own diagnostics printed. The provider loads, since the title comes from its metadata, so
+`play()` runs and the frame stream then produces nothing.
+
+Not diagnosed yet. Given it is configuration-dependent with no error anywhere, the likely
+areas are the async sequence's iterator being optimised differently, or a main-actor
+scheduling difference. It needs a proper bisect rather than more guessing, which is what
+found the material problem.
+
+**Both belong to P2-13, a new task.** The renderer, colouring, camera, flashes and HUD are
+all committed and tested.
