@@ -72,3 +72,18 @@ Negative-tested the reader against a foreign file, a future format version, thre
 points, a body one byte short, and metadata disagreeing with the body.
 
 **Test result:** 38 tests in 12 suites, all passed. **Invariants:** GREEN.
+
+## 2026-08-28 — P0-03b — Python .pftraj writer and cross-language proof
+
+`Tools/pftraj.py` writes the container the Swift reader consumes, refusing an empty
+sequence, no readouts, a wrong-shaped array or any non-finite value. 7 pytest cases.
+
+The check that actually matters is cross-language: `Tools/make_fixture.py` writes a fixture
+with values exactly representable in float32, and `CrossLanguageCodecTests.swift` reads it
+back asserting exact equality on every coordinate and pLDDT of 4 frames x 9 residues.
+Negative-tested by flipping one bit of the last pLDDT value in the fixture, which failed the
+suite with `21.78125 == 21.75` and passed again on restore. Byte compatibility is now a
+tested property, not an assumption.
+
+**Test result:** Swift 42 tests in 13 suites pass; Python 7 pytest cases pass.
+**Invariants:** GREEN.
