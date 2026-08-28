@@ -195,7 +195,7 @@ Not blocking Phase 1 or 2. Needs a call before Phase 3 writes the style profiles
 
 ---
 
-## OPEN — 2026-08-28 — foldingDiff backbones are mostly extended, not folded
+## RESOLVED 2026-08-28 — foldingDiff backbones are mostly extended, not folded
 
 Found while building the live engine Marc chose. Numbers and controls in METRICS.md.
 
@@ -243,3 +243,24 @@ thing on screen is a protein at all.
 **Recommendation: option 1 now, then choose between 2, 3 and 5 with real numbers.** Nothing
 here blocks Phase 1, which consumes `.pftraj` files and is indifferent to which engine made
 them.
+
+### Resolution, 2026-08-28: Genie 2
+
+Marc chose to test Genie 2, and it settles the matter. 8/8 compact and 8/8 designable against
+foldingDiff's 2/14 and 0/14, median scTM 0.939 against 0.118, on the same biased ESMFold
+metric that was recorded as unfair to foldingDiff. Full table in METRICS.md.
+
+It also fixes the composition problem raised as open question 3 above: **49% charged residues
+against foldingDiff's 13%**, where a real fold designs to 41%. The Fantasy profile's R/K/D/E
+octave triggers will fire at a natural rate. Open question 3 is therefore closed by the
+change of engine rather than by a decision.
+
+Open questions 1 and 2 still stand, unchanged: Genie 2 is also sequence-agnostic, so
+ProteinMPNN inverse folding is still required (now with its CA-only weights), and Genie 2 is
+also a generator with no pLDDT, so the denoising timestep remains the honest confidence
+substitute.
+
+**New open item: speed.** Genie 2 takes 142 s per sample on this Mac's CPU against
+foldingDiff's 18 s, for the same 1000 steps. At 15.73 M parameters the ANE should close much
+of that, but if it does not, live on-device generation needs either fewer denoising steps or
+a move to precomputed trajectories. To be measured in P0-19, not guessed at.

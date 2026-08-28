@@ -233,3 +233,49 @@ rises from 0.118 to 0.168 and the best sample reaches 0.229, still far from 0.5.
 Median 13% charged residues against a real fold's 41%, and the most common residue is
 median 30% of the protein against 17% for the ubiquitin design. Two samples exceeded 65%
 of a single residue type, one of them 66% alanine.
+
+## Phase 0b — Genie 2 versus foldingDiff, identical criteria
+
+8 Genie 2 samples against 14 foldingDiff samples, both at 76 residues, both measured the
+same way on the M1 Max CPU.
+
+| | **Genie 2** | foldingDiff | a real fold |
+|---|---|---|---|
+| Parameters | 15.73 M | 14.5 M | — |
+| Rg / expected, median | **0.96** | 1.55 | 1.00 |
+| Rg / expected, range | **0.94 - 1.19** | 1.12 - 2.78 | — |
+| Compact (ratio <= 1.2) | **8 / 8** | 2 / 14 | — |
+| scTM, median | **0.939** | 0.118 | — |
+| scTM, best | **0.980** | 0.229 | — |
+| Designable (scTM > 0.5) | **8 / 8** | 0 / 14 | — |
+| Charged residues, median | **49%** | 13% | 41% |
+| Residue types | 13 - 17 | 6 - 18 | 15 |
+| CA-CA | 3.860 +- 0.012 A | 3.83 +- 0.01 A | 3.80 |
+| Seconds per sample | **142 s** | 18 s | — |
+
+Best single sample: scTM 0.980 at **0.44 A RMSD**. ESMFold folded the designed sequence back
+onto Genie 2's own backbone to within half an angstrom.
+
+The scTM caveat that was attached to foldingDiff's 0/14 applies here too, and it now cuts
+the other way: the fold-back is ESMFold rather than the OmegaFold the authors use, so these
+numbers are biased **low**, and Genie 2 still reaches a median of 0.939. The caveat only
+strengthens the result.
+
+The radius of gyration comparison needs no predictor at all: every Genie 2 sample was
+compact, and its worst sample (1.19) was better than foldingDiff's best (1.12 was
+foldingDiff's single best of 14, and its median was 1.55).
+
+### The one place Genie 2 is worse
+
+**142 s per sample against foldingDiff's 18 s**, on the same CPU for the same 1000 denoising
+steps, because each step runs a much heavier SE(3)-equivariant network. That is the number
+that decides whether live on-device generation is viable, and it is measured on CPU: the
+model is only 15.73 M parameters, so the ANE should close much of the gap. To be measured in
+P0-19.
+
+### Genie 2 emits a CA trace, not a backbone
+
+Not fatal, and arguably convenient. PhoneFold's renderer sweeps a tube through CA positions,
+and the P-SEA assignment PLAN.md specifies is CA-only by design. ProteinMPNN ships CA-only
+weights, which is what produced the sequences above. But `.pftraj` stores four atoms per
+residue, so it needs either a CA-only mode or idealised construction of N, C and O.

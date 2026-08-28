@@ -29,7 +29,8 @@ without changing what the app is.
 | PathDiffusion | yes | PyTorch | **yes** | not stated | MIT | on-point but heavy |
 | EigenFold | yes | PyTorch | no (needs OmegaFold) | ~100 | MIT | second choice |
 | SALAD | no | **JAX** | no | 500 | Apache-2.0 / CC-BY-4.0 | rejected |
-| foldingDiff | no | PyTorch | no | 1000 | MIT | **tested: best trajectory, wrong problem** |
+| foldingDiff | no | PyTorch | no | 1000 | MIT | tested: 0/14 designable, superseded |
+| **Genie 2** | no | PyTorch | no | 1000 | Apache-2.0 | **TESTED: 8/8 designable — adopt** |
 | Boltz-2 | yes | PyTorch | yes (has single-seq mode) | 20-200 | MIT | too large for ANE |
 
 ### ESMFlow-PDB — the leading candidate
@@ -121,3 +122,57 @@ ESM-2, and the repository pins torch 1.11.
 
 The bar to beat, from BLOCKERS.md: ESMFold moves 0.76 to 1.52 A across a whole trajectory on
 confident targets. A model worth switching to should show a collapse, not a twitch.
+
+
+---
+
+## Genie 2 — tested after foldingDiff's backbones proved mostly extended
+
+Lin, Yang, Zhang & AlQuraishi, arXiv 2405.15489, **Apache-2.0**, `aqlaboratory/genie2`.
+
+SE(3)-equivariant diffusion over residue frames. Like foldingDiff it is **unconditional and
+sequence-agnostic**, so it shares foldingDiff's fundamental limitation: it cannot fold a
+named protein. It is being tested because the question after foldingDiff is narrower, namely
+whether a small unconditional generator can produce *compact, designable* backbones at all.
+
+| Property | Genie 2 | foldingDiff |
+|---|---|---|
+| Parameters | **15.73 M** | 14.5 M |
+| Weights on disk | ~63 MB fp32 (181 MB checkpoint carries optimiser state) | 57.9 MB |
+| Licence | Apache-2.0 | MIT |
+| Framework | PyTorch, no CUDA-only kernels | PyTorch |
+| Denoising steps | 1000 DDPM | 1000 |
+| Maximum length | 256 | 128 |
+| Output | **CA trace only** | N, CA, C (O constructed) |
+| Seconds/sample, 76 aa, M1 Max CPU | **134 s** | 18 s |
+
+Two practical consequences of the differences.
+
+**It emits a CA trace, not a backbone.** That is not fatal: PhoneFold's renderer sweeps a
+tube through CA positions anyway, and the P-SEA secondary-structure assignment PLAN.md
+specifies is CA-only by design, precisely so it works when only CA is trustworthy. But
+`.pftraj` stores four atoms per residue, so either the format grows a CA-only mode or N, C
+and O are built by idealised geometry. ProteinMPNN ships CA-only weights, so inverse folding
+is unaffected.
+
+**It is seven times slower per sample.** 134 s against 18 s on the same CPU for the same
+1000 steps, because each step runs a much heavier SE(3)-equivariant network. That is the
+figure to watch for live on-device generation, and it is the one thing that might rule
+Genie 2 out where foldingDiff was comfortable.
+
+First sample measured before the full run: **Rg 10.44 A at 76 residues against a compact
+expectation of 11.4, a ratio of 0.92**, with CA-CA at 3.863 +- 0.010 A. For comparison
+foldingDiff's median ratio was 1.55 and its best was 1.12. One sample is not a result, but
+it is the right sign.
+
+
+### Result
+
+**Genie 2 wins decisively and should be the live engine.** 8/8 compact and 8/8 designable
+against foldingDiff's 2/14 and 0/14, median scTM 0.939 against 0.118, and 49% charged
+residues against 13% — which is what the Phase 3 score actually consumes. Full table in
+METRICS.md.
+
+It costs 142 s per sample on CPU against foldingDiff's 18 s. That is the only open question,
+and it is a Core ML question rather than a modelling one: 15.73 M parameters is small enough
+that the ANE should close much of the gap.
