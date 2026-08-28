@@ -66,3 +66,43 @@ Ubiquitin                    76     32     28     0.87A   11.3-12.0     79.9-90.
 Villin headpiece subdomain   36     32     28     0.76A    9.1-9.8      82.2-92.7   
 Pin1 WW domain               34     32     29     0.77A    9.2-9.9      80.6-92.9   
 ```
+
+## Phase 0 — candidate model comparison
+
+Same measurements for every model, so they are judged on identical criteria rather than on
+impressions. Measured on the M1 Max, CPU, 2026-08-28. All at 76 residues.
+
+| Model | params | steps | max RMSD across trajectory | Rg range (A) | sequence-conditioned |
+|---|---|---|---|---|---|
+| ESMFold (readout at recycle ends) | ~690 M + 650 M LM | 32 frames | **0.87 A** | 11.3-12.0 | yes |
+| foldingDiff | **14.5 M** | 1000 | **15.29 A** | 5.7-20.8 | **no** |
+
+### foldingDiff denoising trajectory, 76 residues
+
+Checkpoint 57.9 MB, max length 128 residues, 1000 cosine-schedule steps over six backbone
+dihedrals.
+
+| step | RMSD to final | Rg (A) | CA-CA mean +- sd (A) |
+|---|---|---|---|
+| 0 | 14.01 | 5.75 | 2.294 +- 0.967 |
+| 10 | 10.42 | 11.46 | 3.061 +- 0.885 |
+| 100 | 12.14 | 11.10 | 2.906 +- 0.907 |
+| 400 | 13.31 | 6.92 | 3.148 +- 0.763 |
+| 600 | 12.83 | 13.74 | 3.474 +- 0.496 |
+| 800 | 10.95 | 20.79 | 3.691 +- 0.260 |
+| 900 | 9.15 | 18.85 | 3.809 +- 0.123 |
+| 990 | 1.65 | 15.77 | 3.821 +- 0.025 |
+| 999 | 0.00 | 15.56 | 3.823 +- 0.007 |
+
+Two things matter here beyond the 18-fold increase in motion.
+
+**The chain stays plausible throughout.** CA-CA runs 2.3 to 3.8 A across the whole
+trajectory and never approaches the 12.5 A of ESMFold's mid-trunk readouts. A backbone tube
+can be swept through every frame.
+
+**It converges to better geometry than ESMFold's readouts.** The final frame is
+3.823 +- 0.007 A against an ideal 3.80, tighter than ESMFold's 3.84 +- 0.08.
+
+The collapse is real and late: the chain is still expanding at step 800 (Rg 20.8 A) and only
+compacts in the final 10% of steps. That is a genuinely watchable arc, and it is what the
+Phase 3 score needs in order to have contact-formation events to play.

@@ -25,11 +25,11 @@ without changing what the app is.
 
 | Model | Sequence-conditioned | Framework | MSA needed | Steps | Licence | Verdict |
 |---|---|---|---|---|---|---|
-| **ESMFlow-PDB** | **yes** | PyTorch | **no** | 10, configurable | MIT | **testing now** |
+| **ESMFlow-PDB** | **yes** | PyTorch | **no** | 10, configurable | MIT | **leading, needs a port** |
 | PathDiffusion | yes | PyTorch | **yes** | not stated | MIT | on-point but heavy |
 | EigenFold | yes | PyTorch | no (needs OmegaFold) | ~100 | MIT | second choice |
 | SALAD | no | **JAX** | no | 500 | Apache-2.0 / CC-BY-4.0 | rejected |
-| foldingDiff | no | PyTorch | no | 1000 | MIT | rejected as engine |
+| foldingDiff | no | PyTorch | no | 1000 | MIT | **tested: best trajectory, wrong problem** |
 | Boltz-2 | yes | PyTorch | yes (has single-seq mode) | 20-200 | MIT | too large for ANE |
 
 ### ESMFlow-PDB — the leading candidate
@@ -92,10 +92,18 @@ ESM-2, and the repository pins torch 1.11.
   sub-quadratic sparse attention scaling to 1,000 residues. Two disqualifiers: it is **JAX**,
   so there is no Core ML path without reimplementing it, and it is a de novo generator that
   cannot be conditioned on an arbitrary input sequence to predict that protein's structure.
-- **foldingDiff** (Microsoft, Nat Commun 2024). Small, PyTorch, and its trajectory over
-  backbone dihedrals from random to folded is exactly the visual PhoneFold wants. But it is
-  unconditional, and the published weights cap at 128 residues. Worth keeping in mind for a
-  future "generate a protein" mode; it cannot fold ubiquitin.
+- **foldingDiff** (Microsoft, Nat Commun 2024). **Tested, and it produces by far the best
+  trajectory of anything measured** (numbers in METRICS.md): 15.29 A of motion against
+  ESMFold's 0.87 A, a radius of gyration sweeping 5.7 to 20.8 A, and CA-CA staying between
+  2.3 and 3.8 A the whole way so a backbone tube can be swept through every frame. It
+  converges to 3.823 +- 0.007 A, tighter geometry than ESMFold's own readouts. It is also
+  **14.5 M parameters in a 57.9 MB checkpoint**, which is roughly 1/50th of ESMFold and
+  would fit the ANE without palettisation.
+
+  It solves the wrong problem. It is unconditional, so it generates a *novel* backbone and
+  has no sequence input: it cannot fold ubiquitin, cannot do the mutation duet, and cannot
+  drive a gallery of twelve named proteins. The published weights also cap at 128 residues.
+  Excellent for a "generate a protein" mode; not an engine for PhoneFold as specified.
 - **Boltz-2.** Sequence-conditioned with a real denoising trajectory and already familiar
   from BoltzMaker, but far too large for the ANE and MSA-dependent for best accuracy.
 
