@@ -130,6 +130,20 @@ case "$PHASE" in
     else
       fail "the DSSP agreement test did not run"
     fi
+
+    # Zero data races under Swift 6 strict concurrency. The frame-budget assertion is
+    # suppressed here because under a sanitizer it measures instrumentation, not the engine.
+    if PHONEFOLD_SKIP_PERF_BUDGET=1 swift test -c release --sanitize=thread \
+         --package-path PhoneFoldKit >/tmp/pf_tsan.log 2>&1; then
+      if grep -q "WARNING: ThreadSanitizer" /tmp/pf_tsan.log; then
+        fail "ThreadSanitizer reported a data race - see /tmp/pf_tsan.log"
+      else
+        pass "swift test under ThreadSanitizer, no data races"
+      fi
+    else
+      fail "swift test --sanitize=thread - see /tmp/pf_tsan.log"
+      tail -20 /tmp/pf_tsan.log >&2
+    fi
     ;;
   2|3|4|5)
     skip "phase $PHASE gate checks not yet implemented"

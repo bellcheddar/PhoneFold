@@ -92,6 +92,15 @@ struct FoldEngineTests {
                      count, elapsed, perFrame))
         #expect(count > 400)
         // 16.7 ms is the 60 fps budget for everything; the engine must be a fraction of it.
+        // Under a sanitizer the measurement is instrumentation overhead, not engine cost:
+        // the same test measures 1.65 ms/frame in release, 207 ms under Thread Sanitizer and
+        // 511 ms in debug. The TSan run exists to find data races, and asserting a timing
+        // budget inside it would only produce a red test that means nothing. The runner sets
+        // this variable; the measurement is still printed either way.
+        if ProcessInfo.processInfo.environment["PHONEFOLD_SKIP_PERF_BUDGET"] == "1" {
+            print("  (frame budget not asserted: PHONEFOLD_SKIP_PERF_BUDGET is set)")
+            return
+        }
         #if DEBUG
         // Debug builds are ~310x slower here; this only catches a catastrophic regression.
         #expect(perFrame < 3000, "engine regressed badly even allowing for a debug build")
