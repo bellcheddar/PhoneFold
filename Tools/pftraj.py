@@ -22,6 +22,15 @@ VERSION = 1
 PROVENANCE_ESMFOLD = "esmfold-trunk-readout"
 PROVENANCE_COREML = "coreml-trunk-step"
 PROVENANCE_TEST_FIXTURE = "test-fixture"
+PROVENANCE_FOLDINGDIFF = "foldingdiff-denoising"
+PROVENANCE_PATHDIFFUSION = "pathdiffusion-pathway"
+
+# Must stay in step with TrajectoryProvenance in FoldCore. A value the Swift side does not
+# know decodes as an error, not as a default, which is the behaviour we want.
+VALID_PROVENANCE = {
+    PROVENANCE_ESMFOLD, PROVENANCE_COREML, PROVENANCE_TEST_FIXTURE,
+    PROVENANCE_FOLDINGDIFF, PROVENANCE_PATHDIFFUSION,
+}
 
 
 @dataclass
@@ -60,6 +69,10 @@ class Readout:
 
 
 def write(path: Path, metadata: TrajectoryMetadata, readouts: list[Readout]) -> Path:
+    if metadata.provenance not in VALID_PROVENANCE:
+        raise ValueError(
+            f"unknown provenance {metadata.provenance!r}; FoldCore would fail to decode it. "
+            f"Known values: {sorted(VALID_PROVENANCE)}")
     n = len(metadata.sequence)
     if n == 0:
         raise ValueError("refusing to write a trajectory with an empty sequence")

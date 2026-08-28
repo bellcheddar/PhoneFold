@@ -7,14 +7,58 @@ import simd
 /// to answer "where did this come from", and the no-fake-data rule means a bundle must be
 /// able to say so honestly. There is deliberately no case for "synthesised" or "interpolated
 /// from a known structure": such a file must not exist.
-public enum TrajectoryProvenance: String, Codable, Sendable, Hashable {
+public enum TrajectoryProvenance: String, Codable, Sendable, Hashable, CaseIterable {
     /// Real ESMFold inference, coordinates read out of the folding trunk mid-trajectory.
     case esmFoldReadout = "esmfold-trunk-readout"
     /// Real Core ML inference on the exported stateful trunk step model.
     case coreMLTrunkStep = "coreml-trunk-step"
+    /// Real foldingDiff sampling: a denoising path over backbone dihedrals, from noise to a
+    /// folded backbone. The protein is **generated, not predicted** — it is novel, and its
+    /// sequence comes from inverse folding rather than from an accession.
+    case foldingDiffDenoising = "foldingdiff-denoising"
+    /// Real PathDiffusion sampling: an evolution-guided folding pathway for a named protein,
+    /// precomputed offline because the MSA pipeline cannot run on device.
+    case pathDiffusionPathway = "pathdiffusion-pathway"
     /// A deterministic geometric construction used only as a test fixture. **Never shipped
     /// in an app bundle** and never presented to a user as a fold.
     case testFixture = "test-fixture"
+
+    /// Whether this trajectory came from real inference and may be shown to a user as a
+    /// fold. Only `testFixture` may not, and the Phase 0 gate checks the shipped directory.
+    public var isShippable: Bool { self != .testFixture }
+
+    /// Whether the protein was generated rather than predicted from a known sequence.
+    /// The UI must say so: a foldingDiff trajectory is a novel protein that has never
+    /// existed, not a prediction of anything in the PDB.
+    public var isGenerated: Bool { self == .foldingDiffDenoising }
+
+    /// What the per-residue confidence in an accompanying frame actually means.
+    public var confidenceSource: ConfidenceSource {
+        switch self {
+        case .esmFoldReadout, .coreMLTrunkStep, .pathDiffusionPathway: .pLDDT
+        case .foldingDiffDenoising: .denoisingProgress
+        case .testFixture: .pLDDT
+        }
+    }
+}
+
+/// What a per-residue confidence value means, so the UI never mislabels one as the other.
+///
+/// foldingDiff is a generator, not a predictor: it has no pLDDT, and calling its denoising
+/// progress "pLDDT" would be a scientific claim it cannot support.
+public enum ConfidenceSource: String, Codable, Sendable, Hashable, CaseIterable {
+    /// AlphaFold-style predicted local distance difference test, 0...100, read at the CA.
+    case pLDDT = "plddt"
+    /// How far along the denoising path a generated frame is, rescaled to 0...100.
+    case denoisingProgress = "denoising-progress"
+
+    /// The label to show a user. Never interchangeable.
+    public var displayName: String {
+        switch self {
+        case .pLDDT: "pLDDT"
+        case .denoisingProgress: "Resolution"
+        }
+    }
 }
 
 /// Everything about a trajectory that is not a coordinate.

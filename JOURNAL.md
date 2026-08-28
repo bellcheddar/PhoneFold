@@ -117,3 +117,29 @@ all-beta, mixed and disordered.
 
 **HALT.** Measuring the result raised a question that changes what the app shows, which is
 Marc's decision, not the agent's. Written up with evidence in BLOCKERS.md.
+
+## 2026-08-28 — model survey, and the change of engine
+
+ESMFold produced no watchable trajectory (BLOCKERS.md). Surveyed six diffusion models
+(MODEL_SURVEY.md) and measured foldingDiff against ESMFold on identical criteria.
+
+The structural finding: SALAD and foldingDiff are **unconditional generators** with no
+sequence input, so neither can fold a named protein. SALAD is also JAX, with no Core ML path.
+
+foldingDiff measured at 76 residues: 15.29 A of motion against ESMFold's 0.87 A, Rg sweeping
+5.7 to 20.8 A, CA-CA staying 2.3 to 3.8 A throughout so a backbone tube sweeps through every
+frame, converging to 3.823 +- 0.007 A. 14.5 M parameters, 57.9 MB.
+
+Marc chose the hybrid: foldingDiff live on-device, PathDiffusion precomputed for the named
+gallery. Live folding of an arbitrary user accession is deliberately given up.
+
+## 2026-08-28 — P0-14 — provenance for two engines
+
+Added `foldingdiff-denoising` and `pathdiffusion-pathway` to `TrajectoryProvenance` on both
+sides, and a `ConfidenceSource` enum so denoising progress is never labelled pLDDT: that
+would be a scientific claim foldingDiff cannot support. `isGenerated` lets the UI say that a
+foldingDiff protein has never existed. The Python writer now rejects an unknown provenance
+rather than writing a file FoldCore would fail to decode.
+
+**Test result:** Swift 47 tests in 14 suites pass; Python 7 pass plus a rejection check.
+**Invariants:** GREEN.
