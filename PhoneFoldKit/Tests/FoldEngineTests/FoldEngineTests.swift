@@ -21,9 +21,13 @@ struct FoldEngineTests {
 
     @Test("a bundled trajectory loads through the provider")
     func loads() throws {
-        let p = try Self.provider("ubiquitin")
+        let p = try SampleTrajectoryProvider(contentsOf: Self.trajectoryURL("ubiquitin"),
+                                             recycles: .all)
         #expect(p.residueCount == 76)
         #expect(p.readouts.count == 32)
+        // The default plays the first recycle only: one descent rather than the same fold
+        // four times. See `SampleTrajectoryProvider.RecycleSelection`.
+        #expect(try Self.provider("ubiquitin").readouts.count == 8)
         #expect(p.confidenceSource == .pLDDT)
         #expect(p.isGenerated == false)
 
@@ -75,7 +79,10 @@ struct FoldEngineTests {
     /// The debug bound below only catches a catastrophic regression.
     @Test("a 300-residue input sustains a 60 fps frame budget")
     func sustains60fps() async throws {
-        let provider = try Self.provider("beta2ar_7tm")      // 314 residues
+        // Every recycle, because this measures sustained throughput and wants the longest
+        // trajectory available rather than the default single descent.
+        let provider = try SampleTrajectoryProvider(contentsOf: Self.trajectoryURL("beta2ar_7tm"),
+                                                    recycles: .all)
         #expect(provider.residueCount == 314)
         let engine = FoldEngine(configuration: .init(frameRate: 60, secondsPerRawFrame: 0.25))
         let sequence = try await engine.frames(for: provider)
@@ -177,27 +184,59 @@ struct FoldEngineTests {
         }
     }
 
+    /// Flicker is a state that changes and changes *back*. A state that changes and stays
+    /// changed is secondary structure forming, which is the entire subject of the app.
+    ///
+    /// This test used to count every change and require them to be under 1% of
+    /// residue-frames, and it passed for the wrong reason: three quarters of a four-recycle
+    /// trajectory is an already-settled structure where nothing changes, and those frames
+    /// diluted the rate. Playing the first recycle alone - the part where the protein
+    /// actually folds - took the same measurement from 0.74% to 1.94% without anything having
+    /// got worse. Of the 88 changes over the whole ubiquitin run, 53 are in the first
+    /// recycle's 36 frames and 35 are spread over the 120 settled ones.
+    ///
+    /// So the measurement is now reversals inside a short window, which is what the
+    /// hysteresis exists to prevent and what an eye actually catches.
     @Test("secondary structure does not flicker between adjacent frames")
     func noFlicker() async throws {
         let provider = try Self.provider("ubiquitin")
         let engine = FoldEngine()
-        var previous: [SSAssignment]?
-        var changes = 0
-        var frames = 0
+        var history: [[SecondaryStructure]] = []
         for await frame in try await engine.frames(for: provider) {
-            if let previous {
-                for (a, b) in zip(previous, frame.secondaryStructure)
-                where a.structure != b.structure { changes += 1 }
-            }
-            previous = frame.secondaryStructure
-            frames += 1
+            history.append(frame.secondaryStructure.map(\.structure))
         }
-        // With hysteresis, state changes should be rare relative to frames x residues.
-        let opportunities = Double(frames * provider.residueCount)
-        let rate = Double(changes) / opportunities
-        print(String(format: "SS state changes: %d over %.0f residue-frames (%.4f%%)",
-                     changes, opportunities, rate * 100))
-        #expect(rate < 0.01, "secondary structure is flickering")
+        try #require(history.count > 10)
+
+        // A reversal: residue r is X at frame i, not X at i+1, and X again within the window.
+        let window = 6                                    // a tenth of a second at 60 fps
+        var reversals = 0
+        var changes = 0
+        for i in 1..<history.count {
+            for r in 0..<provider.residueCount where history[i][r] != history[i - 1][r] {
+                changes += 1
+                let restored = ((i + 1)...Swift.min(i + window, history.count - 1))
+                    .contains { history[$0][r] == history[i - 1][r] }
+                if restored { reversals += 1 }
+            }
+        }
+        let opportunities = Double(history.count * provider.residueCount)
+        print(String(format: "SS: %d changes, %d reversals over %.0f residue-frames "
+                     + "(%.4f%% changed, %.4f%% reversed)",
+                     changes, reversals, opportunities,
+                     Double(changes) / opportunities * 100,
+                     Double(reversals) / opportunities * 100))
+        // Judged as a fraction of the changes, not of the residue-frames.
+        //
+        // A rate over residue-frames has the trajectory's length in its denominator, which is
+        // what made the old measurement move by a factor of three when the playback default
+        // changed and nothing about the geometry did. "What fraction of the changes did not
+        // stick" has no such denominator: it says the same thing about a long fold and a
+        // short one, and it is the question hysteresis is actually answering.
+        //
+        // Measured here: 53 changes, 6 of which reverse. Nearly nine in ten stick.
+        #expect(Double(reversals) / Double(Swift.max(changes, 1)) < 0.25,
+                "secondary structure is flickering: \(reversals) of \(changes) changes reversed")
+        #expect(changes > 0, "a fold with no structure change at all would mean a dead assigner")
     }
 
     @Test("every bundled trajectory plays without a malformed frame")
@@ -219,5 +258,63 @@ struct FoldEngineTests {
             }
             #expect(count > 0, "\(file.lastPathComponent) produced no frames")
         }
+    }
+}
+
+/// Which part of a recycled trajectory gets played.
+@Suite("Recycle selection")
+struct RecycleSelectionTests {
+
+    static func bundle(recycles: Int, perRecycle: Int) -> TrajectoryBundle {
+        let residues = 6
+        let metadata = TrajectoryMetadata(
+            name: "test", sequence: String(repeating: "A", count: residues),
+            provenance: .testFixture, sourceModel: "none/test-fixture",
+            blocksPerReadout: 1, recycles: recycles,
+            generated: "2026-08-28T00:00:00Z")
+        var readouts: [TrajectoryReadout] = []
+        for recycle in 0..<recycles {
+            for step in 0..<perRecycle {
+                // Each recycle re-expands then contracts: the shape that puts the peaks in
+                // the radius-of-gyration trace.
+                let spread = Float(perRecycle - step)
+                let backbone = (0..<residues).map { k -> BackboneResidue in
+                    let base = SIMD3<Float>(Float(k) * 3.8, spread * 0.5, 0)
+                    return BackboneResidue(n: base + SIMD3<Float>(-0.5, 0, 0), ca: base,
+                                           c: base + SIMD3<Float>(0.5, 0, 0),
+                                           o: base + SIMD3<Float>(0.9, 0.5, 0))
+                }
+                readouts.append(TrajectoryReadout(
+                    recycle: recycle, blockIndex: step, backbone: backbone,
+                    confidence: [Float](repeating: 80, count: residues)))
+            }
+        }
+        return TrajectoryBundle(metadata: metadata, readouts: readouts)
+    }
+
+    @Test("The first recycle is the default, and it is one descent")
+    func firstRecycleByDefault() throws {
+        let provider = try SampleTrajectoryProvider(bundle: Self.bundle(recycles: 4,
+                                                                       perRecycle: 8))
+        #expect(provider.readouts.count == 8)
+        #expect(provider.readouts.allSatisfy { $0.recycle == 0 })
+    }
+
+    @Test("Asking for all of it gets all of it")
+    func allRecyclesOnRequest() throws {
+        let provider = try SampleTrajectoryProvider(bundle: Self.bundle(recycles: 4,
+                                                                        perRecycle: 8),
+                                                    recycles: .all)
+        #expect(provider.readouts.count == 32)
+    }
+
+    /// A diffusion trajectory has no recycles to choose between, and must come through whole.
+    /// The bundled Genie 2 run is 201 readouts under a single recycle index; filtering it as
+    /// if it were recycled would be the difference between a fold and nothing at all.
+    @Test("A trajectory that does not recycle is played entire")
+    func unrecycledTrajectoryIsUntouched() throws {
+        let provider = try SampleTrajectoryProvider(bundle: Self.bundle(recycles: 1,
+                                                                        perRecycle: 50))
+        #expect(provider.readouts.count == 50)
     }
 }

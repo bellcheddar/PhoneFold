@@ -76,6 +76,23 @@ final class FoldPlayer: ObservableObject {
     var isGenerated: Bool { provider?.isGenerated ?? false }
     var title: String { provider?.metadata.name ?? "PhoneFold" }
 
+    /// How long to dwell on each raw readout, for a fold of about `targetSeconds`.
+    ///
+    /// Clamped at both ends: too fast and the interpolation has nothing to work with, too
+    /// slow and a short trajectory drifts rather than folds.
+    ///
+    /// Worth being clear about what a longer fold does and does not buy. One ESMFold recycle
+    /// is **eight real structures** - the structure module's eight IPA layers - and stretching
+    /// it only adds interpolation between the same eight. There is no denser honest sampling
+    /// available: readouts taken mid-trunk were measured as geometrically broken, CA-CA
+    /// distances of 5 to 18 angstroms, because the structure module is not trained to run
+    /// there. A genuinely long descent with real structures at every step is what the
+    /// diffusion trajectories are for - the bundled Genie 2 run is 201 of them.
+    static func pace(forReadouts count: Int, targetSeconds: Float = 12) -> Float {
+        let intervals = Float(Swift.max(count - 1, 1))
+        return Swift.min(Swift.max(targetSeconds / intervals, 0.03), 1.2)
+    }
+
     func play(_ provider: some FoldFrameProvider) {
         stop()
         self.provider = provider
@@ -92,9 +109,17 @@ final class FoldPlayer: ObservableObject {
         isPlaying = true
 
         let residues = provider.residues
-        let engine = FoldEngine(configuration: .init(frameRate: 60,
-                                                     secondsPerRawFrame: 1.0 / 8.0,
-                                                     paced: true))
+        // Pace from the trajectory's own length, so every fold takes about the same time on
+        // screen whatever engine produced it.
+        //
+        // A fixed seconds-per-readout cannot do that: the bundled trajectories run from 8
+        // readouts for one ESMFold recycle to 201 for a Genie 2 denoising run, a factor of
+        // twenty-five. At the old fixed eighth of a second the first would be over in under a
+        // second - not a fold, a flinch - and this is meant to be watched.
+        let engine = FoldEngine(configuration: .init(
+            frameRate: 60,
+            secondsPerRawFrame: Self.pace(forReadouts: provider.readouts.count),
+            paced: true))
 
         // Detached, not a child of the main actor: a `Task {}` inside a @MainActor type
         // inherits main-actor isolation, which is exactly what starved the renderer.

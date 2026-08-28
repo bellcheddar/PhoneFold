@@ -682,3 +682,48 @@ screen-space bloom and depth of field, for the reasons in the table.
 add contrast, and would also distort the pLDDT ramp - a data scale structural biologists read
 at a glance, and the reason PLAN.md picked it. The stage is graded around the protein and the
 protein's own colours are left true.
+
+### Recycling: what the later passes actually add (2026-08-28)
+
+ESMFold refines by recycling: the trunk runs, its structure is fed back, and it runs again.
+The bundled trajectories are 4 recycles x 8 readouts, where the 8 are the structure module's
+IPA layers. Within a recycle the readouts descend cleanly; at each new recycle the trunk
+re-enters from a coarser state, the structure re-expands, and Rg steps back up. Those are the
+periodic peaks in the trace.
+
+Measured against each trajectory's own final structure, after Kabsch superposition:
+
+| Protein | Residues | End of recycle 0 | Final (4 recycles) | RMSD, recycle 0 to final |
+|---|---|---|---|---|
+| Ubiquitin | 76 | pLDDT 90.5 | 90.5 | **0.18 A** |
+| Myoglobin | 153 | 91.8 | 93.5 | 0.38 A |
+| Trp-cage | 20 | 86.5 | 91.1 | 0.75 A |
+
+Ubiquitin's later recycles retrace the same numbers: Rg 12.02 to 11.36 and pLDDT 79.9 to 90.6,
+three times over, arriving where the first pass already was. Three quarters of the runtime for
+0.0 to 4.6 pLDDT and a structure that is the same structure.
+
+**So playback defaults to the first recycle.** The whole trajectory stays in the file and
+stays playable through `RecycleSelection.all`; this is a choice about what to show.
+
+There is no denser honest sampling of a single pass available: readouts taken between trunk
+blocks were previously measured as geometrically broken, CA-CA distances of 5 to 18 A, because
+the structure module is not trained to run mid-trunk. One recycle is 8 real structures and
+everything between them is interpolation. A long descent with a real structure at every step
+is what the diffusion trajectories are for - the bundled Genie 2 run is 201 of them.
+
+Playback is paced from the trajectory's own length for a fold of about 12 seconds, because the
+bundled trajectories run from 8 readouts to 201 and a fixed rate cannot serve both.
+
+### A flicker test that was passing for the wrong reason
+
+`noFlicker` counted every secondary-structure change and required them to be under 1% of
+residue-frames. Switching playback to the first recycle took that measurement from 0.74% to
+1.94% with no change to any geometry: three quarters of a four-recycle trajectory is an
+already-settled structure where nothing changes, and those frames were diluting the rate. Of
+the 88 changes across the whole ubiquitin run, 53 fall in the first recycle's 36 frames and 35
+are spread over the 120 settled ones.
+
+The test now measures **reversals** - a state that changes and changes back within a tenth of
+a second - as a fraction of changes rather than of residue-frames. Change is the app's whole
+subject; only reversal is flicker. Measured: 53 changes, 6 reversals, so 89% of changes stick.
