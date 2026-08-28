@@ -1,7 +1,7 @@
 # PhoneFold — STATE
 
-**Current phase:** 0 (Model Forge) — **HALTED**, see BLOCKERS.md
-**Current task:** P0-07 (blocked pending the open decision in BLOCKERS.md)
+**Current phase:** 0 (Model Forge)
+**Current task:** P0-14
 **Last updated:** 2026-08-28
 
 Status vocabulary: `todo` / `doing` / `blocked` / `done`.
@@ -25,24 +25,45 @@ are never blocked on the hardest problem in the project.
 | P0-05 | Trajectory generator `Tools/make_sample_trajectories.py`: runs real ESMFold, captures a coordinate readout every N blocks, writes `.pftraj`. **Real inference only — no synthesised trajectories** | P0-03, P0-04 | done |
 | P0-06 | Produce the 12 bundled trajectories (ubiquitin, GFP, lysozyme, insulin, myoglobin, GPCR fragment, IDR, designed all-alpha bundle + 4 of Marc's choosing) into `Apps/Shared/Resources/Trajectories/` | P0-05 | done |
 | P0-07 | `SampleTrajectoryProvider` in `FoldEngine`: loads a `.pftraj` and emits `AsyncStream<FoldFrame>` at wall-clock rate. Tests | P0-06 | todo |
-| P0-08 | Export ESM-2 650M to Core ML: fp16, ANE layout, enumerated length buckets 64/128/192/256/320/384, 6-bit palettisation | P0-04 | todo |
-| P0-09 | Export the stateful trunk step model (`MLState`), coordinate readout every N=4 blocks | P0-08 | todo |
-| P0-10 | `Tools/bench_ane.py` + on-device XCTest harness; write results to `METRICS.md` | P0-09 | todo |
-| P0-11 | Accuracy regression: 20 proteins, TM-score / GDT-TS / mean pLDDT delta vs full precision. Halt if TM-score loss > 0.05 | P0-09 | todo |
-| P0-12 | `Models/manifest.json` with hashes, source checkpoint, toolchain versions, buckets, measured deltas | P0-11 | todo |
-| P0-13 | Mac fp16 unpalettised variant, buckets to 640 | P0-11 | todo |
+| P0-08 | ~~Export ESM-2 650M to Core ML~~ | — | **dropped** |
+| P0-09 | ~~Export the stateful ESMFold trunk step model~~ | — | **dropped** |
 
-### Phase 0 exit gate
+ESMFold is no longer the engine. P0-08, P0-09 and P0-13 are dropped; the ESMFold work that
+survives is the twelve trajectories in P0-06, kept as an interim fixture so Phases 1 to 5 are
+never blocked, and the trunk-patching harness, which is reused by PathDiffusion.
+
+### Phase 0b — the foldingDiff live engine
+
+| ID | Task | Deps | Status |
+|---|---|---|---|
+| P0-14 | Add `foldingdiff-denoising` and `pathdiffusion-pathway` to `TrajectoryProvenance` in both `FoldCore` and `Tools/pftraj.py`; extend the cross-language fixture test | P0-03b | todo |
+| P0-15 | `Tools/make_foldingdiff_trajectories.py`: sample a backbone, capture every denoising step, write `.pftraj`. Real sampling only | P0-14 | todo |
+| P0-16 | ProteinMPNN inverse folding on the final backbone so the trajectory carries a designed sequence the score can use (see BLOCKERS.md) | P0-15 | todo |
+| P0-17 | Export foldingDiff to Core ML: 14.5 M parameters, fp16, ANE layout, length buckets to 128 | P0-15 | todo |
+| P0-18 | Export ProteinMPNN to Core ML | P0-16 | todo |
+| P0-19 | `Tools/bench_ane.py` + on-device XCTest harness; results to `METRICS.md` | P0-17, P0-18 | todo |
+
+### Phase 0c — the PathDiffusion named gallery
+
+| ID | Task | Deps | Status |
+|---|---|---|---|
+| P0-20 | Stand up PathDiffusion: clone, weights, dependency audit on Apple Silicon. Halt if it needs CUDA-only kernels | — | todo |
+| P0-21 | MSA pipeline for the twelve bundled sequences only. Check disk before downloading databases | P0-20 | todo |
+| P0-22 | Generate the twelve named folding pathways, replacing the interim ESMFold bundle | P0-21, P0-14 | todo |
+| P0-23 | `Models/manifest.json`: hashes, source checkpoints, toolchain versions, measured trajectory statistics for both engines | P0-19, P0-22 | todo |
+
+### Phase 0 exit gate (revised for the two-engine design)
 
 Machine-verifiable:
-- [ ] `.mlpackage` files load and predict in an XCTest on the Simulator without crashing
-- [ ] Accuracy regression table written to `METRICS.md`, all deltas within tolerance
-- [ ] Sample trajectory bundle present and loading in `Apps/Shared/Resources/`
+- [ ] foldingDiff and ProteinMPNN `.mlpackage` files load and predict in an XCTest on the Simulator without crashing
+- [ ] Trajectory statistics for both engines written to `METRICS.md`
+- [ ] Twelve PathDiffusion pathways present and loading in `Apps/Shared/Resources/`
+- [ ] A live foldingDiff sample round-trips: generate, inverse-fold, write `.pftraj`, read in Swift
 
 Human-verifiable (**halt**):
 - [ ] ANE residency confirmed on device in Instruments
-- [ ] Real-device frames per second acceptable to Marc across all six length buckets
-- [ ] Marc approves the accuracy trade-off before it is baked in
+- [ ] Real-device frames per second acceptable to Marc
+- [ ] Marc watches a foldingDiff trajectory and agrees it looks like a fold
 
 ---
 

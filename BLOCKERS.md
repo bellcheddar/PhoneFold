@@ -3,7 +3,7 @@
 Questions and decisions that require Marc. Each entry dated, with context, options considered,
 and a recommendation. Nothing here is resolved by the agent.
 
-**Open:** none yet — see "Noted, not blocking" below.
+**Open:** none. The trajectory question was decided on 2026-08-28, see RESOLVED below.
 
 ---
 
@@ -22,7 +22,7 @@ It should fit. If it does not, the agent halts rather than deleting anything.
 
 ---
 
-## OPEN — 2026-08-28 — ESMFold has no watchable folding trajectory
+## RESOLVED 2026-08-28 — ESMFold has no watchable folding trajectory
 
 **This blocks the definition of what PhoneFold shows, so it is Marc's decision, not the
 agent's.** Phase 0 tasks P0-01 to P0-04 are done and committed; the generator works and is
@@ -122,3 +122,56 @@ not to do.
 
 **Marc must choose before Phase 2 renders anything**, because B changes the renderer
 completely. Phase 1 can proceed under any of A, B or D unchanged.
+
+### Resolution, 2026-08-28
+
+Marc chose the hybrid, after a model survey (MODEL_SURVEY.md) and measurement (METRICS.md):
+
+- **Live, on-device: foldingDiff.** 14.5 M parameters in a 57.9 MB checkpoint, 1000
+  denoising steps, 15.29 A of motion against ESMFold's 0.87 A. The app generates a *novel*
+  protein and folds it. Capped at 128 residues by the published weights.
+- **Named gallery: PathDiffusion.** Real folding pathways for the twelve bundled proteins,
+  precomputed offline because its MSA pipeline cannot run on a phone.
+
+What this gives up, explicitly: **PhoneFold no longer folds an arbitrary user-supplied
+accession live.** Accession input and the mutation duet apply to the precomputed gallery
+only. This is a deliberate trade, not an oversight.
+
+ESMFlow was the alternative that would have preserved live arbitrary folding. It was not
+chosen; its partial download has been removed to keep disk free for PathDiffusion's MSA
+databases.
+
+---
+
+## OPEN — 2026-08-28 — two consequences of the foldingDiff decision that need a call
+
+Neither blocks Phase 1. Both must be settled before Phase 3 writes the score.
+
+### 1. foldingDiff produces no sequence, and the score needs one
+
+foldingDiff generates a **backbone only**. It has no residue identities. But the Phase 3
+sonification table depends on them in three places: hydrophobicity of both contact partners
+(the long-range hydrophobic contact is the bass note and the haptic transient), R/K/D/E as
+the Fantasy profile's octave-shift triggers, and the Kyte-Doolittle colour mode in Phase 2.
+
+The standard companion is **ProteinMPNN inverse folding**, which is what the foldingDiff
+paper itself uses to assess designability. It is about 1.7 M parameters, PyTorch, and would
+add roughly 7 MB to the bundle: negligible next to foldingDiff's 58 MB, and it fits the ANE
+trivially. Recommendation: adopt it, and run it once on the final backbone so the whole
+trajectory carries one consistent designed sequence.
+
+### 2. foldingDiff has no pLDDT
+
+It is a generator, not a predictor, so there is no confidence to report. The score maps
+mean pLDDT to low-pass cutoff, detune and reverb, per-residue pLDDT to note velocity, and a
+pLDDT plateau to the closing cadence. In live mode there is nothing behind any of those.
+
+The honest substitute is the **denoising timestep** itself: it is literally how resolved the
+structure is, it moves monotonically, and it drives exactly the same musical axis. It must
+not be called pLDDT anywhere in the UI or the code.
+
+That implies an API change in `FoldCore`: `FoldFrame.pLDDT` becomes a per-residue
+`confidence` carrying a `ConfidenceSource` (`.pLDDT` for predictor-sourced trajectories,
+`.denoisingProgress` for generated ones), so the About panel and the readouts can say which
+one they are showing. Recommendation: make this change at the start of Phase 1, before
+anything consumes the field.
