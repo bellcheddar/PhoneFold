@@ -1,7 +1,7 @@
 # PhoneFold — STATE
 
 **Current phase:** 1 (fold engine and frame stream). Phase 0 has deferred items, listed below.
-**Current task:** P1-09
+**Current task:** P1-10
 **Last updated:** 2026-08-28
 
 Status vocabulary: `todo` / `doing` / `blocked` / `done`.
@@ -101,7 +101,7 @@ into a smooth 60 fps stream of enriched `FoldFrame` values. No UI. Human-verifia
 | P1-06 | P-SEA secondary structure, CA-only, with ~3-frame temporal hysteresis and per-residue confidence | — | done |
 | P1-07 | Contact map and `ContactEvent` emission on inward 8 A crossing, tagged by separation and hydrophobicity | — | done |
 | P1-08 | Per-frame metrics: radius of gyration, contact order, fraction buried hydrophobic, compactness, mean and minimum confidence | P1-07 | done |
-| P1-09 | `actor FoldEngine` exposing `AsyncStream<FoldFrame>`, with `SampleTrajectoryProvider` reading `.pftraj` | P1-05, P1-06, P1-07, P1-08 | todo |
+| P1-09 | `actor FoldEngine` exposing a backpressured `FoldFrameSequence`, with `SampleTrajectoryProvider` reading `.pftraj` | P1-05, P1-06, P1-07, P1-08 | done |
 | P1-10 | Backpressure (bounded buffer, never drop frames), cancellation, thermal and low-power degradation by reducing readouts rather than stuttering | P1-09 | todo |
 | P1-11 | DSSP reference fixtures for 10 PDB structures (mkdssp 4.4.5) | P1-06 | done |
 | P1-12 | Training set: fetch non-redundant PDB chains, compute CA features and mkdssp labels, **excluding every evaluation entry** | P1-11 | done |
@@ -133,3 +133,24 @@ Human-verifiable: **none.**
 ## Phases 2-5
 
 Not yet decomposed. Decompose on entry to the phase.
+
+### Phase 2 — added by Marc, 2026-08-28: show the progress of folding
+
+The theme is **use metrics to show the progress of folding**, live, while it is happening.
+
+- **A GPU / ANE utilisation meter** during folding, showing which compute unit is doing the
+  work. Pointed: the ANE compiler refuses Genie 2 and the live engine runs on the GPU, so the
+  meter makes that visible rather than a footnote in METRICS.md.
+- **A counters panel** during folding, covering compactness, radius of gyration, TM-score,
+  secondary structure content, RMSD, hydrogen bonds, total energy and an energy landscape.
+  Marc noted the list is not closed: treat it as a category.
+
+Already available from `FoldGeometry` and `FoldFrame`, so these are wiring rather than new
+science: radius of gyration, compactness against the `2.2 * N^0.38` expectation, relative
+contact order, contact count, buried hydrophobic fraction, helix/sheet/coil fractions, and
+mean and minimum confidence.
+
+**Needs a decision before promising the rest.** Hydrogen bonds and total energy need more
+than a CA trace and Genie 2 emits CA only. TM-score and RMSD need a reference structure, which
+a *generated* protein does not have: they fit the PathDiffusion named gallery, not live
+generative mode. Raise this on entry to Phase 2 rather than quietly dropping them.

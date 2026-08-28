@@ -117,7 +117,19 @@ case "$PHASE" in
     fi
     ;;
   1)
-    skip "phase 1 gate checks not yet implemented"
+    # The 60 fps criterion is only meaningful in a release build: this engine measures
+    # 1.65 ms/frame with -c release and 511 ms/frame in debug, a factor of 310.
+    if swift test -c release --package-path PhoneFoldKit >/tmp/pf_test_release.log 2>&1; then
+      pass "swift test -c release (includes the 60 fps frame-budget criterion)"
+    else
+      fail "swift test -c release - see /tmp/pf_test_release.log"
+      tail -30 /tmp/pf_test_release.log >&2
+    fi
+    if grep -q "Learned CA-only vs DSSP" /tmp/pf_test_release.log 2>/dev/null; then
+      pass "secondary structure agreement measured against the DSSP reference"
+    else
+      fail "the DSSP agreement test did not run"
+    fi
     ;;
   2|3|4|5)
     skip "phase $PHASE gate checks not yet implemented"
