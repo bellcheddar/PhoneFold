@@ -1,7 +1,7 @@
 # PhoneFold — STATE
 
 **Current phase:** 2 (Aurora Stage, the renderer). Phase 1 is complete, gate GREEN. Phase 0 has deferred items, listed below.
-**Current task:** P2-02
+**Current task:** P2-03
 **Last updated:** 2026-08-28
 
 Status vocabulary: `todo` / `doing` / `blocked` / `done`.
@@ -142,7 +142,7 @@ visual headline. Built multiplatform from the start so Phase 5 is additive.
 | ID | Task | Deps | Status |
 |---|---|---|---|
 | P2-01 | `FoldRender`: backbone tube geometry. Catmull-Rom spline through CA, swept with a cross section that morphs with per-residue secondary structure confidence | — | done |
-| P2-02 | `LowLevelMesh` writer so vertex buffers are rewritten per frame by a compute shader with no CPU round trip. Never rebuild `MeshResource` | P2-01 | todo |
+| P2-02 | `LowLevelMesh` writer so vertex buffers are rewritten in place per frame. Never rebuild `MeshResource` | P2-01 | done |
 | P2-03 | The four colour modes: confidence (AlphaFold ramp), secondary structure, rainbow N to C, Kyte-Doolittle hydrophobicity, with animated cross-fade | P2-01 | todo |
 | P2-04 | Contact flashes: a short-lived emissive line and particle burst at the midpoint, brighter and longer for long-range contacts | P2-02 | todo |
 | P2-05 | Materials and post-processing: HDR bloom on emissives, mild depth of field, vignette, the Aurora grade | P2-02 | todo |

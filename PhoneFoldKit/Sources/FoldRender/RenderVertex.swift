@@ -1,0 +1,82 @@
+import Foundation
+import simd
+import FoldCore
+
+/// The GPU vertex layout for the backbone tube.
+///
+/// Kept separate from `TubeVertex` and from RealityKit on purpose: this is the exact byte
+/// layout written into the vertex buffer, so it is worth being able to test the packing
+/// without a Metal device or a display.
+///
+/// Colour is not stored. The four colour modes cross-fade at runtime, so colour is computed
+/// in the shader from the attributes here rather than baked in and rewritten on every mode
+/// change.
+public struct RenderVertex: Sendable, Equatable {
+    public var position: SIMD3<Float>
+    public var normal: SIMD3<Float>
+    /// Continuous chain position in residues. Drives rainbow colouring and the sequence
+    /// ribbon's highlight.
+    public var residueParameter: Float
+    /// 0...1 secondary structure confidence. Drives the emissive rim on helices.
+    public var structureConfidence: Float
+    /// 0 coil, 1 helix, 2 sheet. A float because vertex attributes are floats and an
+    /// integer semantic would need a separate attribute format for no benefit.
+    public var structureCode: Float
+    /// Per-residue confidence, on the source's own scale. What this *means* depends on the
+    /// trajectory's provenance: pLDDT for a predictor, denoising progress for a generator.
+    public var residueConfidence: Float
+
+    public init(position: SIMD3<Float>, normal: SIMD3<Float>, residueParameter: Float,
+                structureConfidence: Float, structureCode: Float, residueConfidence: Float) {
+        self.position = position
+        self.normal = normal
+        self.residueParameter = residueParameter
+        self.structureConfidence = structureConfidence
+        self.structureCode = structureCode
+        self.residueConfidence = residueConfidence
+    }
+}
+
+public enum TubeMeshPacker {
+
+    /// Pack a tube mesh into the GPU vertex layout, sampling per-residue confidence along
+    /// the chain.
+    ///
+    /// `residueConfidence` is indexed by the vertex's fractional residue parameter and
+    /// interpolated linearly, because it is bounded and a spline would overshoot its range.
+    public static func pack(_ mesh: TubeMesh,
+                            residueConfidence confidence: [Float]) -> [RenderVertex] {
+        mesh.vertices.map { vertex in
+            RenderVertex(
+                position: vertex.position,
+                normal: vertex.normal,
+                residueParameter: vertex.residueParameter,
+                structureConfidence: vertex.structureConfidence,
+                structureCode: Float(vertex.structure.rawValue),
+                residueConfidence: sample(confidence, at: vertex.residueParameter))
+        }
+    }
+
+    static func sample(_ values: [Float], at u: Float) -> Float {
+        guard !values.isEmpty else { return 0 }
+        guard values.count > 1 else { return values[0] }
+        let clamped = Swift.min(Swift.max(u, 0), Float(values.count - 1))
+        let i = Swift.min(Int(clamped.rounded(.down)), values.count - 2)
+        let t = clamped - Float(i)
+        return values[i] + (values[i + 1] - values[i]) * t
+    }
+
+    /// Axis-aligned bounds, needed by RealityKit for culling. Returns nil for an empty mesh
+    /// rather than a degenerate box at the origin, which would cull the protein away.
+    public static func bounds(_ vertices: [RenderVertex])
+        -> (minimum: SIMD3<Float>, maximum: SIMD3<Float>)? {
+        guard let first = vertices.first else { return nil }
+        var minimum = first.position
+        var maximum = first.position
+        for v in vertices.dropFirst() {
+            minimum = simd_min(minimum, v.position)
+            maximum = simd_max(maximum, v.position)
+        }
+        return (minimum, maximum)
+    }
+}

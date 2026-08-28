@@ -488,3 +488,24 @@ reproduces the real segmentation closely. The transition matrix is kept in the m
 reference but is not applied, and the reason is recorded there too.
 
 Temporal stability across frames is a different axis and is still handled by `SSHysteresis`.
+
+## Phase 2 — renderer per-frame cost
+
+Measured on the M1 Max in release, 314 residues (beta-2 adrenergic receptor 7TM core).
+
+| Stage | ms/frame | share of the 16.7 ms budget |
+|---|---|---|
+| Fold engine (align, interpolate, assign, contacts, metrics) | 1.65 | 10% |
+| Tube geometry and GPU packing (22,548 vertices) | 0.52 | 3% |
+| **Total CPU before drawing** | **2.17** | **13%** |
+
+Leaves 87% of the frame for the actual draw, which is the point of writing the vertex buffer
+in place rather than rebuilding `MeshResource`.
+
+### A layout trap worth recording
+
+`SIMD3<Float>` occupies **16 bytes, not 12**: it is 16-byte aligned and the fourth lane is
+padding. `RenderVertex` is therefore 48 bytes rather than the 40 that counting floats
+suggests. The mesh descriptor takes its attribute offsets from `MemoryLayout.offset(of:)`, so
+it is correct; hard-coding 12 for the normal's offset would have sheared every normal in the
+buffer and lit the protein wrongly without any error. A test pins the real layout.
