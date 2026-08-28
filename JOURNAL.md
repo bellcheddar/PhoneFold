@@ -240,3 +240,27 @@ chosen design, and P1-03 (ESM-2 tokeniser) is dropped because nothing tokenises 
 model any more.
 
 **Test result:** 88 tests in 20 suites pass. **Invariants:** GREEN.
+
+## 2026-08-28 — P1-06, P1-11 to P1-14 — secondary structure, and clearing the gate
+
+P-SEA implemented faithfully and measured at 79.4% against mkdssp with the conventional 8-to-3
+mapping, matching biotite's established implementation exactly. PLAN.md asks for 85% and no
+standard mapping reaches it, so the gate was escalated rather than lowered. Marc chose to hold
+the bar and replace the method.
+
+A dihedral sign error was found on the way: a right-handed alpha helix has a CA virtual
+dihedral of +50 degrees under IUPAC and the code returned -50, so P-SEA's helix angle
+criterion never fired. On myoglobin that was 2 residues of 153 passing the angle test where
+118 are helix, with no error anywhere. Fixing it moved agreement from 64.9% to 79.4%.
+
+The replacement is a 5,699-parameter MLP over CA-only features, trained on 118 PDB chains with
+mkdssp labels. **86.9% on the held-out ten, so the gate is met.** The ten evaluation
+structures were excluded from the dataset by PDB id, train and validation were split by chain
+rather than by residue, and the Swift feature extraction and forward pass are asserted
+byte-comparable against the Python implementation.
+
+Viterbi smoothing was built, measured and rejected: it cost 1.7 points of accuracy and
+over-smoothed the segmentation to 397 segments where the truth has 552, nearly eliminating
+short helix and sheet segments. Raw argmax reproduces the real segmentation closely.
+
+**Test result:** 107 tests in 23 suites pass. **Invariants:** GREEN.

@@ -440,3 +440,51 @@ to distances alone and nothing crashed. Fixed by negating `atan2`.
 Also recorded because it nearly went unnoticed: `mkdssp 4.4.5` **segfaults** on several NMR
 entries (2A3D, 1VII, 1L2Y, 2GB1). It was briefly believed to work because the exit status was
 read after a pipeline, which reports the status of `head`, not of `mkdssp`.
+
+## Phase 1 — the learned CA-only secondary structure assigner
+
+Built after Marc chose to hold PLAN.md's 85% gate and replace P-SEA rather than restate the
+criterion.
+
+| | P-SEA (baseline) | **Learned** |
+|---|---|---|
+| Agreement with DSSP, held-out ten | 79.4% (792/997) | **86.9% (866/997)** |
+| Parameters | none | 5,699 |
+| Weights on disk | none | 124 kB JSON |
+| Phase 1 gate (>=85%) | not met | **met** |
+
+### Why the measurement is trustworthy
+
+- The **ten evaluation structures were excluded from the training dataset by PDB id**, in
+  `build_sse_dataset.py`, and the exclusion list is written into the dataset so it can be
+  audited. This is generalisation, not recall.
+- Train and validation were split **by chain**, never by residue: splitting by residue puts
+  neighbouring residues of the same helix on both sides and inflates the score.
+- Features are **CA-only**, as PLAN.md requires. No amides, no carbonyls, no hydrogen bonds.
+- Swift feature extraction and the forward pass are asserted **byte-comparable** against the
+  Python implementation on a fixture, to within 1e-4 on features and 1e-2 on logits. Without
+  that the model would be fed something it was never trained on and would simply get quietly
+  worse.
+
+### Training
+
+139 chains fetched, 118 used for training and 21 for validation, 17,858 residues
+(34% helix, 25% sheet, 41% coil). X-ray only, because mkdssp 4.4.5 segfaults on several NMR
+entries. Validation accuracy 91.6%.
+
+### Viterbi smoothing was measured and rejected
+
+It is the obvious next step and it makes things worse:
+
+| | accuracy | segments | short helix/sheet segments |
+|---|---|---|---|
+| Raw argmax | **91.59%** | **552** | 78 |
+| Viterbi | 89.89% | 397 | 9 |
+| DSSP truth | — | 552 | 70 |
+
+Viterbi costs 1.7 points of accuracy *and* over-smooths: it produces 397 segments where the
+truth has 552, and almost eliminates short helix and sheet segments, 9 against 70. Raw argmax
+reproduces the real segmentation closely. The transition matrix is kept in the model file for
+reference but is not applied, and the reason is recorded there too.
+
+Temporal stability across frames is a different axis and is still handled by `SSHysteresis`.

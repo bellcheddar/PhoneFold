@@ -29,7 +29,8 @@ let package = Package(
     ],
     targets: [
         .target(name: "FoldCore"),
-        .target(name: "FoldGeometry", dependencies: ["FoldCore"]),
+        .target(name: "FoldGeometry", dependencies: ["FoldCore"],
+                resources: [.copy("Resources/sse_classifier.json")]),
         .target(name: "FoldEngine", dependencies: ["FoldCore", "FoldGeometry"]),
         .target(name: "FoldAudio", dependencies: ["FoldCore"]),
         .target(name: "FoldRender", dependencies: ["FoldCore"]),
