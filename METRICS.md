@@ -389,3 +389,54 @@ learned to be robust to a sign that arbitrary. Measured:
 Small sample, and the compactness filter the app needs anyway absorbs it, but it is a real
 measured difference and is not being described as identical. A larger comparison is worth
 running before shipping.
+
+## Phase 1 — P-SEA against DSSP
+
+Measured 2026-08-28. Reference: **mkdssp 4.4.5**, with CA coordinates read from the DSSP
+records themselves so states and coordinates cannot fall out of register. 10 PDB structures,
+997 residues, spanning all-alpha, all-beta and mixed.
+
+### Agreement depends on the DSSP 8-to-3 mapping, and the plan does not say which
+
+| Mapping | Agreement |
+|---|---|
+| Lenient: H, G, I -> H; E, B -> E (the usual convention) | **79.4%** (792/997) |
+| Middle: H, G, I -> H; E -> E | 80.4% |
+| Strict: H -> H; E -> E only (regular secondary structure only) | **84.8%** (845/997) |
+
+**PLAN.md's Phase 1 gate asks for 85% and no standard mapping reaches it.**
+
+### The implementation is not the problem
+
+The Swift implementation reproduces biotite's established P-SEA **exactly**: 678/871 residues
+on the earlier reference set, structure for structure. It is not an approximation that could
+be tuned up.
+
+### Where the disagreement is
+
+| DSSP truth | predicted H | predicted E | predicted C | recall |
+|---|---|---|---|---|
+| H | 277 | 0 | 92 | 75.1% |
+| E | 0 | 190 | 72 | 72.5% |
+| C | 10 | 31 | 325 | 88.8% |
+
+**P-SEA never confuses helix with sheet**: both off-diagonals are zero. Every error is
+under-assignment, and it is structural rather than incidental. Of the 205 residues it gets
+wrong, 42 are DSSP `G` (3-10 helix), 12 are `B` (isolated beta bridge) and 3 are `I` (pi
+helix). A CA-only method that requires five consecutive seed residues for a helix cannot
+find a three-residue 3-10 helix, by construction.
+
+That is also why the strict mapping scores so much better: it stops counting elements the
+method was never able to detect.
+
+### A bug this found, worth recording
+
+An early version scored 64.9%. The cause was the **dihedral sign convention**: the CA virtual
+dihedral of a right-handed alpha helix is +50 degrees under IUPAC, and the implementation
+returned -50. P-SEA's helix angle criterion is 50 +/- 20, so it never fired: on myoglobin, 2
+residues of 153 passed the angle test where 118 are helix. Helix detection silently fell back
+to distances alone and nothing crashed. Fixed by negating `atan2`.
+
+Also recorded because it nearly went unnoticed: `mkdssp 4.4.5` **segfaults** on several NMR
+entries (2A3D, 1VII, 1L2Y, 2GB1). It was briefly believed to work because the exit status was
+read after a pipeline, which reports the status of `head`, not of `mkdssp`.

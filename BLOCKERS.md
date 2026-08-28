@@ -293,3 +293,49 @@ Two things Marc may want to weigh, neither urgent:
    leave it, and revisit only if iPhone GPU numbers disappoint.
 2. **Whether the project's framing changes.** "On the Neural Engine" was part of the pitch.
    "Folds a protein on the GPU, on your phone" is still true and still novel.
+
+---
+
+## OPEN — 2026-08-28 — the Phase 1 P-SEA gate of 85% is not reachable
+
+PLAN.md Phase 1, machine-verifiable exit gate:
+
+> P-SEA agrees with a DSSP reference on 10 PDB structures at >=85% per-residue (CA-only)
+
+It does not, and the implementation is not at fault. Full numbers in METRICS.md.
+
+| | |
+|---|---|
+| Lenient DSSP mapping (H,G,I->H; E,B->E) | **79.4%** |
+| Strict DSSP mapping (H->H; E->E only) | **84.8%** |
+| Does the Swift implementation match a reference one? | **Yes, exactly**: 678/873 residues, structure for structure, against biotite's established P-SEA |
+
+**Why it cannot reach 85%.** P-SEA never confuses helix with sheet: both off-diagonals of the
+confusion matrix are zero. Every error is under-assignment, and it is structural. Of 205 wrong
+residues, 42 are DSSP `G` (3-10 helix), 12 are `B` (beta bridge) and 3 are `I` (pi helix). A
+CA-only method needing five consecutive seed residues cannot detect a three-residue 3-10
+helix. Published CA-only methods generally report Q3 around 80%; 85% is at the optimistic end
+of the literature and appears to assume a favourable mapping.
+
+**What has NOT been done.** The threshold has not been quietly lowered and the criterion is
+not marked met. The test now guards against regression below 78%, which is the level a correct
+implementation reaches, and says in its own comment that the gate is escalated rather than
+satisfied. Nothing has been tuned against the test set.
+
+### Options
+
+1. **Restate the gate as >=78% under the lenient mapping.** Honest, matches the established
+   implementation, and keeps a real regression guard. Recommended.
+2. **Restate it as >=84% under the strict mapping** (H->H, E->E only), which is also a
+   defensible convention and is what pydssp does natively. Closer to the original number, but
+   it reaches it by not counting elements the method cannot detect, which is worth being
+   explicit about rather than quietly adopting.
+3. **Replace P-SEA.** Better CA-only assignment exists, but nothing small and license-clean
+   that clearly beats it, and PLAN.md specifies P-SEA by name.
+4. **Drop the criterion.** The renderer needs plausible, stable secondary structure rather
+   than DSSP parity, and hysteresis matters more to it than a few points of Q3.
+
+**Recommendation: option 1.** It is the only one that states what was measured without
+choosing the convention that flatters it.
+
+Nothing else in Phase 1 is blocked; P1-07, P1-08 and P1-09 proceed regardless.

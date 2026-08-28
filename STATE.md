@@ -1,7 +1,7 @@
 # PhoneFold — STATE
 
 **Current phase:** 1 (fold engine and frame stream). Phase 0 has deferred items, listed below.
-**Current task:** P1-06
+**Current task:** P1-07
 **Last updated:** 2026-08-28
 
 Status vocabulary: `todo` / `doing` / `blocked` / `done`.
@@ -98,12 +98,12 @@ into a smooth 60 fps stream of enriched `FoldFrame` values. No UI. Human-verifia
 | P1-03 | ~~ESM-2 tokeniser in pure Swift~~ | — | **dropped** |
 | P1-04 | `FoldGeometry`: Kabsch superposition of each frame onto the previous, so the molecule stops tumbling | — | done |
 | P1-05 | Interpolation to 60 fps: Catmull-Rom in time over aligned frames, interpolated frames flagged | P1-04 | done |
-| P1-06 | P-SEA secondary structure, CA-only, with ~3-frame temporal hysteresis and per-residue confidence | — | todo |
+| P1-06 | P-SEA secondary structure, CA-only, with ~3-frame temporal hysteresis and per-residue confidence | — | done |
 | P1-07 | Contact map and `ContactEvent` emission on inward 8 A crossing, tagged by separation and hydrophobicity | — | todo |
 | P1-08 | Per-frame metrics: radius of gyration, contact order, fraction buried hydrophobic, mean and minimum confidence | P1-07 | todo |
 | P1-09 | `actor FoldEngine` exposing `AsyncStream<FoldFrame>`, with `SampleTrajectoryProvider` reading `.pftraj` | P1-05, P1-06, P1-07, P1-08 | todo |
 | P1-10 | Backpressure (bounded buffer, never drop frames), cancellation, thermal and low-power degradation by reducing readouts rather than stuttering | P1-09 | todo |
-| P1-11 | DSSP reference fixtures for 10 PDB structures, for the P-SEA agreement gate | P1-06 | todo |
+| P1-11 | DSSP reference fixtures for 10 PDB structures (mkdssp 4.4.5) | P1-06 | done |
 
 **P1-02 is deferred:** on-device accession lookup existed so a user could fold their own
 protein live. The chosen engine generates novel proteins and the named gallery is
@@ -119,7 +119,7 @@ sequence for a language model.
 
 Machine-verifiable:
 - [ ] `swift test` green on macOS and iOS Simulator
-- [ ] P-SEA agrees with a DSSP reference on 10 PDB structures at >=85% per-residue (CA-only)
+- [ ] P-SEA agrees with a DSSP reference on 10 PDB structures at >=85% per-residue (CA-only) — **NOT MET: 79.4% lenient / 84.8% strict, see BLOCKERS.md. Not marked met.**
 - [ ] A bundled trajectory plays end to end from the sample provider
 - [ ] Frame stream sustains 60 fps output with interpolation for a 300-residue input
 - [ ] Zero data races under Thread Sanitizer with Swift 6 strict concurrency
