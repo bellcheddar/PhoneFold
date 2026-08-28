@@ -100,4 +100,90 @@ public enum TubeMeshPacker {
         }
         return (minimum, maximum)
     }
+
+    /// A halo shell: the same surface pushed out along its own normals.
+    ///
+    /// This is glow done in object space, because screen-space bloom is not reachable from
+    /// here - see `PostProcess.metal` for the three APIs that were tried. Offsetting along
+    /// the normal keeps the halo welded to the tube by construction, which is the property
+    /// that matters: a glow drawn from projected residue positions would drift out of
+    /// register with the geometry at exactly the moments the fold is most interesting, and
+    /// the drift would look like a rendering fault rather than a lighting choice.
+    ///
+    /// Only the far wall is drawn, and `farFacing` selects it here on the CPU rather than
+    /// asking the renderer to cull. Neither `faceCulling = .front` nor reversing the triangle
+    /// winding had any effect: this configuration culls nothing, so the shell drew its near
+    /// wall and the tube disappeared behind a flat silhouette. Choosing the triangles
+    /// ourselves is the one version of this that cannot be ignored.
+    ///
+    /// - Parameters:
+    ///   - vertices: the packed tube.
+    ///   - offset: how far to push, in scene units.
+    ///   - brightness: multiplies the colour. Above 1 the halo is brighter than the surface
+    ///     it surrounds, which is what makes it read as emission rather than as a smear.
+    public static func shell(_ vertices: [RenderVertex],
+                             offset: Float,
+                             brightness: Float) -> [RenderVertex] {
+        guard offset > 0 else { return vertices }
+        return vertices.map { vertex in
+            var shifted = vertex
+            shifted.position = vertex.position + vertex.normal * offset
+            shifted.colour = SIMD4<Float>(vertex.colour.x * brightness,
+                                          vertex.colour.y * brightness,
+                                          vertex.colour.z * brightness,
+                                          vertex.colour.w)
+            return shifted
+        }
+    }
+
+    /// Swap two corners of every triangle, so each face points the other way.
+    ///
+    /// Used to build an inverted hull. Nothing else about the mesh changes: same vertices,
+    /// same count, same order of triangles, so a mesh allocated from the original template
+    /// still has exactly the right capacity.
+    public static func reverseWinding(_ indices: [UInt32]) -> [UInt32] {
+        var reversed = indices
+        var triangle = 0
+        while triangle * 3 + 2 < reversed.count {
+            reversed.swapAt(triangle * 3 + 1, triangle * 3 + 2)
+            triangle += 1
+        }
+        return reversed
+    }
+
+    /// The triangles of a closed shell that face away from the viewer.
+    ///
+    /// This is back-face culling, done here because the renderer would not do it: see the
+    /// note on `shell`. Working in mesh space rather than world space keeps it to one
+    /// rotation of a single axis instead of transforming every normal.
+    ///
+    /// - Parameter viewAxis: the direction from the mesh toward the viewer, in mesh space.
+    /// - Returns: indices for the triangles pointing away from `viewAxis`, in their original
+    ///   order, so the result is deterministic.
+    public static func farFacing(vertices: [RenderVertex], indices: [UInt32],
+                                 viewAxis: SIMD3<Float>) -> [UInt32] {
+        guard !vertices.isEmpty, indices.count >= 3 else { return [] }
+        var kept: [UInt32] = []
+        kept.reserveCapacity(indices.count / 2)
+        var triangle = 0
+        while triangle * 3 + 2 < indices.count {
+            let a = Int(indices[triangle * 3])
+            let b = Int(indices[triangle * 3 + 1])
+            let c = Int(indices[triangle * 3 + 2])
+            if a < vertices.count, b < vertices.count, c < vertices.count {
+                // The face normal from the three vertex normals rather than from a cross
+                // product of the edges: the tube's vertex normals are already the swept
+                // cross section's outward normals, and a degenerate triangle at a tight turn
+                // would give a cross product of zero length and a random sign.
+                let normal = vertices[a].normal + vertices[b].normal + vertices[c].normal
+                if simd_dot(normal, viewAxis) < 0 {
+                    kept.append(indices[triangle * 3])
+                    kept.append(indices[triangle * 3 + 1])
+                    kept.append(indices[triangle * 3 + 2])
+                }
+            }
+            triangle += 1
+        }
+        return kept
+    }
 }

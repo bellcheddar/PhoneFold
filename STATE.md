@@ -1,7 +1,7 @@
 # PhoneFold — STATE
 
-**Current phase:** 2 (Aurora Stage, the renderer) — **HALTED at the exit gate.** The machine gate is GREEN; the human-verifiable criteria need Marc and a device. See BLOCKERS.md.
-**Current task:** awaiting Marc's Phase 2 sign-off
+**Current phase:** 2 (Aurora Stage, the renderer). Machine gate GREEN. Marc asked for playback and the grade to be fixed **before** the human sign-off, so the halt is lifted and P2-14 and P2-05 are in progress.
+**Current task:** none. P2-14 and P2-05 are done and the machine gate is GREEN; waiting on Marc's Phase 2 sign-off.
 **Last updated:** 2026-08-28
 
 Status vocabulary: `todo` / `doing` / `blocked` / `done`.
@@ -145,13 +145,14 @@ visual headline. Built multiplatform from the start so Phase 5 is additive.
 | P2-02 | `LowLevelMesh` writer so vertex buffers are rewritten in place per frame. Never rebuild `MeshResource` | P2-01 | done |
 | P2-03 | The four colour modes: confidence (AlphaFold ramp), secondary structure, rainbow N to C, Kyte-Doolittle hydrophobicity, with animated cross-fade | P2-01 | done |
 | P2-04 | Contact flashes: a short-lived emissive line and particle burst at the midpoint, brighter and longer for long-range contacts | P2-02 | done |
-| P2-05 | Materials: per-residue colour via mesh parts and stock materials (CustomMaterial's pipeline fails on the Simulator, see METRICS.md). Bloom, depth of field, vignette and the Aurora grade outstanding | P2-02 | part |
+| P2-05 | Materials: per-residue colour via mesh parts and stock materials. Grade delivered as an object-space halo plus a composited vignette; screen-space bloom and depth of field are not reachable here - five APIs measured in METRICS.md, and the only one that would work needs a physical device | P2-02 | done |
 | P2-06 | Camera: auto-orbit, drag, pinch, pan, double-tap reframe, follow-the-action. `StageCamera` fully tested | P2-02 | done |
 | P2-07 | A minimal iOS/macOS app target that plays a bundled trajectory, so the renderer can actually be run and filmed | P2-02 | done |
 | P2-08 | Readouts: counters, stacked structure chart, radius of gyration trace, timeline with contact ticks. Charts need P2-13 before they accumulate enough samples to show | P2-07 | mostly done |
 | P2-09 | **Marc's addition:** compute meter. Reports measured frame cost against the 60 fps budget and the configured compute unit; iOS exposes no public GPU/ANE utilisation API, so it does not claim one | P2-07 | done |
 | P2-10 | **Marc's addition:** the folding-progress counters panel | P2-08 | done |
-| P2-13 | Move frame production off the main actor (**done**, and it fixed the Release rendering bug). Caching per-bucket materials still outstanding | P2-08 | mostly done |
+| P2-13 | Move frame production off the main actor (**done**, and it fixed the Release rendering bug); per-bucket materials cached | P2-08 | done |
+| P2-14 | Playback: stop driving the 3D view through SwiftUI state at 60 fps, and throttle the HUD. Marc asked for this before the sign-off. Also fixed the backbone drawing in pieces: `LowLevelMesh.Part.indexOffset` is a byte offset, not an index count | P2-13 | done |
 | P2-11 | Snapshot tests of all four colour modes against reference images | P2-03 | done |
 | P2-12 | Assert zero geometry NaNs across a full sample trajectory | P2-01 | done |
 

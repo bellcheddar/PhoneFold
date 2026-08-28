@@ -142,6 +142,34 @@ public final class LowLevelTubeMesh {
         updateCount += 1
     }
 
+    /// Update with an explicit set of indices, drawn as one part.
+    ///
+    /// Used by the halo, whose visible triangles change as the protein turns.
+    public func update(vertices: [RenderVertex], indices: [UInt32]) throws {
+        guard vertices.count <= vertexCapacity else {
+            throw MeshError.capacityExceeded(needed: vertices.count, capacity: vertexCapacity)
+        }
+        guard indices.count <= indexCapacity else {
+            throw MeshError.capacityExceeded(needed: indices.count, capacity: indexCapacity)
+        }
+        mesh.withUnsafeMutableBytes(bufferIndex: 0) { raw in
+            let buffer = raw.bindMemory(to: RenderVertex.self)
+            for (i, vertex) in vertices.enumerated() { buffer[i] = vertex }
+        }
+        mesh.withUnsafeMutableIndices { raw in
+            let buffer = raw.bindMemory(to: UInt32.self)
+            for (i, index) in indices.enumerated() { buffer[i] = index }
+        }
+        let box = TubeMeshPacker.bounds(vertices)
+        let bounds = box.map { BoundingBox(min: $0.minimum, max: $0.maximum) }
+            ?? BoundingBox(min: .zero, max: .zero)
+        mesh.parts.replaceAll([
+            LowLevelMesh.Part(indexOffset: 0, indexCount: indices.count,
+                              topology: .triangle, materialIndex: 0, bounds: bounds)
+        ])
+        updateCount += 1
+    }
+
     /// A `MeshResource` view of the current buffer, for attaching to a `ModelEntity`.
     public func resource() throws -> MeshResource {
         try MeshResource(from: mesh)

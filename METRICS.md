@@ -637,3 +637,48 @@ rewrites itself on mismatch is not a test.
 Coverage is measured against the stage's own median ground colour rather than an assumed
 background value: the first attempt hard-coded the ground and reported every launch as 100 %
 lit, which is the shape of an answer that is not measuring anything.
+
+### P2-05 — the Aurora grade: five routes to the stage's pixels (2026-08-28)
+
+PLAN.md Phase 2 asks for "HDR bloom on emissives, mild depth of field, vignette, Aurora
+grade". Bloom and depth of field are screen-space effects. Every API that could reach the
+stage's pixels was tried and the result measured, not assumed:
+
+| Route | Result | How it was established |
+|---|---|---|
+| `CustomMaterial` surface shader | Pipeline never compiles | `fsSurfacePbr`: "Constant buffer count [16] exceeds limit [14]". Mesh present, material assigned, nothing drawn. Bisected against `SimpleMaterial` |
+| `ARView.renderCallbacks.postProcess` | Traps on assignment | `EXC_BREAKPOINT` in `ARView.renderCallbacks.setter`, no assertion text in `log stream`. A/B of that one line: unset the app runs, set the process is gone |
+| SwiftUI `layerEffect` over `RealityView` | Unsupported-effect placeholder | Rendered as SwiftUI's yellow-and-red placeholder |
+| SwiftUI `colorEffect` over `RealityView` | Unsupported-effect placeholder | Same. The vignette term was visibly applied **to the placeholder** |
+| `UnlitMaterial.faceCulling = .front`, and reversed triangle winding | Both ignored | The shell drew its near wall either way and the tube vanished behind a flat silhouette |
+
+`ARView.renderCallbacks.postProcess` is the only one of these that would deliver true bloom
+and a true depth of field, because it is the only one that hands over `sourceDepthTexture`.
+It may well work on hardware. No device is paired with this machine
+(`xcrun devicectl list devices`: "No devices found"), so that is untested and is not claimed.
+
+**A note on the red probe.** The `colorEffect` route was first tested with a shader returning
+pure red, and the stage came back pure red, which was read as success. It was not: a uniform
+output is identical whether it landed on the RealityView or on the placeholder that replaces
+it. The failure only became visible once the shader returned something with structure in it -
+the vignette's gradient, which showed up sitting on the placeholder. A probe whose output is
+uniform cannot distinguish success from the failure mode it is meant to detect.
+
+#### What is delivered, and what it costs
+
+| Measurement | Value |
+|---|---|
+| Halo: shell + back-face rejection, 300 residues / 43,056 triangles | **0.15 ms** per frame (release) |
+| The same, debug build | 9.49 ms - 63x slower, and meaningless |
+| Frame cost on screen, trp-cage, after the grade | 1.7 ms (unchanged) |
+| Package suite | 214 tests, 38 suites, all passing (release) |
+| Phase 2 machine gate | GREEN, including the macOS app build |
+
+Delivered: the halo (object-space glow, welded to the tube's own normals), the vignette
+(composited, needs no shader), and PLAN.md's indigo-to-near-black ground. Not delivered:
+screen-space bloom and depth of field, for the reasons in the table.
+
+**One thing deliberately not done.** A tone curve over the stage would lift the shadows and
+add contrast, and would also distort the pLDDT ramp - a data scale structural biologists read
+at a glance, and the reason PLAN.md picked it. The stage is graded around the protein and the
+protein's own colours are left true.

@@ -461,3 +461,28 @@ has been ticked. They need real hardware, Instruments, and Marc's eyes.
 
 Phase 0's ProteinMPNN Core ML export, the extra Genie 2 length buckets, and the whole
 PathDiffusion gallery (Phase 0c). Reasons in STATE.md.
+
+## Phase 2 — one decision for Marc, at the sign-off
+
+**Screen-space bloom and depth of field: pursue on device, or leave as delivered?**
+
+The stage now has an object-space halo and a composited vignette, and both are verified on the
+Simulator. What is *not* there is true HDR bloom and a real depth of field, because both need
+the rendered colour and depth textures and every route to them was measured as unavailable
+here - the table is in METRICS.md.
+
+`ARView.renderCallbacks.postProcess` is the exception worth naming: it is the one API that
+exposes `sourceDepthTexture`, it would deliver both effects properly, and it traps on
+assignment on the Simulator. It may work perfectly on hardware. There is no device paired with
+this machine, so it could not be tried.
+
+This is a decision rather than a blocker because the work is complete without it, and because
+the Phase 2 gate already halts for a device check. Options:
+
+1. **Leave it.** The halo and vignette carry the look, and the code stays one renderer with no
+   `#if os` fork. Recommended unless the glow disappoints on a real screen.
+2. **Try `ARView` on device.** Needs an iPhone or iPad paired to this Mac. It forks the stage's
+   host view - `ARView` does not exist on visionOS, so Phase 5 would keep `RealityView` and the
+   two paths would need to stay in step.
+
+Nothing downstream is waiting on this: it can be revisited any time after Phase 2.

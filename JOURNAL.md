@@ -351,3 +351,31 @@ in bytes without gaps or overlap. Negative-tested: reverting the fix makes it re
 The on-screen diagnostic channel is kept, gated behind `PHONEFOLD_DIAGNOSTICS=1` and off by
 default. `simctl launch --console-pty` has returned empty for this app every time it has been
 tried, and both of the expensive render bugs were found by putting counts on the glass.
+
+## P2-05 — the Aurora grade (2026-08-28)
+
+Five APIs tried, three of them failing silently or with no message at all; the measurements
+are in METRICS.md. The short version is that nothing in this configuration will let a shader
+near the stage's pixels, and nothing will cull a face on request, so the grade is built out of
+the two things that cannot be refused: geometry we choose ourselves, and compositing.
+
+The glow is a halo shell - the tube's own surface pushed out along its own normals, so it is
+welded to the geometry and cannot drift out of register - with the near-facing half removed on
+the CPU, one dot product per triangle, refreshed both when a frame arrives and when the camera
+moves. That last part matters: the auto-orbit outlives playback, so a halo that only refreshed
+on new frames would freeze at the last frame's silhouette and slide out of register while the
+protein kept turning.
+
+Three wrong turns worth recording. The halo was first parented to the root rather than to the
+protein, so it missed the framing scale and the orbit and filled the stage as a pale blob -
+which reads as a broken material rather than a misplaced entity. Then `faceCulling = .front`
+was set and ignored. Then the winding was reversed, on the theory that culling was at least
+happening in the default direction, and that was ignored too, which is what identified the
+real situation: this configuration culls nothing.
+
+And one bad probe. The `colorEffect` route was tested with a shader that returned pure red,
+the stage came back pure red, and that was recorded as success. It was not - SwiftUI had
+replaced the RealityView with its unsupported-effect placeholder, and the placeholder is just
+as red when you paint it red. The mistake only surfaced when a shader with structure in its
+output (the vignette gradient) showed that gradient sitting on the placeholder. A probe whose
+output is uniform cannot tell success from the failure it is looking for.

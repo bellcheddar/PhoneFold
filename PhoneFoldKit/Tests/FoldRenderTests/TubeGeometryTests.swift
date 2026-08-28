@@ -200,3 +200,107 @@ struct TubeGeometryTests {
         #expect(checked > 20)
     }
 }
+
+/// The halo shell and the back-face rejection it needs.
+///
+/// The renderer culls nothing in this configuration - neither `faceCulling = .front` nor a
+/// reversed triangle winding had any effect on screen - so the halo picks its own visible
+/// triangles. That makes this our own geometry code and not a material setting, and it gets
+/// tested like geometry.
+@Suite("Halo shell")
+struct HaloShellTests {
+
+    /// A tube long enough to have a real silhouette from any angle.
+    static func tube(residues: Int = 40) -> (TubeMesh, [RenderVertex]) {
+        let ca = (0..<residues).map { i -> SIMD3<Float> in
+            let t = Float(i) * 0.5
+            return SIMD3<Float>(cos(t) * 4, sin(t) * 4, Float(i) * 1.2)
+        }
+        let ss = ca.indices.map { _ in SSAssignment(structure: .coil, confidence: 0.5) }
+        let mesh = TubeGeometry.build(caPositions: ca, secondaryStructure: ss)
+        let packed = TubeMeshPacker.pack(mesh,
+                                         residueConfidence: ca.map { _ in Float(0.8) },
+                                         mode: .confidence)
+        return (mesh, packed)
+    }
+
+    @Test("The shell surrounds the tube and never crosses it")
+    func shellSurroundsTheTube() {
+        let (_, packed) = Self.tube()
+        let offset: Float = 0.25
+        let shell = TubeMeshPacker.shell(packed, offset: offset, brightness: 1)
+        #expect(shell.count == packed.count)
+        for (original, shifted) in zip(packed, shell) {
+            let moved = shifted.position - original.position
+            #expect(abs(simd_length(moved) - offset) < 1e-4,
+                    "every vertex moves by exactly the offset")
+            #expect(simd_dot(moved, original.normal) > 0, "and it moves outward, never in")
+        }
+    }
+
+    /// The property that matters on screen: what is kept and what is dropped must partition
+    /// the mesh. If they overlapped the halo would show through the tube; if together they
+    /// missed triangles, the rim would have gaps in it.
+    @Test("Facing away and facing toward partition the shell exactly")
+    func cullingPartitionsTheShell() {
+        let (mesh, packed) = Self.tube()
+        let shell = TubeMeshPacker.shell(packed, offset: 0.25, brightness: 1)
+        for axis in [SIMD3<Float>(0, 0, 1), SIMD3<Float>(1, 0, 0),
+                     simd_normalize(SIMD3<Float>(1, 2, -3))] {
+            let away = TubeMeshPacker.farFacing(vertices: shell, indices: mesh.indices,
+                                                viewAxis: axis)
+            let toward = TubeMeshPacker.farFacing(vertices: shell, indices: mesh.indices,
+                                                  viewAxis: -axis)
+            #expect(away.count % 3 == 0)
+            #expect(away.count + toward.count <= mesh.indices.count,
+                    "no triangle may be in both halves")
+            // A closed tube seen from any direction shows a substantial part of each half.
+            let fraction = Double(away.count) / Double(mesh.indices.count)
+            #expect(fraction > 0.25 && fraction < 0.75,
+                    "roughly half a closed surface faces away, got \(fraction)")
+        }
+    }
+
+    @Test("An empty or degenerate mesh yields no halo rather than trapping")
+    func degenerateInputsAreSafe() {
+        #expect(TubeMeshPacker.farFacing(vertices: [], indices: [0, 1, 2],
+                                         viewAxis: SIMD3<Float>(0, 0, 1)).isEmpty)
+        let (_, packed) = Self.tube()
+        #expect(TubeMeshPacker.farFacing(vertices: packed, indices: [],
+                                         viewAxis: SIMD3<Float>(0, 0, 1)).isEmpty)
+        // An out-of-range index must be skipped, not read.
+        let bad: [UInt32] = [0, 1, UInt32(packed.count + 100)]
+        #expect(TubeMeshPacker.farFacing(vertices: packed, indices: bad,
+                                         viewAxis: SIMD3<Float>(0, 0, 1)).isEmpty)
+        #expect(TubeMeshPacker.shell(packed, offset: 0, brightness: 1).count == packed.count)
+    }
+
+    /// What the halo adds to a frame, at the size PLAN.md's budget is written against.
+    @Test("The halo's cost stays a small fraction of the frame budget")
+    func haloCost() {
+        let (mesh, packed) = Self.tube(residues: 300)
+        let axis = simd_normalize(SIMD3<Float>(0.3, 0.4, 1))
+        var best = Double.greatestFiniteMagnitude
+        // The minimum of several batches, because a single batch on a shared machine swings
+        // by more than the quantity being measured.
+        for _ in 0..<5 {
+            let start = Date()
+            for _ in 0..<10 {
+                let shell = TubeMeshPacker.shell(packed, offset: 0.25, brightness: 1)
+                _ = TubeMeshPacker.farFacing(vertices: shell, indices: mesh.indices,
+                                             viewAxis: axis)
+            }
+            best = min(best, Date().timeIntervalSince(start) / 10 * 1000)
+        }
+        print("halo: \(mesh.indices.count / 3) triangles, \(String(format: "%.2f", best)) ms")
+        // Release only. The same measurement in a debug build reads 9.49 ms against 0.15 ms
+        // optimised - a factor of sixty-three - so asserting the real budget there would fail
+        // for a reason that has nothing to do with the code. The number is only meaningful
+        // from `swift test -c release`, which is what the phase gate runs.
+        #if !DEBUG
+        #expect(best < 2.0, "the halo must not eat the frame: \(best) ms")
+        #else
+        #expect(best < 60.0, "debug build: only checking this is not pathological")
+        #endif
+    }
+}
