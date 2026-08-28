@@ -190,3 +190,24 @@ The trajectory is what the app needs: 201 frames, Rg 1.0 to 10.8 A, 10.72 A of m
 at a compact fold. ESMFold's equivalent was 0.87 A.
 
 **Test result:** Swift 53 tests in 16 suites pass; Python 7 pass. **Invariants:** GREEN.
+
+## 2026-08-28 — P0-17, P0-19 — Genie 2 on Core ML, and the ANE will not take it
+
+Exported the denoiser as `Genie2Step_L64.mlpackage`, fp16, 33.8 MB, features baked in per
+length bucket.
+
+Six rewrites were needed, each verified numerically rather than assumed: the strided in-place
+`sinusoidal_encoding`, `rot_to_quat` (no `linalg_eigh` op), `quat_to_rot` (rank 6), dropout
+stripped (builds masks with `new_ones`), `new_ones`/`new_zeros` converters registered, and
+invariant point attention rewritten from a rank-6 tensor to a rank-4 matmul. All are exact
+except the quaternion, which is discussed in METRICS.md.
+
+The result that matters: **the ANE compiler fails on this model**. Asking for the ANE is 33x
+slower per step than the GPU and takes 528 s to load. The GPU gives 15.2 ms/step, 15 s for a
+1000-step trajectory, 7.6x faster than PyTorch on CPU at the same length.
+
+PLAN.md's subtitle says "folds a protein on the Apple Neural Engine". For Genie 2 that is not
+available; the live engine runs on the GPU. Recorded in BLOCKERS.md as something Marc may
+want to reframe, not as a blocker.
+
+**Invariants:** GREEN.

@@ -264,3 +264,32 @@ substitute.
 foldingDiff's 18 s, for the same 1000 steps. At 15.73 M parameters the ANE should close much
 of that, but if it does not, live on-device generation needs either fewer denoising steps or
 a move to precomputed trajectories. To be measured in P0-19, not guessed at.
+
+---
+
+## OPEN — 2026-08-28 — the Apple Neural Engine will not compile Genie 2
+
+Not blocking: the GPU path works and is fast. Recorded because PLAN.md is subtitled "folds a
+protein on the Apple Neural Engine" and that is no longer accurate for this engine.
+
+Core ML conversion succeeds, but ANE compilation fails outright:
+
+```
+MILCompilerForANE error: failed to compile ANE model using ANEF.
+Error=_ANECompiler : ANECCompile() FAILED.
+```
+
+Requesting the ANE is 33x slower per step than the GPU (498 ms against 15.2 ms) and takes
+528 s to load, because the runtime falls back badly. Requesting `ALL` is fine: Core ML
+chooses the GPU on its own.
+
+The GPU number is good: **15.2 ms per denoising step, 15 s for a 1000-step trajectory**, and
+7.6x faster than PyTorch on the CPU. Live on-device generation stays viable.
+
+Two things Marc may want to weigh, neither urgent:
+
+1. **Whether to chase ANE compilation.** The failure message names no op. Diagnosing it means
+   bisecting the graph, and the payoff over a working GPU path is uncertain. Recommendation:
+   leave it, and revisit only if iPhone GPU numbers disappoint.
+2. **Whether the project's framing changes.** "On the Neural Engine" was part of the pitch.
+   "Folds a protein on the GPU, on your phone" is still true and still novel.

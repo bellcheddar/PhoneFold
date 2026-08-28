@@ -1,7 +1,7 @@
 # PhoneFold — STATE
 
 **Current phase:** 0 (Model Forge)
-**Current task:** P0-17 (Core ML export of Genie 2)
+**Current task:** P0-18 (ProteinMPNN to Core ML), then remaining length buckets
 **Last updated:** 2026-08-28
 
 Status vocabulary: `todo` / `doing` / `blocked` / `done`.
@@ -42,9 +42,9 @@ never blocked, and the trunk-patching harness, which is reused by PathDiffusion.
 | P0-24 | `Tools/make_genie2_trajectories.py`: sample with Genie 2, capture every denoising step, write `.pftraj` | P0-14 | done |
 | P0-25 | CA-only support: `.pftraj` format version 2 adds an atoms-per-residue word; version 1 files still decode | P0-24 | done |
 | P0-26 | Add `genie2-denoising` to `TrajectoryProvenance` on both sides | P0-14 | done |
-| P0-17 | Export Genie 2 to Core ML: 15.73 M parameters, fp16, ANE layout, lengths to 256 | P0-24 | todo |
+| P0-17 | Export Genie 2 to Core ML: 15.73 M parameters, fp16, lengths to 256 | P0-24 | done (length 64; more buckets outstanding) |
 | P0-18 | Export ProteinMPNN to Core ML | P0-16 | todo |
-| P0-19 | `Tools/bench_ane.py` + on-device XCTest harness; results to `METRICS.md` | P0-17, P0-18 | todo |
+| P0-19 | `Tools/bench_ane.py` + on-device XCTest harness; results to `METRICS.md` | P0-17, P0-18 | part done (Mac measured; on-device is a human gate) |
 
 ### Phase 0c — the PathDiffusion named gallery
 

@@ -317,3 +317,75 @@ A raw coordinate comparison of the same two structures shows 85 A of difference,
 upstream centres the structure in its PDB writer. That is a rigid-body offset, not a
 disagreement. Structures are compared after superposition, never coordinate-wise: the first
 comparison here was made the wrong way and briefly looked like a serious bug.
+
+## Phase 0b — P0-17 and P0-19: Genie 2 exported to Core ML
+
+Measured 2026-08-28 on the M1 Max. **These are Mac figures.** PLAN.md is explicit that
+desktop and Simulator numbers say nothing about ANE work; on-device measurement remains a
+human-verifiable gate.
+
+`Genie2Step_L64.mlpackage`, fp16, 33.8 MB. One export per length bucket, with the static
+features baked in as constants.
+
+### The headline: the ANE will not compile this model
+
+```
+MILCompilerForANE error: failed to compile ANE model using ANEF.
+Error=_ANECompiler : ANECCompile() FAILED.
+```
+
+| Compute units | load (s) | ms/step | s per 1000-step trajectory |
+|---|---|---|---|
+| CPU only | 1.8 | 29.2 | 29 |
+| **CPU + GPU** | 1.9 | **15.2** | **15** |
+| CPU + ANE | **527.9** | 498.1 | 498 |
+| all | 4.2 | 16.2 | 16 |
+| *PyTorch CPU (baseline, same length)* | — | *116.3* | *116* |
+
+Requesting the ANE is **33x slower per step than the GPU** and takes nearly nine minutes to
+load, because the ANE compile fails and the runtime falls back badly. Asking for `ALL` is
+fine: Core ML picks the GPU.
+
+**Core ML on the GPU is 7.6x faster than PyTorch on the CPU**, taking a 1000-step trajectory
+from 116 s to 15 s at 64 residues.
+
+Consequence for PLAN.md: the project is subtitled "folds a protein on the Apple Neural
+Engine", and for Genie 2 that is not available. The live engine runs on the **GPU** instead.
+Nothing else about the design changes, and 15 s per trajectory on a Mac is comfortable.
+
+### What it took to convert, and what each rewrite cost
+
+Six rewrites, each verified numerically before use rather than assumed:
+
+| Rewrite | Why | Measured effect on output |
+|---|---|---|
+| `sinusoidal_encoding` | strided in-place assignment (`enc[..., 0::2] = ...`) has no converter | **exact**, asserted over 3 shapes |
+| `rot_to_quat` | `torch.linalg.eigh` has no Core ML op | see below |
+| `quat_to_rot` | built a rank-6 intermediate | **exact** to 1e-5 |
+| dropout layers stripped | build masks with `new_ones` | **0.000e+00**, asserted |
+| `new_ones` / `new_zeros` | no converter | n/a, registered |
+| IPA point attention and `invert_apply` | rank-6 tensors; Core ML caps rank at 5 | **7.2e-07**, 0.00004% RMS |
+
+The IPA rewrite replaces a materialised `[B, N, N, H, P, 3]` tensor with the algebraic
+expansion of a weighted pairwise squared distance, `||q||^2 + ||k||^2 - 2 q.k`, as a per-head
+matmul. Never above rank 4, exact, and faster because the rank-6 tensor is never built.
+
+### The one rewrite that is not exact: the quaternion sign
+
+Genie 2 converts rotations to quaternions with Davenport's q-method, taking the eigenvector
+of the largest eigenvalue. **LAPACK's eigenvector sign is arbitrary**: over 4000 random
+rotations, `eigh` returned a non-negative scalar component 51.6% of the time, so the sign
+flips discontinuously between neighbouring rotations. The closed-form replacement agrees on
+the *rotation* 100% of the time and on the *sign* 51% of the time.
+
+Since that quaternion is fed to the network as a pair feature, the network can only have
+learned to be robust to a sign that arbitrary. Measured:
+
+| | effect |
+|---|---|
+| denoiser output `z` | 7.5 - 9.2% relative RMS |
+| generated structure compactness | 3/4 compact (median Rg ratio 1.03) vs 8/8 (median 0.96) |
+
+Small sample, and the compactness filter the app needs anyway absorbs it, but it is a real
+measured difference and is not being described as identical. A larger comparison is worth
+running before shipping.
