@@ -143,3 +143,21 @@ rather than writing a file FoldCore would fail to decode.
 
 **Test result:** Swift 47 tests in 14 suites pass; Python 7 pass plus a rejection check.
 **Invariants:** GREEN.
+
+## 2026-08-28 — P0-15 — foldingDiff trajectory generator
+
+`Tools/make_foldingdiff_trajectories.py` samples a backbone and writes every strided
+denoising step as `.pftraj`. 76 residues, 1000 steps in 18 s, 201 frames kept, 0.80 MB.
+
+Three gaps are recorded rather than papered over. The sequence is written as `X`, which is
+what it genuinely is until ProteinMPNN runs. The per-residue value is denoising progress,
+uniform across residues because that is all the model provides, and the provenance records
+it as `denoising-progress` so nothing can mistake it for pLDDT. The carbonyl oxygen is not
+emitted by the model and is placed by idealised geometry from the model's own sampled psi.
+
+The O placement was verified by the check that would catch a sign error: **O...N(i+1) is
+2.255 +- 0.007 A**, where a flipped torsion gives about 1.7 A. O-C-N(i+1) came out at
+122.55 degrees against an ideal 123. Model-derived geometry is clean throughout: N-CA 1.460,
+CA-C 1.540, C-N+1 1.340, CA-CA 3.823 +- 0.007.
+
+**Invariants:** GREEN.
