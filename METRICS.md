@@ -181,3 +181,55 @@ Recorded in BLOCKERS.md.
 flag looks deterministic and is not. PLAN.md Phase 3 requires the same protein to yield the
 same piece, so `Tools/assign_sequences.py` refuses seed 0 outright. Verified: a non-zero
 seed reproduces the same sequence across runs, and different seeds differ.
+
+## Phase 0b — foldingDiff backbone quality (14 samples, 76 residues)
+
+### The model-free finding, which does not depend on any predictor
+
+A compact globular chain has a radius of gyration of about `2.2 * N^0.38` angstroms. The
+formula was validated against a real protein before use: it predicts 11.4 A for 76 residues
+and experimental ubiquitin measures 11.49 A.
+
+| Rg / expected | samples |
+|---|---|
+| <= 1.2 (compact) | 2 / 14 |
+| <= 1.35 | 4 / 14 |
+| <= 1.5 | 6 / 14 |
+| > 2.0 (badly extended) | 4 / 14 |
+
+Median ratio 1.55, range 1.12 to 2.78. **Most generated backbones are extended rather than
+folded**, with perfect local geometry (CA-CA 3.83 +- 0.01) and no tertiary structure.
+
+Confirmed not to be a fault in this pipeline, by two controls:
+
+1. `Tools/make_foldingdiff_trajectories.build_backbone` reproduces the repository's own
+   `angles_and_coords.create_new_chain_nerf` to within 0.0005 A, which is PDB rounding.
+2. The repository's own `sampling.sample_simple` entry point, with none of this project's
+   code involved, produced Rg of 25.16 and 16.52 A for 76 residues.
+
+### Self-consistency, on a metric that is biased against foldingDiff
+
+| | value |
+|---|---|
+| scTM median | 0.118 |
+| scTM range | 0.029 - 0.229 |
+| designable (scTM > 0.5) | **0 / 14** |
+| correlation, Rg ratio vs scTM | -0.47 |
+
+**This number must not be quoted as foldingDiff's designability.** The fold-back here used
+ESMFold, whereas the foldingDiff authors deliberately use OmegaFold, and say why in their
+own README: OmegaFold "is natively designed to be run without MSA information, making it
+more suitable for our protein design task". ESMFold is known to underperform on de novo
+designed sequences, and the low pLDDT values above (41 to 75) are consistent with that.
+
+So 0/14 is suggestive, not conclusive. The fair test needs OmegaFold. What does stand
+without a predictor is the radius of gyration result.
+
+The compactness filter helps but does not rescue anything: at Rg ratio <= 1.2, median scTM
+rises from 0.118 to 0.168 and the best sample reaches 0.229, still far from 0.5.
+
+### Composition, which is what the score actually consumes
+
+Median 13% charged residues against a real fold's 41%, and the most common residue is
+median 30% of the protein against 17% for the ubiquitin design. Two samples exceeded 65%
+of a single residue type, one of them 66% alanine.

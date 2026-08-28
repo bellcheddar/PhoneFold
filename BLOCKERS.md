@@ -192,3 +192,54 @@ towards charged residues, which would be designing for the music rather than for
 and should probably be refused on those grounds.
 
 Not blocking Phase 1 or 2. Needs a call before Phase 3 writes the style profiles.
+
+---
+
+## OPEN — 2026-08-28 — foldingDiff backbones are mostly extended, not folded
+
+Found while building the live engine Marc chose. Numbers and controls in METRICS.md.
+
+**The model-free part, which is solid:** across 14 samples at 76 residues, the median
+radius of gyration is 1.55x what a compact fold of that length should have, ranging to
+2.78x. Only 2 of 14 were compact. The local geometry is perfect throughout (CA-CA
+3.83 +- 0.01 A), so these are well-formed chains that have not folded.
+
+Two controls rule out this pipeline as the cause: the backbone reconstruction matches the
+repository's own to 0.0005 A, and the repository's own entry point, with none of this
+project's code involved, produces the same extended structures.
+
+**The part that needs a fairer test:** self-consistency came out at 0/14 designable, median
+scTM 0.118. But the fold-back used ESMFold, and the foldingDiff authors deliberately use
+OmegaFold because ESMFold is weak on de novo designed sequences without MSAs. That number is
+biased against foldingDiff and should not be quoted as its designability.
+
+### Why it matters for PhoneFold specifically
+
+The visual survives: an extended chain still denoises from noise with 15.8 A of motion, and
+that still looks like folding. What does not survive is the claim. Most generated
+"proteins" would be chains that no sequence folds into, and the designed sequences are
+low-complexity, median 13% charged against a real fold's 41%, one sample 66% alanine. That
+mutes the Fantasy octave triggers and flattens the hydrophobicity colour mode.
+
+PLAN.md already disclaims a physical folding pathway, but it does not disclaim that the
+thing on screen is a protein at all.
+
+### Options
+
+1. **Run the fair test first.** Install OmegaFold (about 670 M parameters) and re-measure
+   before concluding anything. This is the honest next step and costs a download and an
+   hour. It does not change the radius of gyration result.
+2. **Filter and accept.** Generate until the Rg ratio is under 1.2, roughly 1 in 7 samples,
+   and ship those. Cheap and model-free, so it works on-device. Improves scTM from 0.118 to
+   0.168, which is better but still not designable.
+3. **Try another small generator.** Genie2 is the obvious next candidate; SALAD is ruled out
+   by JAX.
+4. **Drop the live generative mode** and ship PathDiffusion's precomputed pathways only,
+   which is the scientifically strongest option and loses on-device generation.
+5. **Ship it as an instrument, not a protein.** Keep foldingDiff, and say plainly in the UI
+   that the shape is a diffusion model's output and not a protein that could exist. Honest,
+   and it keeps the concert. Marc's call, because it is his name on the claim.
+
+**Recommendation: option 1 now, then choose between 2, 3 and 5 with real numbers.** Nothing
+here blocks Phase 1, which consumes `.pftraj` files and is indifferent to which engine made
+them.
