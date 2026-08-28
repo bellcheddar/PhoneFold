@@ -17,3 +17,36 @@ Swift 6 language mode on, platform floors iOS 18 / macOS 15 / watchOS 11 / visio
 
 **Test result:** `swift build` clean in 1.03 s; `swift test` 7 tests in 7 suites, all passed.
 **Invariants:** GREEN.
+
+## 2026-08-28 — P0-02 — FoldCore value types
+
+`AminoAcid` (20 + unknown, Kyte-Doolittle hydropathy, formal charge), `SecondaryStructure`
+and `SSAssignment` (three-state with per-residue confidence, clamped), `ContactRange` and
+`ContactEvent` (ordered indices, separation classed local / medium / long-range at the
+6 and 12 boundaries), `BackboneResidue` and `FoldFrame` exactly as specified in PLAN.md
+Phase 1. All `Sendable`, no platform conditionals.
+
+Three states rather than eight: a CA-only assignment cannot honestly separate a 3-10 helix
+from an alpha helix early in a trajectory, and the renderer only sweeps three cross sections.
+
+`FoldFrame.isWellFormed` is the predicate Phase 2's zero-NaN gate will use, so it was
+negative-tested against NaN, +inf and -inf coordinates, a non-finite metric, and mismatched
+per-residue array lengths.
+
+**Test result:** 27 tests in 11 suites, all passed. **Invariants:** GREEN.
+
+## 2026-08-28 — P0-04 — Phase 0 Python environment
+
+`Tools/setup_env.sh` + pinned `Tools/requirements.txt` on Homebrew python3.12 (torch has no
+3.14 wheels). Installed and verified: torch 2.9.1 (MPS available), transformers 4.57.1,
+coremltools 9.0, numpy 2.1.3, scipy 1.15.3, biotite 1.6.0.
+
+ESMFold comes from `transformers.EsmForProteinFolding`, not `fair-esm[esmfold]`, because
+the latter needs OpenFold's CUDA kernels which do not build on Apple Silicon.
+
+Recorded in Tools/README.md: coremltools 9.0 warns that torch 2.9.1 is untested (2.7.0 is
+the newest tested). Harmless for P0-05/P0-06, which never import coremltools. If the Core ML
+tracer fails in P0-08, dropping to torch 2.7.0 is the first move, before debugging our own
+graph surgery.
+
+**Test result:** import check green, MPS available. **Invariants:** GREEN.
