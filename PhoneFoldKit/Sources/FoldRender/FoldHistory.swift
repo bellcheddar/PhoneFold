@@ -17,11 +17,18 @@ public struct HistorySample: Sendable, Equatable {
     /// Contacts that formed on this frame, for the event rail under the timeline.
     public let newContacts: Int
     public let isRawFrame: Bool
+    /// Which recycle of the trunk produced this frame.
+    ///
+    /// Carried so the traces can mark where one recycle ends and the next begins. Without it
+    /// the radius-of-gyration trace has unexplained periodic peaks in it: the structure is
+    /// genuinely re-expanding each time the trunk re-enters from a coarser state, and read
+    /// without the boundaries it looks like a bug in the chart.
+    public let recycle: Int
 
     public init(frameIndex: Int, progress: Double, radiusOfGyration: Float,
                 compactness: Float, contactCount: Int, meanConfidence: Float,
                 helixFraction: Float, sheetFraction: Float, coilFraction: Float,
-                newContacts: Int, isRawFrame: Bool) {
+                newContacts: Int, isRawFrame: Bool, recycle: Int = 0) {
         self.frameIndex = frameIndex
         self.progress = progress
         self.radiusOfGyration = radiusOfGyration
@@ -33,6 +40,7 @@ public struct HistorySample: Sendable, Equatable {
         self.coilFraction = coilFraction
         self.newContacts = newContacts
         self.isRawFrame = isRawFrame
+        self.recycle = recycle
     }
 }
 
@@ -111,4 +119,14 @@ public struct FoldHistory: Sendable {
 
     /// Frames where a contact formed, for marking the timeline.
     public var contactEvents: [HistorySample] { samples.filter { $0.newContacts > 0 } }
+
+    /// The first sample of each recycle after the first, for the markers on the traces.
+    ///
+    /// Derived rather than recorded, so decimation cannot leave a marker pointing at a
+    /// sample that is no longer in the series.
+    public var recycleBoundaries: [HistorySample] {
+        zip(samples, samples.dropFirst()).compactMap { previous, current in
+            current.recycle != previous.recycle ? current : nil
+        }
+    }
 }

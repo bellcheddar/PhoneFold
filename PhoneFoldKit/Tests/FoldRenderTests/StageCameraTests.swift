@@ -160,3 +160,50 @@ struct StageCameraTests {
         }
     }
 }
+
+/// Which way the protein turns when you drag it.
+///
+/// This was backwards in the shipped build - dragging right turned the protein left - and the
+/// reason it survived is that it is easy to reason yourself into either sign and impossible
+/// to see in a screenshot. Asserting where a known point lands settles it.
+@Suite("Drag direction")
+struct DragDirectionTests {
+
+    /// A point on the front of the protein, facing the camera on +Z.
+    static let front = SIMD3<Float>(0, 0, 1)
+    /// A point on top of it.
+    static let top = SIMD3<Float>(0, 1, 0)
+
+    @Test("Dragging right carries the front of the protein to the right")
+    func draggingRightTurnsRight() {
+        var camera = StageCamera()
+        camera.drag(deltaX: 60, deltaY: 0)
+        let moved = camera.subjectRotation.act(Self.front)
+        #expect(moved.x > 0.05, "the front should swing toward +x, got \(moved)")
+    }
+
+    @Test("Dragging left carries it to the left")
+    func draggingLeftTurnsLeft() {
+        var camera = StageCamera()
+        camera.drag(deltaX: -60, deltaY: 0)
+        #expect(camera.subjectRotation.act(Self.front).x < -0.05)
+    }
+
+    @Test("Dragging down brings the top of the protein toward the viewer")
+    func draggingDownTipsTowardTheViewer() {
+        var camera = StageCamera()
+        camera.drag(deltaX: 0, deltaY: 60)
+        let moved = camera.subjectRotation.act(Self.top)
+        #expect(moved.z > 0.05, "the top should swing toward the camera on +z, got \(moved)")
+    }
+
+    /// The camera starts at a framing angle rather than dead-on, so "at rest" is not the
+    /// identity. What must hold is that a drag of nothing changes nothing.
+    @Test("A drag of nothing changes nothing")
+    func zeroDragChangesNothing() {
+        var camera = StageCamera()
+        let before = camera.subjectRotation.act(Self.front)
+        camera.drag(deltaX: 0, deltaY: 0)
+        #expect(simd_distance(camera.subjectRotation.act(Self.front), before) < 1e-6)
+    }
+}

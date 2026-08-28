@@ -145,8 +145,25 @@ struct FoldHUD: View {
     }
 
     /// Radius of gyration: compaction is the fold happening.
+    ///
+    /// The recycle boundaries are marked, and they are the whole reason this trace is
+    /// readable. The trunk re-enters from a coarser state at each recycle, so the structure
+    /// genuinely re-expands and Rg steps back up - on trp-cage from about 6.7 to 7.2 A at
+    /// readouts 8, 16 and 24 of 32. Unmarked, that reads as three unexplained periodic peaks
+    /// and looks like a broken chart. PLAN.md asks for the boundaries on the timeline for
+    /// exactly this reason.
     private var radiusChart: some View {
         Chart {
+            ForEach(history.recycleBoundaries, id: \.frameIndex) { boundary in
+                RuleMark(x: .value("t", boundary.progress))
+                    .foregroundStyle(Color(hex: 0xFCB900).opacity(0.45))
+                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [2, 3]))
+                    .annotation(position: .top, alignment: .leading, spacing: 1) {
+                        Text("recycle \(boundary.recycle)")
+                            .font(.system(size: 7, weight: .medium, design: .monospaced))
+                            .foregroundStyle(Color(hex: 0xFCB900).opacity(0.7))
+                    }
+            }
             ForEach(samples, id: \.frameIndex) { sample in
                 LineMark(x: .value("t", sample.progress),
                          y: .value("Rg", sample.radiusOfGyration))

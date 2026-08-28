@@ -61,6 +61,22 @@ public struct StageCamera: Sendable, Equatable {
     // MARK: - Interaction
 
     /// A drag, in points, since the previous callback.
+    /// The rotation to apply to the subject, so that dragging turns it like an object in
+    /// the hand rather than like a camera flying around it.
+    ///
+    /// The stage orbits the *protein* against a fixed camera on +Z, so this is the rotation
+    /// the protein carries. The signs are the whole of it, and they were the wrong way round:
+    /// dragging right turned the protein left. They are hard to get right by reasoning at the
+    /// call site and easy to check here, which is why the maths lives in the camera and not
+    /// in the view.
+    ///
+    /// Dragging **right** turns the front of the protein toward the right of the screen.
+    /// Dragging **down** brings its top toward the viewer.
+    public var subjectRotation: simd_quatf {
+        simd_quatf(angle: pitch, axis: SIMD3<Float>(1, 0, 0))
+            * simd_quatf(angle: yaw, axis: SIMD3<Float>(0, 1, 0))
+    }
+
     public mutating func drag(deltaX: Float, deltaY: Float, sensitivity: Float = 0.006) {
         isInteracting = true
         idleTime = 0

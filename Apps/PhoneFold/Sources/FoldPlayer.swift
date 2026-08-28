@@ -21,6 +21,7 @@ struct PreparedFrame: Sendable {
     let newContacts: [ContactEvent]
     let progress: Double
     let preparationMilliseconds: Double
+    let recycle: Int
 }
 
 /// Drives one fold.
@@ -46,7 +47,13 @@ final class FoldPlayer: ObservableObject {
 
     @Published private(set) var isPlaying = false
     @Published private(set) var progress: Double = 0
-    @Published var colourMode: ColourMode = .confidence
+    /// Secondary structure by default.
+    ///
+    /// Marc asked to see the elements coloured differently *as they appear*, and that is also
+    /// the headline PLAN.md gives Phase 2: "secondary structure formation is the visual
+    /// headline". The confidence ramp is one tap away and is still the better view of a
+    /// prediction settling; it is not the better view of a protein folding.
+    @Published var colourMode: ColourMode = .secondaryStructure
     /// Published at `hudUpdateInterval`, not per frame: the counters and traces are read by
     /// a human and gain nothing from sixty updates a second.
     @Published private(set) var history = FoldHistory()
@@ -121,7 +128,8 @@ final class FoldPlayer: ObservableObject {
                         structureFractions: frame.structureFractions,
                         newContacts: frame.newContacts,
                         progress: total > 1 ? Double(frame.index) / Double(total - 1) : 0,
-                        preparationMilliseconds: Date().timeIntervalSince(started) * 1000)
+                        preparationMilliseconds: Date().timeIntervalSince(started) * 1000,
+                        recycle: frame.recycle)
 
                     delivered += 1
                     await self?.publish(preparedFrame, flashes: live)
@@ -151,7 +159,8 @@ final class FoldPlayer: ObservableObject {
             sheetFraction: frame.structureFractions.sheet,
             coilFraction: frame.structureFractions.coil,
             newContacts: frame.newContacts.count,
-            isRawFrame: !frame.isInterpolated))
+            isRawFrame: !frame.isInterpolated,
+            recycle: frame.recycle))
         meterBuffer.record(frameCostMilliseconds: frame.preparationMilliseconds)
 
         // Publish the HUD at ten hertz, and always on the last frame so the final reading is

@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The stage's grade: a halo around the tube, and a vignette over it.
+/// The stage's grade: a cartoon outline around the backbone, and a vignette over it.
 ///
 /// **What is not here, and why.** PLAN.md asks Phase 2 for "HDR bloom on emissives, mild
 /// depth of field, vignette, Aurora grade". Bloom and depth of field are screen-space
@@ -30,12 +30,16 @@ struct AuroraGrade: Equatable {
 
     /// How dark the corners of the stage go.
     var vignette: Double = 0.55
-    /// Radius of the halo around the tube, as a fraction of the coil radius.
-    var haloWidth: Double = 0.50
-    /// How bright the halo is.
-    var haloOpacity: Double = 0.60
+    /// How far the outline stands off the cartoon, in angstroms.
+    ///
+    /// An absolute distance rather than a fraction of the coil radius: coil is now a thin
+    /// cord, so a fraction of it is far too fine to read as an outline beside a ribbon more
+    /// than four times as wide.
+    var outlineWidth: Double = 0.16
+    /// How solid the outline is.
+    var outlineOpacity: Double = 0.85
 
-    static let none = AuroraGrade(vignette: 0, haloWidth: 0, haloOpacity: 0)
+    static let none = AuroraGrade(vignette: 0, outlineWidth: 0, outlineOpacity: 0)
 
     /// Cheaper: the halo goes, the vignette stays.
     ///
@@ -44,8 +48,8 @@ struct AuroraGrade: Equatable {
     /// device gives up.
     var reduced: AuroraGrade {
         var reduced = self
-        reduced.haloWidth = 0
-        reduced.haloOpacity = 0
+        reduced.outlineWidth = 0
+        reduced.outlineOpacity = 0
         return reduced
     }
 

@@ -154,15 +154,72 @@ public enum TubeMeshPacker {
     /// The triangles of a closed shell that face away from the viewer.
     ///
     /// This is back-face culling, done here because the renderer would not do it: see the
-    /// note on `shell`. Working in mesh space rather than world space keeps it to one
-    /// rotation of a single axis instead of transforming every normal.
+    /// note on `shell`.
     ///
-    /// - Parameter viewAxis: the direction from the mesh toward the viewer, in mesh space.
-    /// - Returns: indices for the triangles pointing away from `viewAxis`, in their original
-    ///   order, so the result is deterministic.
+    /// Two details decide whether the result looks like a rim of light or like a torn edge.
+    ///
+    /// The direction to the viewer is computed **per triangle** from the eye position, not
+    /// taken as one axis for the whole mesh. A single axis is the orthographic assumption,
+    /// and the stage's camera has a 42 degree field of view: toward the edges of a protein
+    /// that fills the frame the true direction is several degrees off, and the silhouette it
+    /// selects is wrong by a band of triangles.
+    ///
+    /// And triangles are kept only when they face away by a small margin, which steadies the
+    /// band right on the silhouette where the sign is near zero.
+    ///
+    /// The margin does not make the rim's outer edge smooth, and nothing here can: the halo
+    /// is selected a whole triangle at a time, so its boundary is a chain of triangle edges
+    /// and shows fine teeth. Widening the margin only moves which triangles are chosen. What
+    /// does control how visible the teeth are is the rim's width against the tessellation -
+    /// a thinner halo makes the same teeth proportionally larger, which is why the halo is
+    /// set at roughly half the coil radius rather than trimmed down. Smoothing it properly
+    /// would need a per-vertex alpha fade, and stock materials ignore vertex colour, which is
+    /// the constraint this whole renderer is built around.
+    ///
+    /// - Parameters:
+    ///   - eye: the viewer's position, in the same space as the vertices.
+    ///   - bias: how firmly a triangle must face away, as a cosine. Zero is the exact
+    ///     silhouette.
+    ///
+    /// Triangles the offset has turned inside out are dropped as well. Where the tube turns
+    /// more tightly than the halo is thick, neighbouring rings cross over each other once
+    /// pushed out along their normals, and the crossed triangles show as fine hairs standing
+    /// off the outline. An inverted triangle is recognisable without knowing anything about
+    /// the curvature: its geometric normal, the cross product of two edges, ends up opposing
+    /// the vertex normals it was built from. Which sign means "agreeing" depends on the
+    /// mesh's winding, so the majority across the mesh decides it and the minority is
+    /// discarded - self-calibrating, rather than hard-coding a convention that a later change
+    /// to the sweep could quietly reverse.
+    /// - Returns: indices for the triangles pointing away, in their original order, so the
+    ///   result is deterministic.
     public static func farFacing(vertices: [RenderVertex], indices: [UInt32],
-                                 viewAxis: SIMD3<Float>) -> [UInt32] {
+                                 eye: SIMD3<Float>, bias: Float = 0.10) -> [UInt32] {
         guard !vertices.isEmpty, indices.count >= 3 else { return [] }
+        let triangleCount = indices.count / 3
+
+        // Which way round this mesh is wound: the sign that agrees between the geometric
+        // normal and the vertex normals for most of its triangles.
+        func agreement(_ triangle: Int) -> Float {
+            let a = Int(indices[triangle * 3])
+            let b = Int(indices[triangle * 3 + 1])
+            let c = Int(indices[triangle * 3 + 2])
+            guard a < vertices.count, b < vertices.count, c < vertices.count else { return 0 }
+            let geometric = simd_cross(vertices[b].position - vertices[a].position,
+                                       vertices[c].position - vertices[a].position)
+            let smooth = vertices[a].normal + vertices[b].normal + vertices[c].normal
+            return simd_dot(geometric, smooth)
+        }
+        // Computed once and kept, not recomputed inside the selection loop: the same cross
+        // product per triangle twice over is the whole of the halo's cost twice over.
+        var agreements = [Float](repeating: 0, count: triangleCount)
+        var agreeing = 0
+        for triangle in 0..<triangleCount {
+            let value = agreement(triangle)
+            agreements[triangle] = value
+            if value > 0 { agreeing += 1 }
+        }
+        let windingSign: Float = agreeing * 2 >= triangleCount ? 1 : -1
+
         var kept: [UInt32] = []
         kept.reserveCapacity(indices.count / 2)
         var triangle = 0
@@ -176,7 +233,12 @@ public enum TubeMeshPacker {
                 // cross section's outward normals, and a degenerate triangle at a tight turn
                 // would give a cross product of zero length and a random sign.
                 let normal = vertices[a].normal + vertices[b].normal + vertices[c].normal
-                if simd_dot(normal, viewAxis) < 0 {
+                let centroid = (vertices[a].position + vertices[b].position
+                                + vertices[c].position) / 3
+                let toEye = eye - centroid
+                let lengths = simd_length(normal) * simd_length(toEye)
+                let upright = agreements[triangle] * windingSign > 0
+                if upright, lengths > 0, simd_dot(normal, toEye) / lengths < -bias {
                     kept.append(indices[triangle * 3])
                     kept.append(indices[triangle * 3 + 1])
                     kept.append(indices[triangle * 3 + 2])

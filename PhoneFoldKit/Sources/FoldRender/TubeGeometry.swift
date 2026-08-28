@@ -60,15 +60,30 @@ public struct TubeMesh: Sendable {
 /// explicit that nothing should pop.
 public enum TubeGeometry {
 
+    /// Cartoon proportions, in angstroms.
+    ///
+    /// These are the numbers that decide whether the render reads as a protein cartoon or as
+    /// a length of hose. The first version made helix a *round* section, thicker than coil,
+    /// which is what a tube renderer does and not what a cartoon does: helix and sheet are
+    /// both **flat ribbons**, and coil is a thin round cord that stays out of their way. The
+    /// proportions here are close to PyMOL's defaults, which is the visual language every
+    /// structural biologist already reads.
     public struct Profile: Sendable {
-        /// Radius of the circular section used for coil.
-        public var coilRadius: Float = 0.45
-        /// Radius of the thicker circular section used for helix.
-        public var helixRadius: Float = 0.80
-        /// Half-width of the flattened ribbon used for sheet.
-        public var sheetHalfWidth: Float = 1.40
-        /// Half-thickness of that ribbon.
-        public var sheetHalfThickness: Float = 0.28
+        /// Radius of the thin round cord used for coil.
+        public var coilRadius: Float = 0.22
+        /// The helix ribbon: wide and flat, so a helix reads as a coiled band.
+        public var helixHalfWidth: Float = 1.05
+        public var helixHalfThickness: Float = 0.25
+        /// The strand ribbon.
+        public var sheetHalfWidth: Float = 1.10
+        public var sheetHalfThickness: Float = 0.20
+        /// Half-width at the base of a strand's arrowhead.
+        public var arrowHalfWidth: Float = 1.95
+        /// Half-width at its point. Not zero: a true point degenerates the ring into a line
+        /// and every triangle around it collapses.
+        public var arrowTipHalfWidth: Float = 0.07
+        /// How many residues at the C-terminal end of a strand the arrowhead spans.
+        public var arrowResidues: Float = 1.6
         /// Spline samples per residue. Higher is smoother and costs vertices.
         public var samplesPerResidue: Int = 6
         /// Vertices around the cross section.
@@ -110,23 +125,70 @@ public enum TubeGeometry {
                             : SIMD3<Float>(0, 0, 1))
         }
 
-        // Parallel transport the reference frame along the curve.
+        // The ribbon's flat face has to be oriented by the *structure*, not by the curve.
         //
-        // A Frenet frame would be the obvious choice and is wrong: its normal flips through
-        // an inflection point, which twists the ribbon by 180 degrees in a single step.
-        // Transporting the frame by the minimal rotation between consecutive tangents has no
-        // such discontinuity.
+        // A parallel-transported frame is the right answer for a round tube and the wrong one
+        // for a cartoon: it carries an arbitrary starting rotation along the chain, so a
+        // flattened ribbon ends up twisting at angles that have nothing to do with the
+        // protein. The first version of this renderer looked like a hose partly for that
+        // reason, and partly because helix was a round section.
+        //
+        // The frame used here is the one CA-only cartoon renderers use. For each residue take
+        // the chain direction and the bisector of the two bonds:
+        //
+        //     tangent  = ca[i+1] - ca[i-1]
+        //     bisector = (ca[i-1] - ca[i]) + (ca[i+1] - ca[i])
+        //     side     = tangent x bisector
+        //
+        // `bisector` points to the concave side of the chain, which for a helix is straight
+        // at its axis, so `side` comes out along the axis and the ribbon's broad face turns
+        // outward - a coiled band, seen face-on from outside, which is what a helix should
+        // look like. Along a strand the bisector alternates with the pleat, so `side` flips
+        // by 180 degrees every residue and has to be made continuous, below; once it is, the
+        // strand is a flat ribbon with a gentle twist, which is what a strand should look
+        // like.
+        var sideByResidue: [SIMD3<Float>] = []
+        sideByResidue.reserveCapacity(ca.count)
+        for i in 0..<ca.count {
+            let previous = ca[Swift.max(i - 1, 0)]
+            let current = ca[i]
+            let following = ca[Swift.min(i + 1, ca.count - 1)]
+            let along = following - previous
+            let bisector = (previous - current) + (following - current)
+            var side = simd_cross(along, bisector)
+            if simd_length(side) < 1e-5 {
+                // Three collinear alpha carbons leave the ribbon's roll undetermined. Carry
+                // the previous residue's frame rather than inventing one, which would show as
+                // a kink in the middle of a straight run.
+                side = sideByResidue.last
+                    ?? perpendicular(to: simd_length(along) > 1e-6
+                                     ? simd_normalize(along) : SIMD3<Float>(0, 0, 1))
+            }
+            side = simd_normalize(side)
+            // Continuity. Without this a strand's ribbon flips edge-over-edge at every
+            // residue, which reads as a shredded ribbon rather than a twisted one.
+            if let previousSide = sideByResidue.last, simd_dot(side, previousSide) < 0 {
+                side = -side
+            }
+            sideByResidue.append(side)
+        }
+
+        // Per-sample frame, interpolated between residues and squared up against the tangent.
         var normals: [SIMD3<Float>] = []
         normals.reserveCapacity(sampleCount)
-        var reference = perpendicular(to: tangents[0])
-        normals.append(reference)
-        for s in 1..<sampleCount {
-            let rotation = minimalRotation(from: tangents[s - 1], to: tangents[s])
-            reference = simd_normalize(rotation.act(reference))
-            // Re-orthogonalise against drift accumulated over hundreds of steps.
-            reference = simd_normalize(reference - tangents[s] * simd_dot(reference, tangents[s]))
-            normals.append(reference)
+        for s in 0..<sampleCount {
+            let u = parameters[s]
+            let i = Swift.min(Int(u), ca.count - 1)
+            let j = Swift.min(i + 1, ca.count - 1)
+            let f = u - Float(i)
+            var side = sideByResidue[i] * (1 - f) + sideByResidue[j] * f
+            side -= tangents[s] * simd_dot(side, tangents[s])
+            normals.append(simd_length(side) > 1e-6 ? simd_normalize(side)
+                                                    : perpendicular(to: tangents[s]))
         }
+
+        // Arrowheads, widening then tapering over the last residues of each strand.
+        let arrowWidths = arrowHalfWidths(ss, parameters: parameters, profile: profile)
 
         var vertices: [TubeVertex] = []
         vertices.reserveCapacity(sampleCount * profile.radialSegments)
@@ -138,8 +200,14 @@ public enum TubeGeometry {
             let normal = normals[s]
             let binormal = simd_normalize(simd_cross(tangent, normal))
             let (structure, confidence) = interpolatedStructure(ss, at: parameters[s])
-            let (halfWidth, halfThickness) = section(for: structure, confidence: confidence,
+            var (halfWidth, halfThickness) = section(for: structure, confidence: confidence,
                                                      profile: profile)
+            if let arrow = arrowWidths[s] {
+                // Blended in by confidence like every other part of the section, so an
+                // arrowhead grows with the strand instead of appearing fully formed.
+                let t = Swift.min(Swift.max(confidence, 0), 1)
+                halfWidth = profile.coilRadius + (arrow - profile.coilRadius) * t
+            }
 
             for r in 0..<profile.radialSegments {
                 let angle = 2 * Float.pi * Float(r) / Float(profile.radialSegments)
@@ -181,19 +249,53 @@ public enum TubeGeometry {
     ///
     /// Coil is the resting shape, so every structure blends out of coil rather than out of
     /// nothing. That is what makes a helix grow rather than appear.
+    /// The half-width of each sample that falls inside a strand's arrowhead, or nil.
+    ///
+    /// PLAN.md asks for arrowheads that "extrude progressively toward each strand's
+    /// C-terminal end", which is also what makes a sheet readable: an arrow says which way
+    /// the strand runs, and a plain ribbon does not. The head spans the last
+    /// `profile.arrowResidues` of each run of strand: it steps out to `arrowHalfWidth` at the
+    /// base and tapers to `arrowTipHalfWidth` at the point.
+    ///
+    /// The tip is deliberately not zero. A ring of radius zero collapses every triangle
+    /// around it into a degenerate sliver, and those are exactly the triangles that show up
+    /// later as stray spikes.
+    static func arrowHalfWidths(_ ss: [SSAssignment], parameters: [Float],
+                                profile: Profile) -> [Float?] {
+        // Where each run of strand ends, by residue index.
+        var strandEnds: [Int] = []
+        for i in ss.indices where ss[i].structure == .sheet {
+            if i + 1 == ss.count || ss[i + 1].structure != .sheet { strandEnds.append(i) }
+        }
+        guard !strandEnds.isEmpty, profile.arrowResidues > 0 else {
+            return [Float?](repeating: nil, count: parameters.count)
+        }
+        return parameters.map { u -> Float? in
+            for end in strandEnds {
+                let distance = Float(end) - u
+                guard distance >= 0, distance <= profile.arrowResidues else { continue }
+                // 1 at the base of the head, 0 at the point.
+                let along = distance / profile.arrowResidues
+                return profile.arrowTipHalfWidth
+                    + (profile.arrowHalfWidth - profile.arrowTipHalfWidth) * along
+            }
+            return nil
+        }
+    }
+
     static func section(for structure: SecondaryStructure, confidence: Float,
                         profile: Profile) -> (Float, Float) {
         let t = Swift.min(Swift.max(confidence, 0), 1)
+        func grow(_ target: Float) -> Float {
+            profile.coilRadius + (target - profile.coilRadius) * t
+        }
         switch structure {
         case .coil:
             return (profile.coilRadius, profile.coilRadius)
         case .helix:
-            let r = profile.coilRadius + (profile.helixRadius - profile.coilRadius) * t
-            return (r, r)
+            return (grow(profile.helixHalfWidth), grow(profile.helixHalfThickness))
         case .sheet:
-            let w = profile.coilRadius + (profile.sheetHalfWidth - profile.coilRadius) * t
-            let h = profile.coilRadius + (profile.sheetHalfThickness - profile.coilRadius) * t
-            return (w, h)
+            return (grow(profile.sheetHalfWidth), grow(profile.sheetHalfThickness))
         }
     }
 
