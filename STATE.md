@@ -1,7 +1,7 @@
 # PhoneFold — STATE
 
 **Current phase:** 1 (fold engine and frame stream). Phase 0 has deferred items, listed below.
-**Current task:** P1-07
+**Current task:** P1-09
 **Last updated:** 2026-08-28
 
 Status vocabulary: `todo` / `doing` / `blocked` / `done`.
@@ -99,8 +99,8 @@ into a smooth 60 fps stream of enriched `FoldFrame` values. No UI. Human-verifia
 | P1-04 | `FoldGeometry`: Kabsch superposition of each frame onto the previous, so the molecule stops tumbling | — | done |
 | P1-05 | Interpolation to 60 fps: Catmull-Rom in time over aligned frames, interpolated frames flagged | P1-04 | done |
 | P1-06 | P-SEA secondary structure, CA-only, with ~3-frame temporal hysteresis and per-residue confidence | — | done |
-| P1-07 | Contact map and `ContactEvent` emission on inward 8 A crossing, tagged by separation and hydrophobicity | — | todo |
-| P1-08 | Per-frame metrics: radius of gyration, contact order, fraction buried hydrophobic, mean and minimum confidence | P1-07 | todo |
+| P1-07 | Contact map and `ContactEvent` emission on inward 8 A crossing, tagged by separation and hydrophobicity | — | done |
+| P1-08 | Per-frame metrics: radius of gyration, contact order, fraction buried hydrophobic, compactness, mean and minimum confidence | P1-07 | done |
 | P1-09 | `actor FoldEngine` exposing `AsyncStream<FoldFrame>`, with `SampleTrajectoryProvider` reading `.pftraj` | P1-05, P1-06, P1-07, P1-08 | todo |
 | P1-10 | Backpressure (bounded buffer, never drop frames), cancellation, thermal and low-power degradation by reducing readouts rather than stuttering | P1-09 | todo |
 | P1-11 | DSSP reference fixtures for 10 PDB structures (mkdssp 4.4.5) | P1-06 | done |
