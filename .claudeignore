@@ -1,0 +1,20 @@
+# Weight binaries: far too large for context, and never useful to read
+Models/**/*.mlmodelc
+Models/**/*.mlpackage
+Models/**/*.bin
+Models/**/*.safetensors
+Models/**/*.pt
+Models/**/*.mlmodel
+
+# Generated trajectories are binary
+Apps/Shared/Resources/Trajectories/*.pftraj
+
+# Build products
+.build/
+DerivedData/
+*.xcodeproj/
+*.xcworkspace/
+
+# Secrets, never in context
+.env
+credentials.env

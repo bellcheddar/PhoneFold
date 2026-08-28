@@ -1,0 +1,32 @@
+# Xcode / SwiftPM
+.build/
+DerivedData/
+*.xcodeproj/
+*.xcworkspace/
+!*.xcworkspace/contents.xcworkspacedata
+.swiftpm/
+xcuserdata/
+*.xcuserstate
+
+# Python
+Tools/.venv/
+__pycache__/
+*.pyc
+
+# Model weights and caches (git-lfs tracked separately once configured)
+Tools/.cache/
+Models/*.mlpackage/
+Models/*.mlmodelc/
+
+# Secrets
+.env
+credentials.env
+
+# Loop sentinel is deliberately NOT ignored - it is version-controlled state
+# HALT
+
+# macOS
+.DS_Store
+
+# Claude Code session transcripts
+.claude/transcripts/

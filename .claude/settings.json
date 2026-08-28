@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xcodebuild:*)",
+      "Bash(xcrun:*)",
+      "Bash(swift:*)",
+      "Bash(swiftlint:*)",
+      "Bash(xcodegen:*)",
+      "Bash(git:*)",
+      "Bash(python3:*)",
+      "Bash(python3.12:*)",
+      "Bash(pip:*)",
+      "Bash(ls:*)", "Bash(cat:*)", "Bash(head:*)", "Bash(tail:*)", "Bash(sed:*)",
+      "Bash(grep:*)", "Bash(rg:*)", "Bash(find:*)", "Bash(wc:*)", "Bash(mkdir:*)",
+      "Bash(cp:*)", "Bash(mv:*)", "Bash(touch:*)", "Bash(shasum:*)", "Bash(md5:*)",
+      "Bash(du:*)", "Bash(df:*)", "Bash(file:*)", "Bash(open:*)", "Bash(plutil:*)"
+    ],
+    "deny": [
+      "Bash(rm -rf:*)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git filter-branch:*)",
+      "Bash(git rebase:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(security:*)",
+      "Bash(defaults:*)",
+      "Bash(sudo:*)",
+      "Read(./Models/**)",
+      "Read(//Users/dellboy/.ssh/**)",
+      "Read(//Users/dellboy/.aws/**)",
+      "Read(//Users/dellboy/.config/gh/**)",
+      "Read(**/.env)",
+      "Read(**/credentials.env)"
+    ]
+  }
+}
