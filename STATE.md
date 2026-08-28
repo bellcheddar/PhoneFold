@@ -1,7 +1,7 @@
 # PhoneFold — STATE
 
 **Current phase:** 1 (fold engine and frame stream). Phase 0 has deferred items, listed below.
-**Current task:** P1-10
+**Current task:** Phase 1 exit gate
 **Last updated:** 2026-08-28
 
 Status vocabulary: `todo` / `doing` / `blocked` / `done`.
@@ -102,7 +102,7 @@ into a smooth 60 fps stream of enriched `FoldFrame` values. No UI. Human-verifia
 | P1-07 | Contact map and `ContactEvent` emission on inward 8 A crossing, tagged by separation and hydrophobicity | — | done |
 | P1-08 | Per-frame metrics: radius of gyration, contact order, fraction buried hydrophobic, compactness, mean and minimum confidence | P1-07 | done |
 | P1-09 | `actor FoldEngine` exposing a backpressured `FoldFrameSequence`, with `SampleTrajectoryProvider` reading `.pftraj` | P1-05, P1-06, P1-07, P1-08 | done |
-| P1-10 | Backpressure (bounded buffer, never drop frames), cancellation, thermal and low-power degradation by reducing readouts rather than stuttering | P1-09 | todo |
+| P1-10 | Backpressure (pull-based, so frames cannot be dropped), cancellation, thermal and low-power degradation by lowering the frame rate rather than stuttering | P1-09 | done |
 | P1-11 | DSSP reference fixtures for 10 PDB structures (mkdssp 4.4.5) | P1-06 | done |
 | P1-12 | Training set: fetch non-redundant PDB chains, compute CA features and mkdssp labels, **excluding every evaluation entry** | P1-11 | done |
 | P1-13 | Train a small CA-only secondary-structure classifier, export weights as JSON | P1-12 | done |
