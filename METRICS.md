@@ -541,3 +541,41 @@ gallery.
   is required, and that returns `float4`.
 - `geometry.uv0()` and `uv1()` are **float2 each**, not float4. Declaring a float4 uv
   attribute compiles and silently hands the shader the wrong lanes.
+
+## Phase 2 — why the renderer does not use a custom shader
+
+Established by bisection on the iOS 26.5 Simulator, after several rounds of a mesh that was
+present, had a material assigned, and drew absolutely nothing.
+
+`CustomMaterial` fails to build a pipeline:
+
+```
+REMaterialBuilderErrorDomain Code=50 "Program realitykit::fsSurfacePbr failed due to
+invalid argument numbers. Constant buffer count [16] exceeds limit [14]."
+Pipeline data for technique SurfaceShaderOpaque failed compilation!
+```
+
+It fails with `lightingModel: .lit` **and** with `.unlit`, and the failure is silent from
+Swift: `CustomMaterial(surfaceShader:lightingModel:)` returns successfully and the pipeline
+dies later inside the renderer. Nothing throws and nothing is logged at the app level.
+
+**The bisect that settled it:** the identical mesh with a plain `SimpleMaterial` rendered
+correctly. Geometry, transform, camera and scale were never at fault.
+
+### What the renderer does instead
+
+RealityKit's stock materials ignore a per-vertex colour channel, so the colour is delivered
+through **mesh parts**: `ColourBuckets` quantises vertex colour, groups triangles by bucket,
+and emits one `LowLevelMesh.Part` per bucket with its own `SimpleMaterial`. Ubiquitin in
+confidence mode produces **29 parts**, which is a reasonable draw-call count.
+
+This needs no shader, works on the Simulator and on device, and does not have to wait for
+hardware to be verified. The custom shader path is kept behind `PHONEFOLD_CUSTOM_SHADER` for
+device testing, since the constant buffer limit may well not apply on real hardware.
+
+### Also worth remembering
+
+- `xcrun simctl launch --setenv` is not a thing. Child environment variables go through a
+  `SIMCTL_CHILD_` prefix on the parent's environment.
+- `xcodebuild` reports `** TEST SUCCEEDED **` alongside `Executed 0 tests` when only
+  swift-testing suites ran: that counter covers XCTest only.

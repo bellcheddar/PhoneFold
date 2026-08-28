@@ -87,7 +87,34 @@ public final class LowLevelTubeMesh {
         }
     }
 
-    /// Rewrite the vertex buffer for one frame. No allocation, no MeshResource rebuild.
+    /// Rewrite the vertex buffer and the index buffer, splitting the mesh into one part per
+    /// colour bucket so stock materials can draw per-residue colour. See `ColourBuckets`.
+    public func update(vertices: [RenderVertex],
+                       buckets: ColourBuckets.Result) throws {
+        guard vertices.count <= vertexCapacity else {
+            throw MeshError.capacityExceeded(needed: vertices.count, capacity: vertexCapacity)
+        }
+        mesh.withUnsafeMutableBytes(bufferIndex: 0) { raw in
+            let buffer = raw.bindMemory(to: RenderVertex.self)
+            for (i, vertex) in vertices.enumerated() { buffer[i] = vertex }
+        }
+        mesh.withUnsafeMutableIndices { raw in
+            let buffer = raw.bindMemory(to: UInt32.self)
+            for (i, index) in buckets.indices.enumerated() where i < indexCapacity {
+                buffer[i] = index
+            }
+        }
+        let box = TubeMeshPacker.bounds(vertices)
+        let bounds = box.map { BoundingBox(min: $0.minimum, max: $0.maximum) }
+            ?? BoundingBox(min: .zero, max: .zero)
+        mesh.parts.replaceAll(buckets.parts.enumerated().map { index, part in
+            LowLevelMesh.Part(indexOffset: part.offset, indexCount: part.count,
+                              topology: .triangle, materialIndex: index, bounds: bounds)
+        })
+        updateCount += 1
+    }
+
+    /// Single-part update, for callers that do not need per-colour parts.
     public func update(vertices: [RenderVertex]) throws {
         guard vertices.count <= vertexCapacity else {
             throw MeshError.capacityExceeded(needed: vertices.count, capacity: vertexCapacity)
