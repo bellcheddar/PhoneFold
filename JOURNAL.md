@@ -264,3 +264,29 @@ over-smoothed the segmentation to 397 segments where the truth has 552, nearly e
 short helix and sheet segments. Raw argmax reproduces the real segmentation closely.
 
 **Test result:** 107 tests in 23 suites pass. **Invariants:** GREEN.
+
+## 2026-08-28 — Phase 1 complete, gate GREEN
+
+Every machine-verifiable criterion met, and Phase 1 had no human-verifiable ones, so it
+completed unattended exactly as PLAN.md predicted.
+
+| Criterion | Result |
+|---|---|
+| swift test on macOS and iOS Simulator | 138 tests each, zero failures |
+| Secondary structure vs DSSP, held-out ten | 86.9% (gate: 85%) |
+| A bundled trajectory plays end to end | all 13 do |
+| 60 fps for a 300-residue input | 1.65 ms/frame in release, 10% of budget |
+| Zero data races under ThreadSanitizer | confirmed, Swift 6 strict concurrency |
+| No platform conditionals in the core | enforced by the gate script |
+
+P1-10 completed the phase: degradation lowers the output frame rate rather than dropping
+frames, and under critical heat swaps the learned assigner for P-SEA.
+
+Two measurements worth keeping. The engine runs at 1.65 ms/frame in release, 207 ms under
+Thread Sanitizer and 511 ms in debug: a 310x spread, so timing budgets are asserted only in
+release and the sanitizer run suppresses them. And the iOS Simulator run reproduces the DSSP
+agreement figure exactly, which is the check that the model resource is really bundled rather
+than silently absent.
+
+Phase 2 decomposed into 12 tasks, including Marc's two additions: a GPU/ANE utilisation meter
+and a folding-progress counters panel.

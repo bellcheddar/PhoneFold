@@ -1,7 +1,7 @@
 # PhoneFold — STATE
 
-**Current phase:** 1 (fold engine and frame stream). Phase 0 has deferred items, listed below.
-**Current task:** Phase 1 exit gate
+**Current phase:** 2 (Aurora Stage, the renderer). Phase 1 is complete, gate GREEN. Phase 0 has deferred items, listed below.
+**Current task:** P2-01
 **Last updated:** 2026-08-28
 
 Status vocabulary: `todo` / `doing` / `blocked` / `done`.
@@ -120,19 +120,53 @@ sequence for a language model.
 
 ### Phase 1 exit gate
 
-Machine-verifiable:
-- [ ] `swift test` green on macOS and iOS Simulator
-- [x] CA-only secondary structure agrees with a DSSP reference on 10 held-out PDB structures at >=85% per-residue — **MET: 86.9%** by the learned assigner. P-SEA's 79.4% stays under test as a baseline
-- [ ] A bundled trajectory plays end to end from the sample provider
-- [ ] Frame stream sustains 60 fps output with interpolation for a 300-residue input
-- [ ] Zero data races under Thread Sanitizer with Swift 6 strict concurrency
-- [ ] No `#if os(...)` anywhere in FoldCore, FoldEngine or FoldGeometry
+Machine-verifiable — **all met, gate GREEN 2026-08-28**:
+- [x] `swift test` green on macOS (138 tests) and iOS Simulator (138 tests, zero failures)
+- [x] CA-only secondary structure agrees with a DSSP reference on 10 held-out PDB structures at >=85% per-residue — **86.9%**. P-SEA's 79.4% stays under test as a baseline
+- [x] A bundled trajectory plays end to end from the sample provider; all 13 do
+- [x] Frame stream sustains 60 fps for a 314-residue input — **1.65 ms/frame in release**, 10% of the 16.7 ms budget
+- [x] Zero data races under Thread Sanitizer with Swift 6 strict concurrency
+- [x] No `#if os(...)` anywhere in FoldCore, FoldEngine or FoldGeometry
 
-Human-verifiable: **none.**
+Human-verifiable: **none.** The phase completed unattended, as PLAN.md predicted.
 
 ## Phases 2-5
 
 Not yet decomposed. Decompose on entry to the phase.
+
+## Phase 2 — Aurora Stage, the renderer
+
+**Goal (PLAN.md):** the thing people film and post. Secondary structure formation is the
+visual headline. Built multiplatform from the start so Phase 5 is additive.
+
+| ID | Task | Deps | Status |
+|---|---|---|---|
+| P2-01 | `FoldRender`: backbone tube geometry. Catmull-Rom spline through CA, swept with a cross section that morphs with per-residue secondary structure confidence | — | todo |
+| P2-02 | `LowLevelMesh` writer so vertex buffers are rewritten per frame by a compute shader with no CPU round trip. Never rebuild `MeshResource` | P2-01 | todo |
+| P2-03 | The four colour modes: confidence (AlphaFold ramp), secondary structure, rainbow N to C, Kyte-Doolittle hydrophobicity, with animated cross-fade | P2-01 | todo |
+| P2-04 | Contact flashes: a short-lived emissive line and particle burst at the midpoint, brighter and longer for long-range contacts | P2-02 | todo |
+| P2-05 | Materials and post-processing: HDR bloom on emissives, mild depth of field, vignette, the Aurora grade | P2-02 | todo |
+| P2-06 | Camera: slow cinematic auto-orbit overridden by drag, pinch zoom, two-finger pan, double-tap reframe, "follow the action" | P2-02 | todo |
+| P2-07 | A minimal iOS/macOS app target that plays a bundled trajectory, so the renderer can actually be run and filmed | P2-02 | todo |
+| P2-08 | Readouts: timeline scrubber with recycle boundaries, live stacked area chart of helix/sheet/coil, radius of gyration trace, sequence ribbon | P2-07 | todo |
+| P2-09 | **Marc's addition:** a GPU / ANE utilisation meter during folding | P2-07 | todo |
+| P2-10 | **Marc's addition:** the folding-progress counters panel | P2-08 | todo |
+| P2-11 | Snapshot tests of all four colour modes against reference images | P2-03 | todo |
+| P2-12 | Assert zero geometry NaNs across a full sample trajectory | P2-01 | todo |
+
+### Phase 2 exit gate
+
+Machine-verifiable:
+- [ ] Renderer builds and runs on iOS Simulator and macOS from the sample provider
+- [ ] Snapshot tests of all four colour modes against reference images
+- [ ] No frame-time regression above 20% versus the recorded baseline in `METRICS.md`
+- [ ] Zero geometry NaNs across a full sample trajectory
+
+Human-verifiable (**halt**):
+- [ ] 60 fps sustained on device with 300 residues, confirmed in Instruments
+- [ ] No visible popping when secondary structure is assigned or reassigned
+- [ ] Thermal state at or below `.fair` after 3 minutes of continuous playback
+- [ ] Marc signs off that it looks like a concert, not a workbench
 
 ### Phase 2 — added by Marc, 2026-08-28: show the progress of folding
 
