@@ -1,0 +1,17 @@
+Phase 2 halts here for Marc.
+
+The machine gate is GREEN. Both things Marc asked for before the sign-off are done and
+committed:
+
+  P2-14  playback no longer paced by SwiftUI, and the backbone draws whole
+  P2-05  the Aurora grade: halo, vignette, indigo ground
+
+What needs Marc:
+
+  1. The Phase 2 human-verifiable checklist in BLOCKERS.md - four criteria that need a
+     device, Instruments and his eyes. None is ticked.
+  2. One decision, also in BLOCKERS.md: whether to chase screen-space bloom and depth of
+     field on hardware via ARView.renderCallbacks.postProcess, or leave the grade as
+     delivered. Recommended: leave it, unless the glow disappoints on a real screen.
+
+Nothing else is blocked. Resume by resolving the checklist, or say to carry on to Phase 3.

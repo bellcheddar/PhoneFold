@@ -448,14 +448,13 @@ has been ticked. They need real hardware, Instruments, and Marc's eyes.
   is silent. On a real device the custom shader may well work, and it is still in the tree
   behind `PHONEFOLD_CUSTOM_SHADER`. Worth trying on hardware, because it would restore proper
   lighting and the emissive rim.
-- **Playback advances slowly and starts inconsistently.** The engine and geometry are fast
-  (2.65 ms/frame), so this is a SwiftUI and RealityKit integration problem rather than a
-  compute one, and it is the first thing to fix before judging how it looks. It is not in the
-  machine gate, but it will affect the impression.
-- Post-processing from PLAN.md section 2 is **not built**: no bloom, no depth of field, no
-  vignette, no Aurora grade. The stage is currently flat-lit geometry on the gradient. Judging
-  "does it look like a concert" now would be judging it early, so it may be better to fix
-  playback and add the grade first.
+- ~~Playback advances slowly and starts inconsistently.~~ **Fixed (P2-14).** It was paced by
+  SwiftUI: the prepared mesh was `@Published`. Five cold launches now reach an identical final
+  state. Fixing it exposed a second bug, a backbone drawn in cleanly capped pieces, which was
+  a byte-versus-index offset in `LowLevelMesh.Part`.
+- ~~Post-processing is not built.~~ **Partly built (P2-05).** There is now an object-space
+  halo around the backbone and a composited vignette, on PLAN.md's indigo ground. There is no
+  screen-space bloom and no depth of field, and there is a decision about that below.
 
 ### Deferred, and still deferred
 
