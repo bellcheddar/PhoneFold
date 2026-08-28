@@ -70,6 +70,17 @@ public enum ColourMode: String, CaseIterable, Sendable, Codable {
         }
     }
 
+    /// A label short enough for a four-way segmented control on a phone. The full names
+    /// truncate to "pLD...", "Struc...", "Rain...", "Hydr...", which reads as broken.
+    public var shortName: String {
+        switch self {
+        case .confidence: "Conf"
+        case .secondaryStructure: "SS"
+        case .rainbow: "N→C"
+        case .hydrophobicity: "Phobic"
+        }
+    }
+
     /// What the confidence mode's legend should say, which depends on where the frames came
     /// from. Labelling denoising progress as pLDDT would be a claim the generator cannot
     /// support.

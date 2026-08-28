@@ -1,0 +1,46 @@
+name: PhoneFold
+options:
+  bundleIdPrefix: com.mdeller
+  deploymentTarget:
+    iOS: "18.0"
+    macOS: "15.0"
+  createIntermediateGroups: true
+
+# The team id is never written into this repository: XcodeGen expands the environment
+# variable, which is sourced from the credentials file outside the repo.
+settings:
+  base:
+    DEVELOPMENT_TEAM: ${APPLE_TEAM_ID}
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "0.1"
+    CURRENT_PROJECT_VERSION: "1"
+
+packages:
+  PhoneFoldKit:
+    path: ../../PhoneFoldKit
+
+targets:
+  PhoneFold:
+    type: application
+    supportedDestinations: [iOS, macOS]
+    sources:
+      - path: Sources
+      - path: Resources
+        buildPhase: resources
+    dependencies:
+      - package: PhoneFoldKit
+        products: [FoldCore, FoldGeometry, FoldEngine, FoldRender]
+    info:
+      path: Info.plist
+      properties:
+        CFBundleDisplayName: PhoneFold
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        UILaunchScreen: {}
+        NSHumanReadableCopyright: "2026 Marc C. Deller"
+        ITSAppUsesNonExemptEncryption: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.mdeller.phonefold
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.education
+        ENABLE_HARDENED_RUNTIME: YES
+        CODE_SIGN_STYLE: Automatic

@@ -25,35 +25,56 @@ public struct RenderVertex: Sendable, Equatable {
     /// Per-residue confidence, on the source's own scale. What this *means* depends on the
     /// trajectory's provenance: pLDDT for a predictor, denoising progress for a generator.
     public var residueConfidence: Float
+    /// Linear RGB plus alpha, written per frame from the active colour mode.
+    ///
+    /// The scalars above are kept as well as this: they are what a shader would need to
+    /// compute a mode itself, and keeping them means a future move to a Metal surface shader
+    /// does not change the vertex layout again.
+    public var colour: SIMD4<Float>
 
     public init(position: SIMD3<Float>, normal: SIMD3<Float>, residueParameter: Float,
-                structureConfidence: Float, structureCode: Float, residueConfidence: Float) {
+                structureConfidence: Float, structureCode: Float, residueConfidence: Float,
+                colour: SIMD4<Float> = SIMD4<Float>(1, 1, 1, 1)) {
         self.position = position
         self.normal = normal
         self.residueParameter = residueParameter
         self.structureConfidence = structureConfidence
         self.structureCode = structureCode
         self.residueConfidence = residueConfidence
+        self.colour = colour
     }
 }
 
 public enum TubeMeshPacker {
 
     /// Pack a tube mesh into the GPU vertex layout, sampling per-residue confidence along
-    /// the chain.
+    /// the chain and applying a colour mode.
     ///
     /// `residueConfidence` is indexed by the vertex's fractional residue parameter and
     /// interpolated linearly, because it is bounded and a spline would overshoot its range.
+    ///
+    /// Passing `from`, `to` and `t` cross-fades between two modes.
     public static func pack(_ mesh: TubeMesh,
-                            residueConfidence confidence: [Float]) -> [RenderVertex] {
-        mesh.vertices.map { vertex in
-            RenderVertex(
+                            residueConfidence confidence: [Float],
+                            mode: ColourMode = .confidence,
+                            fadingTo target: ColourMode? = nil,
+                            t: Float = 0,
+                            options: ColourOptions? = nil) -> [RenderVertex] {
+        let colourOptions = options
+            ?? ColourOptions(residueCount: Swift.max(confidence.count, 1))
+        return mesh.vertices.map { vertex in
+            var packed = RenderVertex(
                 position: vertex.position,
                 normal: vertex.normal,
                 residueParameter: vertex.residueParameter,
                 structureConfidence: vertex.structureConfidence,
                 structureCode: Float(vertex.structure.rawValue),
                 residueConfidence: sample(confidence, at: vertex.residueParameter))
+            let rgb = target.map {
+                Colouring.colour(packed, from: mode, to: $0, t: t, options: colourOptions)
+            } ?? Colouring.colour(packed, mode: mode, options: colourOptions)
+            packed.colour = SIMD4<Float>(rgb.x, rgb.y, rgb.z, 1)
+            return packed
         }
     }
 

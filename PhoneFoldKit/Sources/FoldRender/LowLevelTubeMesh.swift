@@ -60,10 +60,19 @@ public final class LowLevelTubeMesh {
                   offset: MemoryLayout<RenderVertex>.offset(of: \.position)!),
             .init(semantic: .normal, format: .float3, layoutIndex: 0,
                   offset: MemoryLayout<RenderVertex>.offset(of: \.normal)!),
-            // Four scalar attributes ride in one float4 texture coordinate: residue
-            // parameter, structure confidence, structure code, residue confidence.
-            .init(semantic: .uv0, format: .float4, layoutIndex: 0,
+            // The computed colour rides in the `.color` channel, which a custom surface
+            // shader reads as `geometry.color()`. RealityKit's *stock* materials ignore a
+            // vertex colour channel, which is why the tube renders flat grey without a
+            // custom shader; the channel itself is delivered correctly.
+            .init(semantic: .color, format: .float4, layoutIndex: 0,
+                  offset: MemoryLayout<RenderVertex>.offset(of: \.colour)!),
+            // The raw scalars, split across two texture coordinates because the shader API
+            // exposes uv0 and uv1 as float2 each, not float4. Declaring them float4 here
+            // compiles but hands the shader the wrong lanes.
+            .init(semantic: .uv0, format: .float2, layoutIndex: 0,
                   offset: MemoryLayout<RenderVertex>.offset(of: \.residueParameter)!),
+            .init(semantic: .uv1, format: .float2, layoutIndex: 0,
+                  offset: MemoryLayout<RenderVertex>.offset(of: \.structureCode)!),
         ]
         descriptor.vertexLayouts = [
             .init(bufferIndex: 0, bufferStride: MemoryLayout<RenderVertex>.stride)

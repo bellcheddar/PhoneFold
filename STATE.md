@@ -1,7 +1,7 @@
 # PhoneFold — STATE
 
 **Current phase:** 2 (Aurora Stage, the renderer). Phase 1 is complete, gate GREEN. Phase 0 has deferred items, listed below.
-**Current task:** P2-05
+**Current task:** P2-06 (camera), then P2-05 post-processing
 **Last updated:** 2026-08-28
 
 Status vocabulary: `todo` / `doing` / `blocked` / `done`.
@@ -145,19 +145,25 @@ visual headline. Built multiplatform from the start so Phase 5 is additive.
 | P2-02 | `LowLevelMesh` writer so vertex buffers are rewritten in place per frame. Never rebuild `MeshResource` | P2-01 | done |
 | P2-03 | The four colour modes: confidence (AlphaFold ramp), secondary structure, rainbow N to C, Kyte-Doolittle hydrophobicity, with animated cross-fade | P2-01 | done |
 | P2-04 | Contact flashes: a short-lived emissive line and particle burst at the midpoint, brighter and longer for long-range contacts | P2-02 | done |
-| P2-05 | Materials and post-processing: HDR bloom on emissives, mild depth of field, vignette, the Aurora grade | P2-02 | todo |
+| P2-05 | Materials and post-processing: custom Metal surface shader done (vertex colour + emissive rim). Bloom, depth of field, vignette and the Aurora grade outstanding | P2-02 | part |
 | P2-06 | Camera: slow cinematic auto-orbit overridden by drag, pinch zoom, two-finger pan, double-tap reframe, "follow the action" | P2-02 | todo |
-| P2-07 | A minimal iOS/macOS app target that plays a bundled trajectory, so the renderer can actually be run and filmed | P2-02 | todo |
+| P2-07 | A minimal iOS/macOS app target that plays a bundled trajectory, so the renderer can actually be run and filmed | P2-02 | done |
 | P2-08 | Readouts: timeline scrubber with recycle boundaries, live stacked area chart of helix/sheet/coil, radius of gyration trace, sequence ribbon | P2-07 | todo |
 | P2-09 | **Marc's addition:** a GPU / ANE utilisation meter during folding | P2-07 | todo |
 | P2-10 | **Marc's addition:** the folding-progress counters panel | P2-08 | todo |
 | P2-11 | Snapshot tests of all four colour modes against reference images | P2-03 | todo |
 | P2-12 | Assert zero geometry NaNs across a full sample trajectory | P2-01 | done |
 
+**Order changed 2026-08-28:** P2-07, the app target, is brought forward ahead of P2-05
+(materials and post-processing) and P2-06 (camera). Post-processing is a Metal pipeline whose
+only real acceptance test is looking at it, and the phase gate itself is *"renderer builds and
+runs on iOS Simulator and macOS from the sample provider"*. Building the grade before there is
+anything to run it in would be writing shaders blind.
+
 ### Phase 2 exit gate
 
 Machine-verifiable:
-- [ ] Renderer builds and runs on iOS Simulator and macOS from the sample provider
+- [x] Renderer builds and runs on iOS Simulator and macOS from the sample provider — verified by screenshot, not by an exit code
 - [ ] Snapshot tests of all four colour modes against reference images
 - [ ] No frame-time regression above 20% versus the recorded baseline in `METRICS.md`
 - [x] Zero geometry NaNs across a full sample trajectory — asserted over three real trajectories and four degenerate-input classes

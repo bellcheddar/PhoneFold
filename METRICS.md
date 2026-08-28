@@ -509,3 +509,35 @@ padding. `RenderVertex` is therefore 48 bytes rather than the 40 that counting f
 suggests. The mesh descriptor takes its attribute offsets from `MemoryLayout.offset(of:)`, so
 it is correct; hard-coding 12 for the normal's offset would have sheared every normal in the
 buffer and lit the protein wrongly without any error. A test pins the real layout.
+
+## Phase 2 — the app runs
+
+Verified 2026-08-28 on the iOS 26.5 Simulator (iPhone 17) and macOS, by screenshot rather
+than by a build exit code.
+
+`Trp-cage TC5b`, 20 residues, playing from the bundled sample provider: the backbone tube
+renders lit and shaded against the Aurora Stage ground, with live readouts (Rg 6.8 A,
+compactness 0.98, 37 contacts, pLDDT 91, helix/sheet/coil 50/5/45) and the twelve-protein
+gallery.
+
+### Three things "BUILD SUCCEEDED" did not catch
+
+1. **The Metal shader was never compiled.** The Xcode project was generated *before* the
+   `.metal` file was written, so it was not in the sources phase. The build passed, the app
+   ran, and the protein rendered flat grey. Found by looking for `default.metallib` in the
+   built bundle and finding nothing.
+2. **Xcode 26 does not ship the Metal Toolchain.** Compiling any shader needs
+   `xcodebuild -downloadComponent MetalToolchain`, a 688 MB download. Until it is installed
+   the error is `cannot execute tool 'metal' due to missing Metal Toolchain`.
+3. **The protein was coloured from an array of zeros.** The confidence array was never wired
+   from the frame into the renderer, so a pLDDT-91 protein rendered orange, the colour for
+   *very low* confidence, while the readout directly beneath it read 91. The number and the
+   picture came from different places. Only visible by looking at it.
+
+### Shader API details that cost a build each
+
+- RealityKit's stock materials **ignore a per-vertex colour channel**. The channel is
+  delivered correctly; nothing reads it. A custom surface shader reading `geometry.color()`
+  is required, and that returns `float4`.
+- `geometry.uv0()` and `uv1()` are **float2 each**, not float4. Declaring a float4 uv
+  attribute compiles and silently hands the shader the wrong lanes.

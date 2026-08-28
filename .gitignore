@@ -30,3 +30,6 @@ credentials.env
 
 # Claude Code session transcripts
 .claude/transcripts/
+
+# Trajectories are copied into the app target at build time from Apps/Shared/Resources
+Apps/PhoneFold/Resources/*.pftraj

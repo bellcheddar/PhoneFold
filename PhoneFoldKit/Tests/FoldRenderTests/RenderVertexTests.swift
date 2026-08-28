@@ -30,8 +30,8 @@ struct RenderVertexTests {
     @Test("the vertex layout matches what the mesh descriptor assumes")
     func layout() {
         #expect(MemoryLayout<SIMD3<Float>>.size == 16, "SIMD3 is padded, not tightly packed")
-        #expect(MemoryLayout<RenderVertex>.size == 48)
-        #expect(MemoryLayout<RenderVertex>.stride == 48)
+        #expect(MemoryLayout<RenderVertex>.size == 64)
+        #expect(MemoryLayout<RenderVertex>.stride == 64)
         #expect(MemoryLayout<RenderVertex>.offset(of: \.position) == 0)
         #expect(MemoryLayout<RenderVertex>.offset(of: \.normal) == 16)
         // The four scalars must be contiguous: they are read as one float4 attribute.
@@ -40,8 +40,11 @@ struct RenderVertexTests {
         #expect(MemoryLayout<RenderVertex>.offset(of: \.structureConfidence) == base + 4)
         #expect(MemoryLayout<RenderVertex>.offset(of: \.structureCode) == base + 8)
         #expect(MemoryLayout<RenderVertex>.offset(of: \.residueConfidence) == base + 12)
-        // And the float4 attribute must not read past the end of the struct.
+        // And the float4 attributes must not read past the end of the struct.
         #expect(base + 16 <= MemoryLayout<RenderVertex>.stride)
+        let colour = MemoryLayout<RenderVertex>.offset(of: \.colour)!
+        #expect(colour == 48)
+        #expect(colour + 16 <= MemoryLayout<RenderVertex>.stride)
     }
 
     @Test("packing preserves geometry and carries the attributes through")
