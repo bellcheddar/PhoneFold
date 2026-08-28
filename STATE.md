@@ -1,7 +1,7 @@
 # PhoneFold — STATE
 
-**Current phase:** 0 (Model Forge)
-**Current task:** P0-18 (ProteinMPNN to Core ML), then remaining length buckets
+**Current phase:** 1 (fold engine and frame stream). Phase 0 has deferred items, listed below.
+**Current task:** P1-01
 **Last updated:** 2026-08-28
 
 Status vocabulary: `todo` / `doing` / `blocked` / `done`.
@@ -43,7 +43,7 @@ never blocked, and the trunk-patching harness, which is reused by PathDiffusion.
 | P0-25 | CA-only support: `.pftraj` format version 2 adds an atoms-per-residue word; version 1 files still decode | P0-24 | done |
 | P0-26 | Add `genie2-denoising` to `TrajectoryProvenance` on both sides | P0-14 | done |
 | P0-17 | Export Genie 2 to Core ML: 15.73 M parameters, fp16, lengths to 256 | P0-24 | done (length 64; more buckets outstanding) |
-| P0-18 | Export ProteinMPNN to Core ML | P0-16 | todo |
+| P0-18 | Export ProteinMPNN to Core ML: split the encoder (one shot) from the per-residue decoder step (autoregressive), loop in Swift | P0-16 | **deferred** |
 | P0-19 | `Tools/bench_ane.py` + on-device XCTest harness; results to `METRICS.md` | P0-17, P0-18 | part done (Mac measured; on-device is a human gate) |
 
 ### Phase 0c — the PathDiffusion named gallery
@@ -54,6 +54,21 @@ never blocked, and the trunk-patching harness, which is reused by PathDiffusion.
 | P0-21 | MSA pipeline for the twelve bundled sequences only. Check disk before downloading databases | P0-20 | todo |
 | P0-22 | Generate the twelve named folding pathways, replacing the interim ESMFold bundle | P0-21, P0-14 | todo |
 | P0-23 | `Models/manifest.json`: hashes, source checkpoints, toolchain versions, measured trajectory statistics for both engines | P0-19, P0-22 | todo |
+
+### Deferred Phase 0 items, and why
+
+PLAN.md Phase 0 is explicit: *"Start Phase 0 with the sample trajectory provider, then attempt
+the export. That way Phases 1 to 5 are never blocked on the hardest problem in the project."*
+The same logic applies to what is left.
+
+| Item | Why it can wait |
+|---|---|
+| P0-18, ProteinMPNN to Core ML | `sample()` is autoregressive with a Python loop over residues, so it needs splitting into a one-shot encoder and a per-step decoder with the loop in Swift. The designed sequence is only consumed by the **Phase 3** score; Phases 1 and 2 need coordinates only |
+| Genie 2 length buckets beyond 64 | Mechanical repetition of a working export. Conversion takes ~9 minutes per bucket and would tie up the machine |
+| P0-20 to P0-22, PathDiffusion | Needs MSA databases measured in tens of gigabytes against 33 GB free. Wants its own session, and the interim ESMFold bundle keeps the gallery populated meanwhile |
+
+Everything Phase 1 needs already exists: thirteen `.pftraj` files on disk, a working reader,
+and a Genie 2 trajectory in both the CA-trace and full-backbone layouts.
 
 ### Phase 0 exit gate (revised for the two-engine design)
 
@@ -72,7 +87,39 @@ Human-verifiable (**halt**):
 
 ## Phase 1 — Fold engine and frame stream
 
-Not yet decomposed. Decompose on entry to Phase 1.
+**Goal (PLAN.md):** a headless, fully tested, platform-agnostic pipeline turning a sequence
+into a smooth 60 fps stream of enriched `FoldFrame` values. No UI. Human-verifiable criteria:
+**none.** The loop should complete this phase unattended.
+
+| ID | Task | Deps | Status |
+|---|---|---|---|
+| P1-01 | `FoldCore.ProteinSequence`: FASTA parsing (multi-record, wrapped lines, ambiguity codes, `*` and `-` stripping) with helpful validation errors | — | todo |
+| P1-02 | UniProt fetch from `rest.uniprot.org` plus protein and organism metadata, with a disk cache. Handle isoforms and obsolete accessions | P1-01 | todo |
+| P1-03 | ~~ESM-2 tokeniser in pure Swift~~ | — | **dropped** |
+| P1-04 | `FoldGeometry`: Kabsch superposition of each frame onto the previous, so the molecule stops tumbling | — | todo |
+| P1-05 | Interpolation to 60 fps: quaternion slerp on residue frames, linear on translations, Catmull-Rom in time. Interpolated frames flagged | P1-04 | todo |
+| P1-06 | P-SEA secondary structure, CA-only, with ~3-frame temporal hysteresis and per-residue confidence | — | todo |
+| P1-07 | Contact map and `ContactEvent` emission on inward 8 A crossing, tagged by separation and hydrophobicity | — | todo |
+| P1-08 | Per-frame metrics: radius of gyration, contact order, fraction buried hydrophobic, mean and minimum confidence | P1-07 | todo |
+| P1-09 | `actor FoldEngine` exposing `AsyncStream<FoldFrame>`, with `SampleTrajectoryProvider` reading `.pftraj` | P1-05, P1-06, P1-07, P1-08 | todo |
+| P1-10 | Backpressure (bounded buffer, never drop frames), cancellation, thermal and low-power degradation by reducing readouts rather than stuttering | P1-09 | todo |
+| P1-11 | DSSP reference fixtures for 10 PDB structures, for the P-SEA agreement gate | P1-06 | todo |
+
+**P1-03 is dropped:** the ESM-2 tokeniser existed to feed ESMFold. Genie 2 is sequence-agnostic
+and ProteinMPNN carries its own alphabet, so nothing in the shipping pipeline tokenises a
+sequence for a language model.
+
+### Phase 1 exit gate
+
+Machine-verifiable:
+- [ ] `swift test` green on macOS and iOS Simulator
+- [ ] P-SEA agrees with a DSSP reference on 10 PDB structures at >=85% per-residue (CA-only)
+- [ ] A bundled trajectory plays end to end from the sample provider
+- [ ] Frame stream sustains 60 fps output with interpolation for a 300-residue input
+- [ ] Zero data races under Thread Sanitizer with Swift 6 strict concurrency
+- [ ] No `#if os(...)` anywhere in FoldCore, FoldEngine or FoldGeometry
+
+Human-verifiable: **none.**
 
 ## Phases 2-5
 
