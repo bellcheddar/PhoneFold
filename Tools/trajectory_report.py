@@ -31,12 +31,22 @@ def radius_of_gyration(ca: np.ndarray) -> float:
     return float(np.sqrt(((ca - ca.mean(0)) ** 2).sum(1).mean()))
 
 
+def ca_of(readout) -> np.ndarray:
+    """CA positions, whichever layout the file uses.
+
+    A full backbone stores N, CA, C, O so CA is index 1; a CA trace stores one atom, so CA
+    is index 0. Indexing 1 unconditionally is an IndexError on a CA trace, which is the
+    good outcome: it would otherwise have silently read the wrong atom.
+    """
+    return readout.backbone[:, 1 if readout.backbone.shape[1] == 4 else 0, :]
+
+
 def summarise(path: Path) -> dict:
     meta, readouts = pftraj.read(path)
-    final = readouts[-1].backbone[:, 1, :]
+    final = ca_of(readouts[-1])
     rows = []
     for ro in readouts:
-        ca = ro.backbone[:, 1, :]
+        ca = ca_of(ro)
         bonds = np.linalg.norm(np.diff(ca, axis=0), axis=1)
         rows.append({
             "recycle": ro.recycle, "block": ro.block_index,
@@ -53,6 +63,7 @@ def summarise(path: Path) -> dict:
     valid = [r for r in rows if abs(r["ca_ca_mean"] - 3.8) < 0.3 and r["ca_ca_sd"] < 0.3]
     return {
         "name": meta["name"], "residues": len(meta["sequence"]), "frames": len(rows),
+        "atoms": readouts[0].backbone.shape[1],
         "max_rmsd_to_final": max(rmsds), "rg_min": min(rgs), "rg_max": max(rgs),
         "plddt_min": min(plddts), "plddt_max": max(plddts),
         "valid_geometry_frames": len(valid), "rows": rows,
@@ -66,12 +77,12 @@ def main() -> int:
     ap.add_argument("--verbose", action="store_true", help="print every frame")
     args = ap.parse_args()
 
-    print(f"{'protein':<26} {'aa':>4} {'frames':>6} {'valid':>6} {'max RMSD':>9} "
-          f"{'Rg range':>14} {'pLDDT range':>13}")
-    print("-" * 90)
+    print(f"{'protein':<26} {'aa':>4} {'atoms':>6} {'frames':>6} {'valid':>6} "
+          f"{'max RMSD':>9} {'Rg range':>14} {'confidence':>13}")
+    print("-" * 98)
     for p in args.paths:
         s = summarise(p)
-        print(f"{s['name'][:26]:<26} {s['residues']:>4} {s['frames']:>6} "
+        print(f"{s['name'][:26]:<26} {s['residues']:>4} {s['atoms']:>6} {s['frames']:>6} "
               f"{s['valid_geometry_frames']:>6} {s['max_rmsd_to_final']:>8.2f}A "
               f"{s['rg_min']:>6.1f}-{s['rg_max']:<7.1f} "
               f"{s['plddt_min']:>5.1f}-{s['plddt_max']:<7.1f}")

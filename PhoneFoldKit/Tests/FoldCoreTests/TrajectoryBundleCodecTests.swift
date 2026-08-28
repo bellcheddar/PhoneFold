@@ -39,7 +39,7 @@ struct TrajectoryBundleCodecTests {
             }
             let plddt = (0..<residues).map { Float($0) * 1.5 + Float(f) * 3.25 }
             frames.append(TrajectoryReadout(recycle: f / 3, blockIndex: f * 4,
-                                            backbone: backbone, pLDDT: plddt))
+                                            backbone: backbone, confidence: plddt))
         }
         return TrajectoryBundle(metadata: metadata, readouts: frames)
     }
@@ -56,7 +56,7 @@ struct TrajectoryBundleCodecTests {
             #expect(a.blockIndex == b.blockIndex)
             // float32 in, float32 out: exact equality is the correct assertion here.
             #expect(a.backbone == b.backbone)
-            #expect(a.pLDDT == b.pLDDT)
+            #expect(a.confidence == b.confidence)
         }
         #expect(decoded.isConsistent)
     }
@@ -78,7 +78,7 @@ struct TrajectoryBundleCodecTests {
         let decoded = try TrajectoryBundleCodec.read(contentsOf: url)
 
         #expect(decoded.metadata.sequence == original.metadata.sequence)
-        #expect(decoded.readouts.last?.pLDDT == original.readouts.last?.pLDDT)
+        #expect(decoded.readouts.last?.confidence == original.readouts.last?.confidence)
     }
 
     @Test("header layout is exactly as documented")
@@ -88,12 +88,12 @@ struct TrajectoryBundleCodecTests {
         let version = data.subdata(in: 8..<12).withUnsafeBytes {
             UInt32(littleEndian: $0.loadUnaligned(as: UInt32.self))
         }
-        #expect(version == 1)
+        #expect(version == 2)
         let metadataLength = Int(data.subdata(in: 12..<16).withUnsafeBytes {
             UInt32(littleEndian: $0.loadUnaligned(as: UInt32.self))
         })
-        // 16 header + metadata + 8 (residue count, readout count) + body
-        #expect(data.count == 16 + metadataLength + 8 + 5 * (8 + 7 * 13 * 4))
+        // 16 header + metadata + 12 (residue count, readout count, atoms) + body
+        #expect(data.count == 16 + metadataLength + 12 + 5 * (8 + 7 * 13 * 4))
     }
 
     // A reader that has only ever been handed its own output is not a reader. Each of these
@@ -164,8 +164,8 @@ struct TrajectoryBundleCodecTests {
         let bad = TrajectoryBundle(
             metadata: good.metadata,
             readouts: [TrajectoryReadout(recycle: 0, blockIndex: 0,
-                                         backbone: good.readouts[0].backbone,
-                                         pLDDT: Array(good.readouts[0].pLDDT.dropLast()))])
+                                         backbone: good.readouts[0].backbone!,
+                                         confidence: Array(good.readouts[0].confidence.dropLast()))])
         #expect(good.isConsistent)
         #expect(bad.isConsistent == false)
     }
@@ -173,12 +173,113 @@ struct TrajectoryBundleCodecTests {
     @Test("consistency check catches a non-finite coordinate")
     func consistencyCatchesNaN() {
         let good = Self.fixture(residues: 7, readouts: 2)
-        var backbone = good.readouts[0].backbone
+        var backbone = good.readouts[0].backbone!
         backbone[3].ca.z = .nan
         let bad = TrajectoryBundle(
             metadata: good.metadata,
             readouts: [TrajectoryReadout(recycle: 0, blockIndex: 0, backbone: backbone,
-                                         pLDDT: good.readouts[0].pLDDT)])
+                                         confidence: good.readouts[0].confidence)])
         #expect(bad.isConsistent == false)
+    }
+}
+
+/// Genie 2 emits a CA trace and nothing else. Storing constructed N and C atoms to fill a
+/// fixed four-atom record would be inventing coordinates and presenting them as model
+/// output, so the container carries CA-only frames as a first-class case.
+@Suite("CA-trace trajectories")
+struct CATraceCodecTests {
+
+    static func caFixture(residues: Int = 12, readouts: Int = 6) -> TrajectoryBundle {
+        let metadata = TrajectoryMetadata(
+            name: "Generated CA trace",
+            sequence: String(repeating: "X", count: residues),
+            provenance: .genie2Denoising,
+            sourceModel: "aqlaboratory/genie2",
+            blocksPerReadout: 5, recycles: 1,
+            generated: "2026-08-28T00:00:00Z")
+        var frames: [TrajectoryReadout] = []
+        for f in 0..<readouts {
+            let ca = (0..<residues).map { k in
+                SIMD3<Float>(Float(k) * 3.75 - 11.25, Float(f) * -0.5, Float(k) * 0.25)
+            }
+            frames.append(TrajectoryReadout(
+                recycle: 0, blockIndex: f * 5, caPositions: ca,
+                confidence: (0..<residues).map { _ in Float(f) * 20 }))
+        }
+        return TrajectoryBundle(metadata: metadata, readouts: frames)
+    }
+
+    @Test("a CA-trace bundle round-trips and reports no full backbone")
+    func caRoundTrip() throws {
+        let original = Self.caFixture()
+        let decoded = try TrajectoryBundleCodec.decode(TrajectoryBundleCodec.encode(original))
+
+        #expect(decoded.hasFullBackbone == false)
+        #expect(decoded.isConsistent)
+        #expect(decoded.readouts.count == original.readouts.count)
+        for (a, b) in zip(decoded.readouts, original.readouts) {
+            #expect(a.backbone == nil)
+            #expect(a.caPositions == b.caPositions)
+            #expect(a.confidence == b.confidence)
+            #expect(a.atomsPerResidue == 1)
+        }
+    }
+
+    @Test("a CA-trace file is a quarter the size of the equivalent full backbone")
+    func caIsSmaller() throws {
+        let ca = try TrajectoryBundleCodec.encode(Self.caFixture(residues: 12, readouts: 6))
+        // 6 frames * (8 header + 12 residues * (3 coords + 1 confidence) * 4 bytes)
+        let expectedBody = 6 * (8 + 12 * (1 * 3 + 1) * 4)
+        let fullBody = 6 * (8 + 12 * (4 * 3 + 1) * 4)
+        #expect(ca.count < fullBody)
+        #expect(ca.count > expectedBody)   // plus header and metadata
+    }
+
+    @Test("a full-backbone bundle still reports its backbone")
+    func fullBackboneStillWorks() throws {
+        let bundle = TrajectoryBundleCodecTests.fixture()
+        let decoded = try TrajectoryBundleCodec.decode(TrajectoryBundleCodec.encode(bundle))
+        #expect(decoded.hasFullBackbone)
+        #expect(decoded.readouts.allSatisfy { $0.atomsPerResidue == 4 })
+        // CA is populated from the backbone, so both access paths agree.
+        for r in decoded.readouts {
+            #expect(r.caPositions == r.backbone!.map(\.ca))
+        }
+    }
+
+    /// A bundle whose frames disagree about geometry would make the renderer pick a path
+    /// once and then be wrong for the rest of the trajectory.
+    @Test("a bundle may not mix CA-trace and full-backbone frames")
+    func mixedBundleIsRejected() throws {
+        let full = TrajectoryBundleCodecTests.fixture(residues: 12, readouts: 2)
+        let ca = Self.caFixture(residues: 12, readouts: 2)
+        let mixed = TrajectoryBundle(metadata: ca.metadata,
+                                     readouts: [ca.readouts[0], full.readouts[0]])
+        #expect(mixed.isConsistent == false)
+        #expect(throws: TrajectoryBundleCodec.CodecError.inconsistentReadouts) {
+            try TrajectoryBundleCodec.encode(mixed)
+        }
+    }
+
+    /// Version 1 files predate CA traces and always stored four atoms. They must keep
+    /// decoding: the twelve ESMFold trajectories on disk are version 1.
+    @Test("version 1 files still decode, as a full backbone")
+    func version1BackwardCompatibility() throws {
+        var data = try TrajectoryBundleCodec.encode(
+            TrajectoryBundleCodecTests.fixture(residues: 7, readouts: 3))
+        // Rewrite as a version 1 file: stamp the version and drop the atoms-per-residue word.
+        let metadataLength = Int(data.subdata(in: 12..<16).withUnsafeBytes {
+            UInt32(littleEndian: $0.loadUnaligned(as: UInt32.self))
+        })
+        data.replaceSubrange(8..<12, with: Swift.withUnsafeBytes(of: UInt32(1).littleEndian) {
+            Data($0)
+        })
+        let atomsWordAt = 16 + metadataLength + 8
+        data.removeSubrange(atomsWordAt..<(atomsWordAt + 4))
+
+        let decoded = try TrajectoryBundleCodec.decode(data)
+        #expect(decoded.hasFullBackbone)
+        #expect(decoded.readouts.count == 3)
+        #expect(decoded.isConsistent)
     }
 }

@@ -279,3 +279,41 @@ Not fatal, and arguably convenient. PhoneFold's renderer sweeps a tube through C
 and the P-SEA assignment PLAN.md specifies is CA-only by design. ProteinMPNN ships CA-only
 weights, which is what produced the sequences above. But `.pftraj` stores four atoms per
 residue, so it needs either a CA-only mode or idealised construction of N, C and O.
+
+### The Genie 2 trajectory as PhoneFold will show it
+
+76 residues, seed 1, every 5th of 1000 denoising steps kept: 201 frames, 0.25 MB.
+
+| | Genie 2 (generated) | ESMFold ubiquitin (interim bundle) |
+|---|---|---|
+| atoms per residue stored | 1 (CA trace) | 4 |
+| frames | 201 | 32 |
+| max RMSD across trajectory | **10.72 A** | 0.87 A |
+| Rg range | **1.0 - 10.8 A** | 11.3 - 12.0 A |
+| final Rg / compact expectation | 0.95 | 1.05 |
+
+The arc is the point: the chain begins as a tight ball of noise at Rg 1.0 A, expands and
+organises, and settles into a compact fold at 10.8 A against an expectation of 11.4 A.
+That is a concert. ESMFold's 0.87 A was a twitch.
+
+Designed sequence for this backbone, from ProteinMPNN's CA-only weights:
+
+```
+MTEEEKERLRKIGEELGASEEVIEKALEALEKAGLDVSKLSDELLAFVIKAIEKGVPVEEIAKMSVEELEKAKKEM
+```
+
+14 residue types, 45% charged, natural N-terminal methionine, and recognisable
+hydrophobic/charged patterning. The foldingDiff equivalent was
+`AAAAAAAAAGAALGAGPSGPSPAALAAAAARAAAAAAAAL...` at 1% charged.
+
+### Control: the re-derived sampler matches Genie 2's own
+
+`Tools/make_genie2_trajectories.py` re-implements the reverse diffusion loop in order to
+record intermediate frames, which the upstream sampler discards. Verified against upstream
+for the same seed: **all 1000 `randn_like` draws identical**, and the final structure matches
+to a **Kabsch RMSD of 0.00048 A**, which is PDB write rounding.
+
+A raw coordinate comparison of the same two structures shows 85 A of difference, because
+upstream centres the structure in its PDB writer. That is a rigid-body offset, not a
+disagreement. Structures are compared after superposition, never coordinate-wise: the first
+comparison here was made the wrong way and briefly looked like a serious bug.

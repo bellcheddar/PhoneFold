@@ -1,14 +1,19 @@
 #!/usr/bin/env python3
 """Assign a sequence to a generated backbone by ProteinMPNN inverse folding.
 
-foldingDiff emits a backbone with no residue identities, but the Phase 3 score needs them:
+Both generative engines emit structures with no residue identities, but the Phase 3 score
+needs them:
 hydrophobicity of both contact partners decides the bass notes, R/K/D/E drive the Fantasy
 profile's octave shifts, and the Phase 2 hydrophobicity colour mode needs them too. A
 generated trajectory therefore carries `X` for every residue until this runs.
 
 ProteinMPNN (Dauparas et al., Science 2022, MIT licence) is 1.66 M parameters in a 6.7 MB
-checkpoint, which is negligible beside foldingDiff's 57.9 MB, and is the same tool the
-foldingDiff paper uses to assess designability.
+checkpoint, negligible beside the generator, and is the standard tool for this.
+
+It ships two weight sets, and which one is correct depends on the engine. foldingDiff emits
+N, CA and C, so the full-backbone weights apply. **Genie 2 emits a CA trace only**, so the
+`ca_model_weights` are required: handing the full-backbone model a structure with no N or C
+would be feeding it atoms that do not exist.
 
 The sequence is designed **once, from the final backbone**, and applied to the whole
 trajectory. Designing per frame would make the residue identities flicker, and the sequence
@@ -33,9 +38,12 @@ MPNN = HERE / ".cache/proteinmpnn-src"
 
 BACKBONE_ATOMS = ("N", "CA", "C", "O")
 
+# Engines whose output has no sequence, and therefore needs inverse folding.
+GENERATIVE_PROVENANCE = {pftraj.PROVENANCE_FOLDINGDIFF, pftraj.PROVENANCE_GENIE2}
+
 
 def write_backbone_pdb(backbone: np.ndarray, path: Path) -> Path:
-    """(L, 4, 3) -> a minimal backbone-only PDB that ProteinMPNN can parse.
+    """(L, A, 3) -> a minimal PDB that ProteinMPNN can parse. A is 4 (backbone) or 1 (CA).
 
     Residues are named GLY because the identities are genuinely unknown at this point.
     ProteinMPNN designs from backbone geometry, so the placeholder does not bias the result.
@@ -44,9 +52,10 @@ def write_backbone_pdb(backbone: np.ndarray, path: Path) -> Path:
     # finds no chain and fails later with "need at least one array to concatenate".
     #   1-6 record, 7-11 serial, 13-16 atom, 17 altLoc, 18-20 resName, 22 chain,
     #   23-26 resSeq, 31-38 x, 39-46 y, 47-54 z, 55-60 occ, 61-66 B, 77-78 element
+    atom_names = BACKBONE_ATOMS if backbone.shape[1] == 4 else ("CA",)
     lines, serial = [], 1
     for i, res in enumerate(backbone, start=1):
-        for name, xyz in zip(BACKBONE_ATOMS, res):
+        for name, xyz in zip(atom_names, res):
             lines.append(
                 f"ATOM  {serial:>5}  {name:<3}"          # 1-16
                 f" GLY A{i:>4}    "                       # 17-30
@@ -60,9 +69,14 @@ def write_backbone_pdb(backbone: np.ndarray, path: Path) -> Path:
 
 
 def design(backbone: np.ndarray, *, temperature: float, seed: int) -> str:
-    """Design one sequence for a backbone. `seed` must be non-zero: see main()."""
+    """Design one sequence for a backbone of shape (L, A, 3). `seed` must be non-zero.
+
+    A == 1 selects ProteinMPNN's CA-only model, which is what a CA trace requires.
+    """
     if seed == 0:
         raise ValueError("seed 0 means 'random' to ProteinMPNN; pass a non-zero seed")
+    if backbone.ndim != 3 or backbone.shape[1] not in (1, 4):
+        raise ValueError(f"backbone must be (L, 1, 3) or (L, 4, 3), got {backbone.shape}")
     if not MPNN.exists():
         raise SystemExit(f"ProteinMPNN not found at {MPNN}. Clone it there first.")
     with tempfile.TemporaryDirectory() as tmp:
@@ -73,6 +87,10 @@ def design(backbone: np.ndarray, *, temperature: float, seed: int) -> str:
                "--pdb_path", str(pdb), "--out_folder", str(out),
                "--num_seq_per_target", "1", "--sampling_temp", str(temperature),
                "--seed", str(seed), "--batch_size", "1"]
+        if backbone.shape[1] == 1:
+            cmd += ["--ca_only",
+                    "--path_to_model_weights", str(MPNN / "ca_model_weights"),
+                    "--model_name", "v_48_020"]
         proc = subprocess.run(cmd, capture_output=True, text=True, cwd=str(MPNN))
         if proc.returncode != 0:
             raise SystemExit(f"ProteinMPNN failed:\n{proc.stdout}\n{proc.stderr}")
@@ -115,9 +133,10 @@ def main() -> int:
         return 2
 
     meta, readouts = pftraj.read(args.trajectory)
-    if meta["provenance"] != pftraj.PROVENANCE_FOLDINGDIFF:
+    if meta["provenance"] not in GENERATIVE_PROVENANCE:
         print(f"{args.trajectory.name} has provenance {meta['provenance']!r}; inverse "
-              f"folding only applies to generated backbones", file=sys.stderr)
+              f"folding only applies to generated structures "
+              f"({sorted(GENERATIVE_PROVENANCE)})", file=sys.stderr)
         return 2
     if set(meta["sequence"]) != {"X"}:
         print(f"{args.trajectory.name} already carries a sequence; refusing to overwrite it",
@@ -125,7 +144,8 @@ def main() -> int:
         return 2
 
     final = readouts[-1].backbone
-    print(f"designing a sequence for the final backbone ({len(final)} residues, "
+    kind = "CA trace" if final.shape[1] == 1 else "full backbone"
+    print(f"designing a sequence for the final {kind} ({len(final)} residues, "
           f"T={args.temperature}, seed {args.seed}) ...")
     sequence = design(final, temperature=args.temperature, seed=args.seed)
     if len(sequence) != len(meta["sequence"]):

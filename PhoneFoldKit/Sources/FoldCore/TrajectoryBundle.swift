@@ -16,6 +16,10 @@ public enum TrajectoryProvenance: String, Codable, Sendable, Hashable, CaseItera
     /// folded backbone. The protein is **generated, not predicted** — it is novel, and its
     /// sequence comes from inverse folding rather than from an accession.
     case foldingDiffDenoising = "foldingdiff-denoising"
+    /// Real Genie 2 sampling: an SE(3)-equivariant denoising path from noise to a compact
+    /// backbone. Like foldingDiff the protein is **generated, not predicted**, and Genie 2
+    /// emits a CA trace rather than a full backbone.
+    case genie2Denoising = "genie2-denoising"
     /// Real PathDiffusion sampling: an evolution-guided folding pathway for a named protein,
     /// precomputed offline because the MSA pipeline cannot run on device.
     case pathDiffusionPathway = "pathdiffusion-pathway"
@@ -30,13 +34,15 @@ public enum TrajectoryProvenance: String, Codable, Sendable, Hashable, CaseItera
     /// Whether the protein was generated rather than predicted from a known sequence.
     /// The UI must say so: a foldingDiff trajectory is a novel protein that has never
     /// existed, not a prediction of anything in the PDB.
-    public var isGenerated: Bool { self == .foldingDiffDenoising }
+    public var isGenerated: Bool {
+        self == .foldingDiffDenoising || self == .genie2Denoising
+    }
 
     /// What the per-residue confidence in an accompanying frame actually means.
     public var confidenceSource: ConfidenceSource {
         switch self {
         case .esmFoldReadout, .coreMLTrunkStep, .pathDiffusionPathway: .pLDDT
-        case .foldingDiffDenoising: .denoisingProgress
+        case .foldingDiffDenoising, .genie2Denoising: .denoisingProgress
         case .testFixture: .pLDDT
         }
     }
@@ -114,14 +120,46 @@ public struct TrajectoryMetadata: Codable, Sendable, Hashable {
 public struct TrajectoryReadout: Sendable, Hashable {
     public let recycle: Int
     public let blockIndex: Int
-    public let backbone: [BackboneResidue]
-    /// Per-residue pLDDT on the AlphaFold 0...100 scale.
-    public let pLDDT: [Float]
 
-    public init(recycle: Int, blockIndex: Int, backbone: [BackboneResidue], pLDDT: [Float]) {
-        self.recycle = recycle; self.blockIndex = blockIndex
-        self.backbone = backbone; self.pLDDT = pLDDT
+    /// CA positions. **Always present**, because every engine produces them and because the
+    /// renderer sweeps its tube through CA while P-SEA is CA-only by design.
+    public let caPositions: [SIMD3<Float>]
+
+    /// N, CA, C and O, present only when the source model actually emits them.
+    ///
+    /// `nil` for a CA-trace engine such as Genie 2. It is deliberately optional rather than
+    /// filled in with constructed atoms: N and C built from CA positions alone would be
+    /// invented coordinates presented as model output. Where a full backbone is genuinely
+    /// needed, FoldGeometry constructs one at load time and says so.
+    public let backbone: [BackboneResidue]?
+
+    /// Per-residue confidence. What it *means* depends on the bundle's provenance: pLDDT on
+    /// the AlphaFold 0...100 scale for a predictor, denoising progress for a generator.
+    /// See `TrajectoryProvenance.confidenceSource`.
+    public let confidence: [Float]
+
+    /// Full-backbone readout.
+    public init(recycle: Int, blockIndex: Int,
+                backbone: [BackboneResidue], confidence: [Float]) {
+        self.recycle = recycle
+        self.blockIndex = blockIndex
+        self.caPositions = backbone.map(\.ca)
+        self.backbone = backbone
+        self.confidence = confidence
     }
+
+    /// CA-trace readout, for an engine that emits nothing else.
+    public init(recycle: Int, blockIndex: Int,
+                caPositions: [SIMD3<Float>], confidence: [Float]) {
+        self.recycle = recycle
+        self.blockIndex = blockIndex
+        self.caPositions = caPositions
+        self.backbone = nil
+        self.confidence = confidence
+    }
+
+    /// Number of atoms per residue actually stored: 1 for a CA trace, 4 for a full backbone.
+    public var atomsPerResidue: Int { backbone == nil ? 1 : 4 }
 }
 
 /// A decoded `.pftraj` file: metadata plus every raw readout, in order.
@@ -137,19 +175,33 @@ public struct TrajectoryBundle: Sendable {
     /// The sequence as amino acids. Unresolvable codes become `.unknown` rather than failing.
     public var residues: [AminoAcid] { metadata.sequence.map(AminoAcid.init(code:)) }
 
-    /// Every readout must have one backbone residue and one pLDDT per sequence position, and
-    /// no non-finite numbers anywhere.
+    /// Every readout must have one CA and one confidence value per sequence position, agree
+    /// with the others about whether a full backbone is present, and contain no non-finite
+    /// numbers anywhere.
     public var isConsistent: Bool {
         let n = metadata.residueCount
         guard n > 0, !readouts.isEmpty else { return false }
+        let expectsBackbone = readouts[0].backbone != nil
         for r in readouts {
-            guard r.backbone.count == n, r.pLDDT.count == n else { return false }
-            guard r.pLDDT.allSatisfy({ $0.isFinite }) else { return false }
-            for res in r.backbone {
-                for v in [res.n, res.ca, res.c, res.o]
-                where !v.x.isFinite || !v.y.isFinite || !v.z.isFinite { return false }
+            guard r.caPositions.count == n, r.confidence.count == n else { return false }
+            // A bundle must not mix CA-trace and full-backbone frames: the renderer picks
+            // its geometry path once, and a mid-trajectory change would be a silent fault.
+            guard (r.backbone != nil) == expectsBackbone else { return false }
+            guard r.confidence.allSatisfy({ $0.isFinite }) else { return false }
+            for v in r.caPositions where !v.x.isFinite || !v.y.isFinite || !v.z.isFinite {
+                return false
+            }
+            if let backbone = r.backbone {
+                guard backbone.count == n else { return false }
+                for res in backbone {
+                    for v in [res.n, res.c, res.o]
+                    where !v.x.isFinite || !v.y.isFinite || !v.z.isFinite { return false }
+                }
             }
         }
         return true
     }
+
+    /// Whether this trajectory carries full backbones or only CA positions.
+    public var hasFullBackbone: Bool { readouts.first?.backbone != nil }
 }

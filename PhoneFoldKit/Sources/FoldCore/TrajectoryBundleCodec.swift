@@ -9,24 +9,31 @@ import simd
 /// ```
 ///   offset  size          field
 ///   0       8             magic, ASCII "PFTRAJ01"
-///   8       4  uint32     format version
+///   8       4  uint32     format version (1 = full backbone only, 2 = adds CA-trace)
 ///   12      4  uint32     JSON metadata length in bytes, M
 ///   16      M             TrajectoryMetadata as UTF-8 JSON
 ///   16+M    4  uint32     residue count, N
 ///   +4      4  uint32     readout count, F
+///   +4      4  uint32     atoms per residue, A (version 2 only; version 1 implies 4)
 ///   then F records, each:
 ///           4  uint32     recycle
 ///           4  uint32     blockIndex
-///           N*12 float32  backbone, residue-major, atom order N, CA, C, O, xyz each
-///           N    float32  pLDDT
+///           N*A*3 float32 coordinates, residue-major
+///                         A = 4: atom order N, CA, C, O
+///                         A = 1: CA only
+///           N    float32  per-residue confidence
 /// ```
+///
+/// Version 2 exists because Genie 2 emits a CA trace and nothing else. Storing constructed
+/// N and C atoms to fill a fixed four-atom record would be inventing coordinates and
+/// presenting them as model output.
 ///
 /// Coordinates are float32 angstroms. There is no compression: these files are a few MB and
 /// the app must memory-map and stream them without a decode stall on the audio clock.
 public enum TrajectoryBundleCodec {
 
     public static let magic = "PFTRAJ01"
-    public static let currentVersion: UInt32 = 1
+    public static let currentVersion: UInt32 = 2
 
     public enum CodecError: Error, CustomStringConvertible, Equatable {
         case notATrajectoryFile
@@ -34,6 +41,8 @@ public enum TrajectoryBundleCodec {
         case truncated(expected: Int, got: Int)
         case metadataDecodingFailed(String)
         case inconsistentResidueCount(header: Int, sequence: Int)
+        case unsupportedAtomsPerResidue(Int)
+        case inconsistentReadouts
 
         public var description: String {
             switch self {
@@ -47,6 +56,10 @@ public enum TrajectoryBundleCodec {
                 "trajectory metadata could not be decoded: \(why)"
             case .inconsistentResidueCount(let header, let sequence):
                 "trajectory header says \(header) residues but the sequence has \(sequence)"
+            case .unsupportedAtomsPerResidue(let a):
+                "trajectory stores \(a) atoms per residue; only 1 (CA trace) and 4 (N, CA, C, O) are valid"
+            case .inconsistentReadouts:
+                "trajectory mixes CA-trace and full-backbone readouts, which a bundle may not do"
             }
         }
     }
@@ -59,9 +72,14 @@ public enum TrajectoryBundleCodec {
         let metadataJSON = try encoder.encode(bundle.metadata)
 
         let n = bundle.metadata.residueCount
+        let atoms = bundle.readouts.first?.atomsPerResidue ?? 4
+        guard bundle.readouts.allSatisfy({ $0.atomsPerResidue == atoms }) else {
+            throw CodecError.inconsistentReadouts
+        }
+
         var data = Data()
-        data.reserveCapacity(16 + metadataJSON.count + 8
-                             + bundle.readouts.count * (8 + n * 13 * 4))
+        data.reserveCapacity(20 + metadataJSON.count
+                             + bundle.readouts.count * (8 + n * (atoms * 3 + 1) * 4))
 
         data.append(contentsOf: Array(magic.utf8))
         data.appendLE(currentVersion)
@@ -69,16 +87,23 @@ public enum TrajectoryBundleCodec {
         data.append(metadataJSON)
         data.appendLE(UInt32(n))
         data.appendLE(UInt32(bundle.readouts.count))
+        data.appendLE(UInt32(atoms))
 
         for r in bundle.readouts {
             data.appendLE(UInt32(r.recycle))
             data.appendLE(UInt32(r.blockIndex))
-            for res in r.backbone {
-                for v in [res.n, res.ca, res.c, res.o] {
+            if let backbone = r.backbone {
+                for res in backbone {
+                    for v in [res.n, res.ca, res.c, res.o] {
+                        data.appendLE(v.x); data.appendLE(v.y); data.appendLE(v.z)
+                    }
+                }
+            } else {
+                for v in r.caPositions {
                     data.appendLE(v.x); data.appendLE(v.y); data.appendLE(v.z)
                 }
             }
-            for p in r.pLDDT { data.appendLE(p) }
+            for c in r.confidence { data.appendLE(c) }
         }
         return data
     }
@@ -119,13 +144,25 @@ public enum TrajectoryBundleCodec {
         let n = Int(data.loadLE(at: &cursor) as UInt32)
         let frameCount = Int(data.loadLE(at: &cursor) as UInt32)
 
+        // Version 1 predates CA-trace engines and always stored a full backbone.
+        let atoms: Int
+        if version >= 2 {
+            try need(4)
+            atoms = Int(data.loadLE(at: &cursor) as UInt32)
+        } else {
+            atoms = 4
+        }
+        guard atoms == 1 || atoms == 4 else {
+            throw CodecError.unsupportedAtomsPerResidue(atoms)
+        }
+
         guard n == metadata.residueCount else {
             throw CodecError.inconsistentResidueCount(header: n, sequence: metadata.residueCount)
         }
 
         // Check the whole body length once rather than per-field: a truncated file should
         // fail immediately, not after allocating most of a trajectory.
-        let bodyBytes = frameCount * (8 + n * 13 * 4)
+        let bodyBytes = frameCount * (8 + n * (atoms * 3 + 1) * 4)
         try need(bodyBytes)
 
         var readouts: [TrajectoryReadout] = []
@@ -135,27 +172,43 @@ public enum TrajectoryBundleCodec {
             let recycle = Int(data.loadLE(at: &cursor) as UInt32)
             let blockIndex = Int(data.loadLE(at: &cursor) as UInt32)
 
-            var backbone: [BackboneResidue] = []
-            backbone.reserveCapacity(n)
-            for _ in 0..<n {
-                var atoms: [SIMD3<Float>] = []
-                atoms.reserveCapacity(4)
-                for _ in 0..<4 {
-                    let x: Float = data.loadLE(at: &cursor)
-                    let y: Float = data.loadLE(at: &cursor)
-                    let z: Float = data.loadLE(at: &cursor)
-                    atoms.append(SIMD3<Float>(x, y, z))
-                }
-                backbone.append(BackboneResidue(n: atoms[0], ca: atoms[1],
-                                                c: atoms[2], o: atoms[3]))
+            func readPoint() -> SIMD3<Float> {
+                let x: Float = data.loadLE(at: &cursor)
+                let y: Float = data.loadLE(at: &cursor)
+                let z: Float = data.loadLE(at: &cursor)
+                return SIMD3<Float>(x, y, z)
             }
 
-            var pLDDT: [Float] = []
-            pLDDT.reserveCapacity(n)
-            for _ in 0..<n { pLDDT.append(data.loadLE(at: &cursor)) }
+            var backbone: [BackboneResidue]?
+            var caPositions: [SIMD3<Float>] = []
+            caPositions.reserveCapacity(n)
 
-            readouts.append(TrajectoryReadout(recycle: recycle, blockIndex: blockIndex,
-                                              backbone: backbone, pLDDT: pLDDT))
+            if atoms == 4 {
+                var residues: [BackboneResidue] = []
+                residues.reserveCapacity(n)
+                for _ in 0..<n {
+                    let nAtom = readPoint(), ca = readPoint()
+                    let c = readPoint(), o = readPoint()
+                    residues.append(BackboneResidue(n: nAtom, ca: ca, c: c, o: o))
+                    caPositions.append(ca)
+                }
+                backbone = residues
+            } else {
+                for _ in 0..<n { caPositions.append(readPoint()) }
+            }
+
+            var confidence: [Float] = []
+            confidence.reserveCapacity(n)
+            for _ in 0..<n { confidence.append(data.loadLE(at: &cursor)) }
+
+            if let backbone {
+                readouts.append(TrajectoryReadout(recycle: recycle, blockIndex: blockIndex,
+                                                  backbone: backbone, confidence: confidence))
+            } else {
+                readouts.append(TrajectoryReadout(recycle: recycle, blockIndex: blockIndex,
+                                                  caPositions: caPositions,
+                                                  confidence: confidence))
+            }
         }
 
         return TrajectoryBundle(metadata: metadata, readouts: readouts)

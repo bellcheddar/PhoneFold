@@ -45,12 +45,12 @@ struct CrossLanguageCodecTests {
             #expect(readout.blockIndex == f * 4)
             for k in 0..<9 {
                 let base = SIMD3<Float>(Float(k) * 3.75 - 11.25, Float(f) * -0.5, Float(k) * 0.25)
-                let r = readout.backbone[k]
+                let r = try #require(readout.backbone)[k]
                 #expect(r.ca == base)
                 #expect(r.n == base + SIMD3<Float>(-0.5, 0.125, -0.625))
                 #expect(r.c == base + SIMD3<Float>(0.5, -0.125, 0.625))
                 #expect(r.o == base + SIMD3<Float>(0.875, 0.5, 0.75))
-                #expect(readout.pLDDT[k] == Float(k) * 1.5 + Float(f) * 3.25)
+                #expect(readout.confidence[k] == Float(k) * 1.5 + Float(f) * 3.25)
             }
         }
     }

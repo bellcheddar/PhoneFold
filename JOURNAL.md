@@ -161,3 +161,32 @@ The O placement was verified by the check that would catch a sign error: **O...N
 CA-C 1.540, C-N+1 1.340, CA-CA 3.823 +- 0.007.
 
 **Invariants:** GREEN.
+
+## 2026-08-28 — Genie 2 adopted; P0-24, P0-25, P0-26
+
+Marc asked for Genie 2 to be tested after foldingDiff's backbones proved mostly extended. It
+wins decisively: 8/8 compact and 8/8 designable at 76 residues against foldingDiff's 2/14 and
+0/14, median scTM 0.939 against 0.118, and 49% charged residues against 13%. Full table in
+METRICS.md.
+
+P0-26: `genie2-denoising` added to `TrajectoryProvenance` on both sides.
+
+P0-25: Genie 2 emits a CA trace and nothing else, so `.pftraj` gained format version 2 with
+an atoms-per-residue word. Storing constructed N and C atoms to fill a four-atom record would
+be inventing coordinates and presenting them as model output. `TrajectoryReadout.backbone` is
+now optional and `caPositions` is always present. Version 1 files still decode, verified
+against the twelve real ESMFold files on disk rather than only a synthetic fixture.
+
+P0-24: `Tools/make_genie2_trajectories.py` re-derives the reverse diffusion loop to record
+intermediate frames, which upstream discards. Verified against upstream: all 1000 randn_like
+draws identical, final structure to a Kabsch RMSD of 0.00048 A.
+
+One mistake worth recording. The first comparison of my sampler against theirs used a raw
+coordinate difference and reported 85 A, which looked like a serious bug. It was a rigid-body
+offset: upstream centres the structure in its PDB writer. Structures are compared after
+superposition, never coordinate-wise.
+
+The trajectory is what the app needs: 201 frames, Rg 1.0 to 10.8 A, 10.72 A of motion, ending
+at a compact fold. ESMFold's equivalent was 0.87 A.
+
+**Test result:** Swift 53 tests in 16 suites pass; Python 7 pass. **Invariants:** GREEN.
