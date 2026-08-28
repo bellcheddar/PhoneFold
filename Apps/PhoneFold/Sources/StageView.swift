@@ -23,7 +23,7 @@ struct StageView: View {
                            colourMode: player.colourMode,
                            residues: player.provider?.residues ?? [],
                            residueCount: player.provider?.residueCount ?? 0,
-                           residueConfidence: player.frame?.pLDDT ?? [])
+                           residueConfidence: player.confidence)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 FoldHUD(history: player.history, meter: player.meter,
                         confidenceSource: player.confidenceSource,
@@ -47,6 +47,13 @@ struct StageView: View {
                 Text(player.title)
                     .font(.system(.title2, design: .default).weight(.semibold))
                     .foregroundStyle(.white)
+                #if DEBUG
+                // On-screen because simctl's console capture returns nothing for this app,
+                // so `print` is not a usable diagnostic channel here.
+                Text(player.diagnostic)
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(Color(hex: 0xFCB900))
+                #endif
                 if player.isGenerated {
                     // A generated protein has never existed. The app says so rather than
                     // letting it be mistaken for a prediction.

@@ -361,7 +361,7 @@ Non-negotiable in the design, so the 85% means something:
 
 ---
 
-## OPEN — 2026-08-28 — two Phase 2 playback issues, neither blocking the gate
+## RESOLVED (partly) 2026-08-28 — two Phase 2 playback issues
 
 Both found by running the app rather than by a test, and neither affects the Phase 2 machine
 gate, which is met: the renderer builds and runs on iOS Simulator and macOS from the sample
@@ -393,3 +393,28 @@ found the material problem.
 
 **Both belong to P2-13, a new task.** The renderer, colouring, camera, flashes and HUD are
 all committed and tested.
+
+### Resolution, 2026-08-28
+
+**Issue 2, the Release build rendering nothing, is fixed.** The cause was issue 1: frame
+production ran on the main actor, and in a Release build the loop was fast enough to starve
+SwiftUI completely, so the view never drew. Debug was slow enough per frame to leave gaps
+where it could. Moving frame production to a detached task fixed both symptoms at once; only
+the RealityKit buffer write remains on the main actor, which is where it has to be.
+
+Release now renders correctly, with the off-main preparation measured at **0.1 ms per frame**.
+
+**A diagnostic note worth keeping:** `print` is not a usable channel for this app.
+`xcrun simctl launch --console-pty` returned an empty capture every time, in both build
+configurations, so "no output" was never evidence of anything. What settled it was putting
+the diagnostic **on screen**, where a screenshot could read it, and that immediately
+distinguished "the task never ran" from "the engine call never returned" - it turned out to
+be neither, and the earlier reading of "starting" was simply a screenshot taken before the
+first frame.
+
+**Still open: playback advances slowly even in Release.** The frame meter reads 0.1 ms and
+the engine measures 1.65 ms/frame in isolation, yet the trajectory does not get far. The
+remaining suspect is the per-frame work still on the main actor: colour packing, the bucket
+split and one `SimpleMaterial` per bucket rebuilt every frame. Materials should be cached and
+only rebuilt when the bucket colours actually change. Not a correctness problem, and not
+blocking the Phase 2 machine gate.

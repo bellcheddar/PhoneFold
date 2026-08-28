@@ -1,7 +1,7 @@
 # PhoneFold — STATE
 
 **Current phase:** 2 (Aurora Stage, the renderer). Phase 1 is complete, gate GREEN. Phase 0 has deferred items, listed below.
-**Current task:** P2-13 (main-actor and Release rendering), then P2-11 snapshots
+**Current task:** P2-11 (snapshot tests), then cache per-bucket materials
 **Last updated:** 2026-08-28
 
 Status vocabulary: `todo` / `doing` / `blocked` / `done`.
@@ -151,7 +151,7 @@ visual headline. Built multiplatform from the start so Phase 5 is additive.
 | P2-08 | Readouts: counters, stacked structure chart, radius of gyration trace, timeline with contact ticks. Charts need P2-13 before they accumulate enough samples to show | P2-07 | mostly done |
 | P2-09 | **Marc's addition:** compute meter. Reports measured frame cost against the 60 fps budget and the configured compute unit; iOS exposes no public GPU/ANE utilisation API, so it does not claim one | P2-07 | done |
 | P2-10 | **Marc's addition:** the folding-progress counters panel | P2-08 | done |
-| P2-13 | Move frame production off the main actor, and diagnose why the Release build renders nothing (see BLOCKERS.md) | P2-08 | todo |
+| P2-13 | Move frame production off the main actor (**done**, and it fixed the Release rendering bug). Caching per-bucket materials still outstanding | P2-08 | mostly done |
 | P2-11 | Snapshot tests of all four colour modes against reference images | P2-03 | todo |
 | P2-12 | Assert zero geometry NaNs across a full sample trajectory | P2-01 | done |
 
