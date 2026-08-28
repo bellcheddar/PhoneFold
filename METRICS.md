@@ -783,3 +783,33 @@ The one trajectory that is a genuine descent from disorder into structure is the
 run: Genie 2 goes from Rg 1.22 to 10.83 A over 201 real steps, every one of them a valid
 structure. That is what a watchable fold looks like, and it is why Phase 0 changed engine.
 The cost is that Genie 2 generates de novo backbones, so it cannot fold a named protein.
+
+### What the Genie 2 trajectory actually looks like to play (2026-08-29)
+
+Measured over its 201 steps, contacts counted at the tracker's 8 A threshold with |i-j| >= 3:
+
+| Step | Through | Rg (A) | Contacts |
+|---|---|---|---|
+| 0 | 0% | 1.22 | 2701 |
+| 40 | 20% | 3.37 | 2652 |
+| 80 | 40% | 6.39 | 1100 |
+| 108 | 54% | 8.00 | - |
+| 140 | 70% | 9.65 | 291 |
+| 200 | 100% | 10.83 | 182 |
+
+Three things follow, and they all bear on whether this should lead the gallery.
+
+**It expands, it does not fold.** The denoising starts from a near-zero-radius Gaussian blob
+and opens outward. That is the model's real generative path and it is a genuine descent into
+structure, but the motion on screen is a ball unpacking, not a chain collapsing. The intuitive
+folding animation - extended chain drawing itself into a compact core - is not what either
+engine does.
+
+**The first sixth is a degenerate blob.** 35 of 201 steps have Rg under 3 A, which puts all 76
+residues inside a sphere a few angstroms across. Every residue pair is then in contact: 2701
+of them, against 182 in the finished structure. It renders as a magenta mass.
+
+**And it costs.** Those frames measure **19.8 ms** in the app against a 16.7 ms budget for
+60 fps, so playback stretches: 13 seconds of wall clock covered 7% of the trajectory. The
+cause is the contact count, not the geometry. Fixable - the degenerate prefix can be trimmed
+or the tracker capped - but not yet fixed.
