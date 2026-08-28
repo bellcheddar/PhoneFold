@@ -87,3 +87,33 @@ tested property, not an assumption.
 
 **Test result:** Swift 42 tests in 13 suites pass; Python 7 pytest cases pass.
 **Invariants:** GREEN.
+
+## 2026-08-28 — P0-05, P0-06 — the twelve sample trajectories
+
+`Tools/fetch_sequences.py` resolves all twelve proteins from accessions (RCSB polymer
+entities and UniProt), never from pasted strings, and asserts an expected length as a hard
+failure. That check earned its keep immediately: GFP from 1EMA came back 236 residues rather
+than 238, because crystallised GFP collapses the Thr-Tyr-Gly chromophore into a single CRO
+residue, which reaches a folding model as X in the middle of the barrel. GFP now comes from
+UniProt P42212 instead. The Pin1 WW domain range 6-39 was verified by eye against both
+signature tryptophans.
+
+`Tools/make_sample_trajectories.py` patches EsmFoldingTrunk.forward to read coordinates out
+mid-fold. **Verified bit-exact against the unpatched model**: 0.000e+00 difference in both
+coordinates and pLDDT on ubiquitin and GFP.
+
+Two bugs found and fixed by measurement rather than by review:
+
+1. Per-residue pLDDT was averaged over all 37 atom slots, including the ~20 that do not
+   exist for a given residue. Ubiquitin read 77.4 instead of 90.5. Both are plausible
+   pLDDTs, which is precisely why it survived until it was checked against the model's own
+   number. Now read at the CA, as AlphaFold defines it.
+2. PLAN.md's specified readout every 4 trunk blocks produces frames that are not
+   polypeptides (CA-CA 5-18 A against an ideal 3.80). Changed to the end of each recycle,
+   where the structure module is trained to run, taking all 8 IPA layers.
+
+All twelve generated: 32 frames each, 2.2 MB total, 20 to 314 residues, spanning all-alpha,
+all-beta, mixed and disordered.
+
+**HALT.** Measuring the result raised a question that changes what the app shows, which is
+Marc's decision, not the agent's. Written up with evidence in BLOCKERS.md.

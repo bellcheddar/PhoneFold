@@ -1,0 +1,154 @@
+{
+  "comment": [
+    "The twelve bundled sample proteins (PLAN.md Phase 0, fallback ladder item 4).",
+    "Every sequence is DERIVED from an accession at generation time, never pasted here.",
+    "'source' is 'pdb' (RCSB polymer entity) or 'uniprot'. 'range' is 1-based inclusive and",
+    "is applied after fetching. 'expect_length' is asserted after the range is applied: a",
+    "mismatch is a hard failure, not a warning, because a plausible-but-wrong sequence is the",
+    "single easiest way to silently ship the wrong protein.",
+    "GFP comes from UniProt rather than a PDB entity on purpose: the crystallised constructs collapse the chromophore into a single non-standard CRO residue, which reaches a folding model as X in the middle of the barrel."
+  ],
+  "proteins": [
+    {
+      "id": "ubiquitin",
+      "name": "Ubiquitin",
+      "source": "pdb",
+      "pdb": "1UBQ",
+      "entity": "1",
+      "expect_length": 76,
+      "organism": "Homo sapiens",
+      "reference_pdb": "1UBQ",
+      "listening_note": "The beta-grasp fold. Listen for the long-range contacts that pin the sheet against the helix: they are the low notes, and they arrive late."
+    },
+    {
+      "id": "gfp",
+      "name": "Green fluorescent protein",
+      "source": "uniprot",
+      "expect_length": 238,
+      "organism": "Aequorea victoria",
+      "reference_pdb": "1EMA",
+      "listening_note": "Eleven strands closing into a barrel. The staccato sheet figure builds for the whole piece and only resolves when the barrel shuts.",
+      "accession": "P42212",
+      "reference_note": "1EMA is the S65T variant and collapses the Thr-Tyr-Gly chromophore into a single CRO residue, so its entity sequence is 236 long with an X at position 66. The sequence here is the wild-type pre-cyclisation polypeptide from UniProt, which is what a folding model should be given."
+    },
+    {
+      "id": "lysozyme",
+      "name": "Hen egg white lysozyme",
+      "source": "pdb",
+      "pdb": "1LYZ",
+      "entity": "1",
+      "expect_length": 129,
+      "organism": "Gallus gallus",
+      "reference_pdb": "1LYZ",
+      "listening_note": "A disulfide-pinned core. The four cystine bridges show up as long-range contacts that form early and never break."
+    },
+    {
+      "id": "proinsulin",
+      "name": "Human proinsulin",
+      "source": "uniprot",
+      "accession": "P01308",
+      "range": [
+        25,
+        110
+      ],
+      "expect_length": 86,
+      "organism": "Homo sapiens",
+      "reference_pdb": null,
+      "listening_note": "Small, and mostly connecting peptide. The C-peptide never settles, so a third of the piece stays unresolved on purpose."
+    },
+    {
+      "id": "myoglobin",
+      "name": "Sperm whale myoglobin",
+      "source": "pdb",
+      "pdb": "1MBN",
+      "entity": "1",
+      "expect_length": 153,
+      "organism": "Physeter catodon",
+      "reference_pdb": "1MBN",
+      "listening_note": "Eight helices and almost no sheet. Nearly pure sustained pad: this is what an all-alpha protein sounds like."
+    },
+    {
+      "id": "beta2ar_7tm",
+      "name": "Beta-2 adrenergic receptor, 7TM core",
+      "source": "uniprot",
+      "accession": "P07550",
+      "range": [
+        29,
+        342
+      ],
+      "expect_length": 314,
+      "organism": "Homo sapiens",
+      "reference_pdb": "2RH1",
+      "listening_note": "Seven long membrane helices. The pad is enormous and the contacts are almost all local: a GPCR is a bundle, not a knot."
+    },
+    {
+      "id": "alpha_synuclein",
+      "name": "Alpha-synuclein",
+      "source": "uniprot",
+      "accession": "P37840",
+      "expect_length": 140,
+      "organism": "Homo sapiens",
+      "reference_pdb": null,
+      "listening_note": "Intrinsically disordered. It never resolves, so it stays a detuned wash for the whole piece. A trained ear can hear a bad prediction, and this is what one sounds like."
+    },
+    {
+      "id": "alpha3d",
+      "name": "Alpha-3D, a de novo three-helix bundle",
+      "source": "pdb",
+      "pdb": "2A3D",
+      "entity": "1",
+      "expect_length": 73,
+      "organism": "synthetic construct",
+      "reference_pdb": "2A3D",
+      "listening_note": "Designed, not evolved. It folds cleanly and fast, and the music is almost too tidy: no frustration anywhere."
+    },
+    {
+      "id": "trp_cage",
+      "name": "Trp-cage TC5b",
+      "source": "pdb",
+      "pdb": "1L2Y",
+      "entity": "1",
+      "expect_length": 20,
+      "organism": "synthetic construct",
+      "reference_pdb": "1L2Y",
+      "listening_note": "Twenty residues, the smallest thing that folds. Over almost before it starts."
+    },
+    {
+      "id": "villin_hp36",
+      "name": "Villin headpiece subdomain HP36",
+      "source": "pdb",
+      "pdb": "1VII",
+      "entity": "1",
+      "expect_length": 36,
+      "organism": "Gallus gallus",
+      "reference_pdb": "1VII",
+      "listening_note": "One of the fastest folders known. Three short helices arriving almost together."
+    },
+    {
+      "id": "protein_g_b1",
+      "name": "Protein G B1 domain",
+      "source": "pdb",
+      "pdb": "1PGB",
+      "entity": "1",
+      "expect_length": 56,
+      "organism": "Streptococcus sp.",
+      "reference_pdb": "1PGB",
+      "listening_note": "The canonical alpha-beta model system: one helix packed on a four-stranded sheet. Pad and staccato in equal measure."
+    },
+    {
+      "id": "ww_domain",
+      "name": "Pin1 WW domain",
+      "source": "pdb",
+      "pdb": "1PIN",
+      "entity": "1",
+      "range": [
+        6,
+        39
+      ],
+      "expect_length": 34,
+      "organism": "Homo sapiens",
+      "reference_pdb": "1PIN",
+      "listening_note": "All beta, three strands, no helix at all. Pure rhythmic figure with nothing sustained underneath it."
+    }
+  ]
+}

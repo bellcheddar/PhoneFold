@@ -1,7 +1,7 @@
 # PhoneFold — STATE
 
-**Current phase:** 0 (Model Forge)
-**Current task:** P0-05
+**Current phase:** 0 (Model Forge) — **HALTED**, see BLOCKERS.md
+**Current task:** P0-07 (blocked pending the open decision in BLOCKERS.md)
 **Last updated:** 2026-08-28
 
 Status vocabulary: `todo` / `doing` / `blocked` / `done`.
@@ -22,8 +22,8 @@ are never blocked on the hardest problem in the project.
 | P0-03 | Trajectory bundle format (`.pftraj`): versioned container spec in `Tools/README.md` + Swift reader/writer in `FoldCore` with round-trip tests | P0-02 | done |
 | P0-03b | Python `.pftraj` writer (`Tools/pftraj.py`) + a cross-language fixture proving the Swift reader decodes exactly what Python wrote | P0-03 | done |
 | P0-04 | `Tools/` Python environment: venv on python3.12, pinned `requirements.txt`, `Tools/README.md` documenting exact versions | — | done |
-| P0-05 | Trajectory generator `Tools/make_sample_trajectories.py`: runs real ESMFold, captures a coordinate readout every N blocks, writes `.pftraj`. **Real inference only — no synthesised trajectories** | P0-03, P0-04 | todo |
-| P0-06 | Produce the 12 bundled trajectories (ubiquitin, GFP, lysozyme, insulin, myoglobin, GPCR fragment, IDR, designed all-alpha bundle + 4 of Marc's choosing) into `Apps/Shared/Resources/Trajectories/` | P0-05 | todo |
+| P0-05 | Trajectory generator `Tools/make_sample_trajectories.py`: runs real ESMFold, captures a coordinate readout every N blocks, writes `.pftraj`. **Real inference only — no synthesised trajectories** | P0-03, P0-04 | done |
+| P0-06 | Produce the 12 bundled trajectories (ubiquitin, GFP, lysozyme, insulin, myoglobin, GPCR fragment, IDR, designed all-alpha bundle + 4 of Marc's choosing) into `Apps/Shared/Resources/Trajectories/` | P0-05 | done |
 | P0-07 | `SampleTrajectoryProvider` in `FoldEngine`: loads a `.pftraj` and emits `AsyncStream<FoldFrame>` at wall-clock rate. Tests | P0-06 | todo |
 | P0-08 | Export ESM-2 650M to Core ML: fp16, ANE layout, enumerated length buckets 64/128/192/256/320/384, 6-bit palettisation | P0-04 | todo |
 | P0-09 | Export the stateful trunk step model (`MLState`), coordinate readout every N=4 blocks | P0-08 | todo |

@@ -1,0 +1,129 @@
+{
+  "generated": "2026-08-28T14:29:38+00:00",
+  "sourceModel": "facebook/esmfold_v1",
+  "toolchain": "torch 2.9.1, transformers 4.57.1, device cpu",
+  "blocksPerReadout": 48,
+  "recycles": 4,
+  "trajectories": [
+    {
+      "id": "ubiquitin",
+      "name": "Ubiquitin",
+      "length": 76,
+      "readouts": 32,
+      "final_mean_plddt": 90.5,
+      "seconds": 7.6,
+      "megabytes": 0.13,
+      "file": "ubiquitin.pftraj"
+    },
+    {
+      "id": "gfp",
+      "name": "Green fluorescent protein",
+      "length": 238,
+      "readouts": 32,
+      "final_mean_plddt": 43.3,
+      "seconds": 68.6,
+      "megabytes": 0.4,
+      "file": "gfp.pftraj"
+    },
+    {
+      "id": "lysozyme",
+      "name": "Hen egg white lysozyme",
+      "length": 129,
+      "readouts": 32,
+      "final_mean_plddt": 95.1,
+      "seconds": 20.5,
+      "megabytes": 0.22,
+      "file": "lysozyme.pftraj"
+    },
+    {
+      "id": "proinsulin",
+      "name": "Human proinsulin",
+      "length": 86,
+      "readouts": 32,
+      "final_mean_plddt": 55.2,
+      "seconds": 9.5,
+      "megabytes": 0.14,
+      "file": "proinsulin.pftraj"
+    },
+    {
+      "id": "myoglobin",
+      "name": "Sperm whale myoglobin",
+      "length": 153,
+      "readouts": 32,
+      "final_mean_plddt": 93.5,
+      "seconds": 30.6,
+      "megabytes": 0.26,
+      "file": "myoglobin.pftraj"
+    },
+    {
+      "id": "beta2ar_7tm",
+      "name": "Beta-2 adrenergic receptor, 7TM core",
+      "length": 314,
+      "readouts": 32,
+      "final_mean_plddt": 85.6,
+      "seconds": 127.9,
+      "megabytes": 0.52,
+      "file": "beta2ar_7tm.pftraj"
+    },
+    {
+      "id": "alpha_synuclein",
+      "name": "Alpha-synuclein",
+      "length": 140,
+      "readouts": 32,
+      "final_mean_plddt": 33.3,
+      "seconds": 24.8,
+      "megabytes": 0.23,
+      "file": "alpha_synuclein.pftraj"
+    },
+    {
+      "id": "alpha3d",
+      "name": "Alpha-3D, a de novo three-helix bundle",
+      "length": 73,
+      "readouts": 32,
+      "final_mean_plddt": 78.9,
+      "seconds": 7.6,
+      "megabytes": 0.12,
+      "file": "alpha3d.pftraj"
+    },
+    {
+      "id": "trp_cage",
+      "name": "Trp-cage TC5b",
+      "length": 20,
+      "readouts": 32,
+      "final_mean_plddt": 91.1,
+      "seconds": 2.7,
+      "megabytes": 0.03,
+      "file": "trp_cage.pftraj"
+    },
+    {
+      "id": "villin_hp36",
+      "name": "Villin headpiece subdomain HP36",
+      "length": 36,
+      "readouts": 32,
+      "final_mean_plddt": 92.1,
+      "seconds": 3.5,
+      "megabytes": 0.06,
+      "file": "villin_hp36.pftraj"
+    },
+    {
+      "id": "protein_g_b1",
+      "name": "Protein G B1 domain",
+      "length": 56,
+      "readouts": 32,
+      "final_mean_plddt": 88.3,
+      "seconds": 5.4,
+      "megabytes": 0.09,
+      "file": "protein_g_b1.pftraj"
+    },
+    {
+      "id": "ww_domain",
+      "name": "Pin1 WW domain",
+      "length": 34,
+      "readouts": 32,
+      "final_mean_plddt": 92.5,
+      "seconds": 3.6,
+      "megabytes": 0.06,
+      "file": "ww_domain.pftraj"
+    }
+  ]
+}
