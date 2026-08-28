@@ -50,3 +50,25 @@ tracer fails in P0-08, dropping to torch 2.7.0 is the first move, before debuggi
 graph surgery.
 
 **Test result:** import check green, MPS available. **Invariants:** GREEN.
+
+## 2026-08-28 — P0-03 — the .pftraj trajectory container
+
+Versioned binary container: 8-byte magic, format version, JSON metadata block, then raw
+readouts as float32 backbone coordinates plus pLDDT. Documented in Tools/README.md.
+
+Design decision worth recording: the file stores **only what the model emitted**. Secondary
+structure, contacts, metrics and interpolated frames are all derived at load time by
+FoldGeometry. Storing them would create a second source of truth that could disagree with
+the live path, and would let a bundle ship a P-SEA assignment the shipping P-SEA
+implementation would never produce.
+
+`TrajectoryProvenance` has no case for a synthesised trajectory, by construction. The only
+non-inference case is `test-fixture`, which must never ship in an app bundle.
+
+Metadata JSON uses sorted keys so encoding is deterministic and a bundle can be hashed into
+Models/manifest.json.
+
+Negative-tested the reader against a foreign file, a future format version, three truncation
+points, a body one byte short, and metadata disagreeing with the body.
+
+**Test result:** 38 tests in 12 suites, all passed. **Invariants:** GREEN.

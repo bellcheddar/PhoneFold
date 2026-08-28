@@ -61,3 +61,46 @@ Free disk was 37 GB at the time of writing. `facebook/esmfold_v1` is roughly 5 G
 |---|---|
 | `setup_env.sh` | Create the venv and install the pinned stack |
 | `verify_phase.sh <0-5> [--invariants-only]` | Machine-verifiable gate checks. `--invariants-only` is what each loop task must satisfy; the unflagged form is the phase exit gate |
+
+## The `.pftraj` trajectory container
+
+A bundled sample trajectory. Little-endian throughout; every Apple platform PhoneFold
+targets is little-endian and this is not an interchange format for anyone else.
+
+```
+offset  size            field
+0       8               magic, ASCII "PFTRAJ01"
+8       4    uint32     format version (currently 1)
+12      4    uint32     JSON metadata length in bytes, M
+16      M               TrajectoryMetadata as UTF-8 JSON, sorted keys
+16+M    4    uint32     residue count, N
++4      4    uint32     readout count, F
+then F records, each:
+        4    uint32     recycle
+        4    uint32     blockIndex
+        N*12 float32    backbone, residue-major, atom order N, CA, C, O, xyz each
+        N    float32    pLDDT, AlphaFold 0...100 scale
+```
+
+Uncompressed, because the app memory-maps these and streams them against the audio clock;
+a decode stall would be audible.
+
+### What is deliberately NOT in the file
+
+Secondary structure, contact events, radius of gyration, mean pLDDT and every interpolated
+frame. All of those are **derived at load time by `FoldGeometry`**.
+
+Storing them would create a second source of truth that could silently disagree with the
+live path, and would let a bundle ship a P-SEA assignment the shipping P-SEA implementation
+would never produce. The bundle stores only what the model actually emitted.
+
+### Provenance is a required field
+
+`TrajectoryProvenance` has exactly three cases: `esmfold-trunk-readout`,
+`coreml-trunk-step` and `test-fixture`. There is no case for a synthesised or interpolated
+trajectory, because PLAN.md section 0.6 forbids a file that would need one. A `test-fixture`
+bundle must never be shipped in an app bundle or shown to a user as a fold; the Phase 0 gate
+checks for this.
+
+Key sorting in the metadata JSON is fixed (`.sortedKeys`), so encoding is deterministic and
+a bundle can be hashed into `Models/manifest.json`.
