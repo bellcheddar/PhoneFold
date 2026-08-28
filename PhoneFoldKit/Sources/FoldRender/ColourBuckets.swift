@@ -50,30 +50,54 @@ public enum ColourBuckets {
             return (r * count + g) * count + b
         }
 
-        var buckets: [Int: [UInt32]] = [:]
-        var sums: [Int: (SIMD3<Float>, Int)] = [:]
-        var triangle = 0
-        while triangle + 2 < indices.count {
-            let a = indices[triangle], b = indices[triangle + 1], c = indices[triangle + 2]
-            guard Int(a) < vertices.count else { triangle += 3; continue }
+        // Counting sort over the fixed key space, rather than a dictionary of arrays.
+        //
+        // The obvious `buckets[key, default: []].append(...)` per triangle costs a hash
+        // lookup and a copy-on-write check 45,000 times a frame: measured at 3.25 ms for a
+        // 314-residue tube against a 0.52 ms budget for the rest of the geometry, which is a
+        // fifth of the entire 60 fps frame. The key space is only `count^3`, so counting the
+        // triangles per bucket and filling by prefix sum is O(n) with no allocation per
+        // triangle.
+        let keySpace = count * count * count
+        let triangleCount = indices.count / 3
+        var keys = [Int32](repeating: -1, count: triangleCount)
+        var counts = [Int](repeating: 0, count: keySpace)
+        var sums = [SIMD3<Float>](repeating: .zero, count: keySpace)
+
+        for triangle in 0..<triangleCount {
+            let a = indices[triangle * 3]
+            guard Int(a) < vertices.count else { continue }
             let colour = vertices[Int(a)].colour
             let k = key(colour)
-            buckets[k, default: []].append(contentsOf: [a, b, c])
-            let rgb = SIMD3<Float>(colour.x, colour.y, colour.z)
-            let existing = sums[k] ?? (SIMD3<Float>.zero, 0)
-            sums[k] = (existing.0 + rgb, existing.1 + 1)
-            triangle += 3
+            keys[triangle] = Int32(k)
+            counts[k] += 1
+            sums[k] += SIMD3<Float>(colour.x, colour.y, colour.z)
         }
 
-        var ordered: [UInt32] = []
-        ordered.reserveCapacity(indices.count)
+        // Prefix sums give each bucket its slice of the output, in ascending key order, so
+        // the result is deterministic: the same protein must draw the same way.
+        var offsets = [Int](repeating: 0, count: keySpace)
         var parts: [(offset: Int, count: Int, colour: LinearRGB)] = []
-        // Sorted so the output is deterministic: the same protein must draw the same way.
-        for k in buckets.keys.sorted() {
-            guard let group = buckets[k], let (sum, n) = sums[k], n > 0 else { continue }
-            parts.append((offset: ordered.count, count: group.count, colour: sum / Float(n)))
-            ordered.append(contentsOf: group)
+        var running = 0
+        for k in 0..<keySpace where counts[k] > 0 {
+            offsets[k] = running
+            parts.append((offset: running, count: counts[k] * 3,
+                          colour: sums[k] / Float(counts[k])))
+            running += counts[k] * 3
         }
+
+        var ordered = [UInt32](repeating: 0, count: running)
+        var cursors = offsets
+        for triangle in 0..<triangleCount {
+            let k = keys[triangle]
+            guard k >= 0 else { continue }
+            let slot = cursors[Int(k)]
+            ordered[slot] = indices[triangle * 3]
+            ordered[slot + 1] = indices[triangle * 3 + 1]
+            ordered[slot + 2] = indices[triangle * 3 + 2]
+            cursors[Int(k)] = slot + 3
+        }
+
         return Result(indices: ordered, parts: parts)
     }
 }

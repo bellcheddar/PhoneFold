@@ -579,3 +579,46 @@ device testing, since the constant buffer limit may well not apply on real hardw
   `SIMCTL_CHILD_` prefix on the parent's environment.
 - `xcodebuild` reports `** TEST SUCCEEDED **` alongside `Executed 0 tests` when only
   swift-testing suites ran: that counter covers XCTest only.
+
+## Phase 2 — corrected per-frame baseline, and a regression the gate caught
+
+The Phase 2 gate criterion is "no frame-time regression above 20% versus the recorded
+baseline". Writing that check immediately caught one, in code committed an hour earlier.
+
+| Stage | ms/frame, 314 residues, release |
+|---|---|
+| Tube geometry and GPU packing (the earlier baseline) | 0.52 |
+| **Plus colour bucketing, as first written** | **3.25** |
+| **Plus colour bucketing, after optimisation** | **1.00** |
+
+`ColourBuckets.split` was doing `buckets[key, default: []].append(...)` per triangle: a hash
+lookup and a copy-on-write check 45,000 times a frame, costing 2.7 ms, which is a fifth of
+the entire 60 fps budget. The key space is only `count^3`, so it is now a counting sort with
+prefix sums: O(n), no allocation per triangle, same deterministic output, **2.9x faster**.
+
+Engine (1.65 ms) plus geometry, packing and bucketing (1.00 ms) is **2.65 ms of the 16.7 ms
+budget**, leaving 84% for the draw.
+
+### Measuring it stably
+
+The first version of the check took the mean of one batch and swung between 1.13 and 2.46 ms
+on an idle machine, purely from scheduling noise, which would have made the gate flaky enough
+to ignore. It now takes the **minimum of five batches**: the fastest batch is the closest
+estimate of actual compute cost. Three consecutive runs give 1.02, 1.00, 1.00 ms.
+
+## Phase 2 — colour snapshots
+
+The gate asks for "snapshot tests of all four colour modes against reference images". The
+snapshot is the **colour buffer**, not a rendered image: there is no headless GPU render path
+in the test target, and comparing screenshots would test RealityKit's rasteriser rather than
+PhoneFold's colouring. What can regress here is the colour a residue is assigned, and that is
+what is pinned, for a fixed frame of real ubiquitin, across all four modes.
+
+Negative-tested by shifting the pLDDT ramp's cyan-to-blue transition, which reported
+"confidence: 5 of 57 colours changed". An earlier attempt to negative-test it by moving the
+40-point threshold changed nothing and looked like a weak test: ubiquitin's final frame sits
+at 80 to 95 pLDDT, so that threshold governs none of its residues. The perturbation has to
+land in the data's actual range to prove anything.
+
+The reference is only regenerated with `PHONEFOLD_RECORD_SNAPSHOTS=1`. A snapshot that
+rewrites itself on mismatch is not a test.

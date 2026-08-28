@@ -70,6 +70,13 @@ final class StageContent {
     private var tubeMesh: LowLevelTubeMesh?
     private var vertexCapacity = 0
     private var material: RealityKit.Material?
+    /// Cached per-bucket materials, keyed by the bucket colours they were built from.
+    ///
+    /// The bucket colours are quantised, so they change far less often than the frame rate:
+    /// rebuilding a material per bucket per frame was allocating ~29 materials sixty times a
+    /// second for colours that were usually identical to the previous frame's.
+    private var cachedMaterials: [RealityKit.Material] = []
+    private var cachedColourKey: [SIMD3<Float>] = []
     private var clock: Task<Void, Never>?
     private var lastBounds: (minimum: SIMD3<Float>, maximum: SIMD3<Float>)?
 
@@ -204,6 +211,18 @@ final class StageContent {
     /// instead. Stock materials work on every platform and need no shader to be verified on
     /// hardware first.
     private func materials(for buckets: ColourBuckets.Result) -> [RealityKit.Material] {
+        let key = buckets.parts.map(\.colour)
+        if key.count == cachedColourKey.count,
+           zip(key, cachedColourKey).allSatisfy({ simd_distance($0, $1) < 1e-4 }) {
+            return cachedMaterials
+        }
+        let built = buildMaterials(for: buckets)
+        cachedColourKey = key
+        cachedMaterials = built
+        return built
+    }
+
+    private func buildMaterials(for buckets: ColourBuckets.Result) -> [RealityKit.Material] {
         buckets.parts.map { part in
             // The bucket colour is linear; SimpleMaterial takes sRGB, so convert back.
             func encode(_ c: Float) -> CGFloat {

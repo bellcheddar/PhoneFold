@@ -145,7 +145,45 @@ case "$PHASE" in
       tail -20 /tmp/pf_tsan.log >&2
     fi
     ;;
-  2|3|4|5)
+  2)
+    # The renderer's criteria are only meaningful in a release build: the same work measures
+    # roughly 300x slower with optimisation off.
+    if swift test -c release --package-path PhoneFoldKit >/tmp/pf_test_release.log 2>&1; then
+      pass "swift test -c release"
+    else
+      fail "swift test -c release - see /tmp/pf_test_release.log"
+      tail -30 /tmp/pf_test_release.log >&2
+    fi
+
+    for marker in "all four colour modes match their stored snapshot" \
+                  "tube geometry, packing and bucketing stay within 20%" \
+                  "no NaNs across a whole real trajectory"; do
+      if grep -q "$marker" /tmp/pf_test_release.log 2>/dev/null; then
+        pass "ran: $marker"
+      else
+        fail "did NOT run: $marker"
+      fi
+    done
+
+    # The app has to build for both surfaces, which is the criterion's "builds and runs".
+    # Running it is verified by screenshot, which no script should claim to have done.
+    DD=/Users/dellboy/Library/Developer/PhoneFold-DerivedData
+    APP_DIR="$ROOT/Apps/PhoneFold"
+    if [[ -f "$APP_DIR/PhoneFold.xcodeproj/project.pbxproj" ]]; then
+      for destination in "platform=iOS Simulator,name=iPhone 17" "platform=macOS"; do
+        if (cd "$APP_DIR" && xcodebuild build -project PhoneFold.xcodeproj \
+              -scheme PhoneFold -configuration Release -destination "$destination" \
+              -derivedDataPath "$DD" CODE_SIGNING_ALLOWED=NO >/tmp/pf_gate_app.log 2>&1); then
+          pass "app builds: $destination"
+        else
+          fail "app build failed: $destination - see /tmp/pf_gate_app.log"
+        fi
+      done
+    else
+      fail "the app project is missing; run xcodegen in Apps/PhoneFold"
+    fi
+    ;;
+  3|4|5)
     skip "phase $PHASE gate checks not yet implemented"
     ;;
   *)

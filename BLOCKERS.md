@@ -3,7 +3,7 @@
 Questions and decisions that require Marc. Each entry dated, with context, options considered,
 and a recommendation. Nothing here is resolved by the agent.
 
-**Open:** none. The trajectory question was decided on 2026-08-28, see RESOLVED below.
+**Open:** the Phase 2 exit gate needs Marc. See the checklist at the end of this file.
 
 ---
 
@@ -418,3 +418,46 @@ remaining suspect is the per-frame work still on the main actor: colour packing,
 split and one `SimpleMaterial` per bucket rebuilt every frame. Materials should be cached and
 only rebuilt when the bucket colours actually change. Not a correctness problem, and not
 blocking the Phase 2 machine gate.
+
+---
+
+## HALT — 2026-08-28 — Phase 2 exit gate needs Marc and a device
+
+The **machine gate is GREEN**: `Tools/verify_phase.sh 2` passes every check, including the
+release suite, the colour snapshots, the frame budget, the zero-NaN assertion, and an app
+build for both iOS Simulator and macOS.
+
+PLAN.md's Phase 2 human-verifiable criteria cannot be checked by an agent, and none of them
+has been ticked. They need real hardware, Instruments, and Marc's eyes.
+
+### Checklist for Marc
+
+- [ ] **60 fps sustained on device with 300 residues, confirmed in Instruments.** Everything
+      measured so far is Simulator or Mac. The CPU side leaves 84% of the frame free
+      (2.65 ms of 16.7 ms at 314 residues), but the draw cost on a phone is unmeasured.
+- [ ] **No visible popping when secondary structure is assigned or reassigned.** The cross
+      section morphs with confidence and there is three-frame hysteresis, so it should grow
+      rather than snap. Whether it actually reads that way is a judgement.
+- [ ] **Thermal state at or below `.fair` after three minutes of continuous playback.**
+- [ ] **Marc signs off that it looks like a concert, not a workbench.**
+
+### What is worth knowing before looking at it
+
+- The renderer draws per-residue colour through **mesh parts with stock materials**, not a
+  custom shader: `CustomMaterial`'s pipeline fails to compile on the Simulator and the failure
+  is silent. On a real device the custom shader may well work, and it is still in the tree
+  behind `PHONEFOLD_CUSTOM_SHADER`. Worth trying on hardware, because it would restore proper
+  lighting and the emissive rim.
+- **Playback advances slowly and starts inconsistently.** The engine and geometry are fast
+  (2.65 ms/frame), so this is a SwiftUI and RealityKit integration problem rather than a
+  compute one, and it is the first thing to fix before judging how it looks. It is not in the
+  machine gate, but it will affect the impression.
+- Post-processing from PLAN.md section 2 is **not built**: no bloom, no depth of field, no
+  vignette, no Aurora grade. The stage is currently flat-lit geometry on the gradient. Judging
+  "does it look like a concert" now would be judging it early, so it may be better to fix
+  playback and add the grade first.
+
+### Deferred, and still deferred
+
+Phase 0's ProteinMPNN Core ML export, the extra Genie 2 length buckets, and the whole
+PathDiffusion gallery (Phase 0c). Reasons in STATE.md.

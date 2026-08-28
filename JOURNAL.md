@@ -290,3 +290,28 @@ than silently absent.
 
 Phase 2 decomposed into 12 tasks, including Marc's two additions: a GPU/ANE utilisation meter
 and a folding-progress counters panel.
+
+## 2026-08-28 — Phase 2 machine gate GREEN, halted for Marc
+
+Renderer, colouring, camera, contact flashes, the HUD and the app all built and committed.
+`Tools/verify_phase.sh 2` now implements the phase's real checks rather than skipping them,
+and passes all ten.
+
+Three things worth carrying forward:
+
+**A frame-time gate is worth writing even when you think you are fast.** Adding the 20%
+regression check immediately caught a 3.25 ms cost in colour bucketing committed an hour
+earlier: a dictionary append per triangle, 45,000 times a frame, a fifth of the entire 60 fps
+budget. Rewritten as a counting sort it is 1.00 ms, 2.9x faster, with identical output.
+
+**Measure with the minimum of several batches.** The first version of that check swung between
+1.13 and 2.46 ms from scheduling noise alone, which would have made the gate flaky enough to
+ignore. Minimum-of-five gives 1.00, 1.00, 1.02 across runs.
+
+**A negative test has to land in the data's range.** Perturbing the pLDDT ramp's 40-point
+threshold changed nothing and made the snapshot test look weak; ubiquitin's final frame sits
+at 80 to 95, so that threshold governs none of its residues. Moving the cyan-to-blue
+transition instead reported "5 of 57 colours changed".
+
+Halting here as PLAN.md section 0.3 requires: the phase gate contains human-verifiable
+criteria, none of which has been ticked.
