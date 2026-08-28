@@ -1,7 +1,7 @@
 # PhoneFold — STATE
 
 **Current phase:** 1 (fold engine and frame stream). Phase 0 has deferred items, listed below.
-**Current task:** P1-01
+**Current task:** P1-04
 **Last updated:** 2026-08-28
 
 Status vocabulary: `todo` / `doing` / `blocked` / `done`.
@@ -93,8 +93,8 @@ into a smooth 60 fps stream of enriched `FoldFrame` values. No UI. Human-verifia
 
 | ID | Task | Deps | Status |
 |---|---|---|---|
-| P1-01 | `FoldCore.ProteinSequence`: FASTA parsing (multi-record, wrapped lines, ambiguity codes, `*` and `-` stripping) with helpful validation errors | — | todo |
-| P1-02 | UniProt fetch from `rest.uniprot.org` plus protein and organism metadata, with a disk cache. Handle isoforms and obsolete accessions | P1-01 | todo |
+| P1-01 | `FoldCore.ProteinSequence`: FASTA parsing (multi-record, wrapped lines, ambiguity codes, `*` and `-` stripping) with helpful validation errors | — | done |
+| P1-02 | UniProt fetch from `rest.uniprot.org` | P1-01 | **deferred: no consumer** |
 | P1-03 | ~~ESM-2 tokeniser in pure Swift~~ | — | **dropped** |
 | P1-04 | `FoldGeometry`: Kabsch superposition of each frame onto the previous, so the molecule stops tumbling | — | todo |
 | P1-05 | Interpolation to 60 fps: quaternion slerp on residue frames, linear on translations, Catmull-Rom in time. Interpolated frames flagged | P1-04 | todo |
@@ -104,6 +104,12 @@ into a smooth 60 fps stream of enriched `FoldFrame` values. No UI. Human-verifia
 | P1-09 | `actor FoldEngine` exposing `AsyncStream<FoldFrame>`, with `SampleTrajectoryProvider` reading `.pftraj` | P1-05, P1-06, P1-07, P1-08 | todo |
 | P1-10 | Backpressure (bounded buffer, never drop frames), cancellation, thermal and low-power degradation by reducing readouts rather than stuttering | P1-09 | todo |
 | P1-11 | DSSP reference fixtures for 10 PDB structures, for the P-SEA agreement gate | P1-06 | todo |
+
+**P1-02 is deferred:** on-device accession lookup existed so a user could fold their own
+protein live. The chosen engine generates novel proteins and the named gallery is
+precomputed, so nothing in the app consumes it. `Tools/fetch_sequences.py` already does this
+offline, with the provenance checks that matter. It returns the moment live arbitrary
+folding does.
 
 **P1-03 is dropped:** the ESM-2 tokeniser existed to feed ESMFold. Genie 2 is sequence-agnostic
 and ProteinMPNN carries its own alphabet, so nothing in the shipping pipeline tokenises a
