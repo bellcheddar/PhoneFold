@@ -78,8 +78,9 @@ final class FoldPlayer: ObservableObject {
 
     /// How long to dwell on each raw readout, for a fold of about `targetSeconds`.
     ///
-    /// Clamped at both ends: too fast and the interpolation has nothing to work with, too
-    /// slow and a short trajectory drifts rather than folds.
+    /// Clamped at both ends, but loosely: the upper clamp was 1.2 s, which quietly capped an
+    /// eight-readout trajectory at 8.4 s when the target said 12. It is 2.5 s now, so the
+    /// target is what actually happens.
     ///
     /// Worth being clear about what a longer fold does and does not buy. One ESMFold recycle
     /// is **eight real structures** - the structure module's eight IPA layers - and stretching
@@ -90,7 +91,7 @@ final class FoldPlayer: ObservableObject {
     /// diffusion trajectories are for - the bundled Genie 2 run is 201 of them.
     static func pace(forReadouts count: Int, targetSeconds: Float = 12) -> Float {
         let intervals = Float(Swift.max(count - 1, 1))
-        return Swift.min(Swift.max(targetSeconds / intervals, 0.03), 1.2)
+        return Swift.min(Swift.max(targetSeconds / intervals, 0.03), 2.5)
     }
 
     func play(_ provider: some FoldFrameProvider) {

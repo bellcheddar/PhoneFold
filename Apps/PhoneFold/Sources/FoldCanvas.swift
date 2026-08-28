@@ -17,6 +17,15 @@ struct FoldCanvas: View {
 
     @State private var stage = StageContent()
     @State private var lastDrag: CGSize = .zero
+    /// Where the drag in progress began.
+    ///
+    /// Used to notice that a *new* gesture has started. `lastDrag` was only ever cleared in
+    /// `onEnded`, and `onEnded` does not always run: a drag pre-empted by the simultaneous
+    /// magnify gesture, or cancelled by the system, leaves the previous gesture's translation
+    /// behind, and the next drag's first delta is then the difference between two unrelated
+    /// gestures - a jump. Comparing the start location catches that without depending on
+    /// `onEnded` at all.
+    @State private var dragAnchor: CGPoint?
 
     var body: some View {
         // No `update:` closure driving the mesh. Frames arrive through the player's
@@ -37,6 +46,10 @@ struct FoldCanvas: View {
         .gesture(
             DragGesture()
                 .onChanged { value in
+                    if dragAnchor != value.startLocation {
+                        dragAnchor = value.startLocation
+                        lastDrag = .zero
+                    }
                     // Deltas, not the cumulative translation: using the total resets the
                     // rotation to zero on release and snaps the view back.
                     stage.camera.drag(deltaX: Float(value.translation.width - lastDrag.width),
@@ -45,6 +58,7 @@ struct FoldCanvas: View {
                 }
                 .onEnded { _ in
                     lastDrag = .zero
+                    dragAnchor = nil
                     stage.camera.endInteraction()
                 }
         )

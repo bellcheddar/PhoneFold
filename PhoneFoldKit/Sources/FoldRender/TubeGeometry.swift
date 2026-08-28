@@ -85,11 +85,58 @@ public enum TubeGeometry {
         /// How many residues at the C-terminal end of a strand the arrowhead spans.
         public var arrowResidues: Float = 1.6
         /// Spline samples per residue. Higher is smoother and costs vertices.
-        public var samplesPerResidue: Int = 6
+        public var samplesPerResidue: Int = 10
+        /// How hard to pull the guide path toward the axis of a helix or strand.
+        ///
+        /// 0 draws the raw alpha-carbon path and 1 is fully smoothed. Applied `smoothingPasses`
+        /// times and scaled by each residue's structure confidence, so structure still grows in
+        /// rather than snapping.
+        public var smoothing: Float = 0.40
+        public var smoothingPasses: Int = 1
         /// Vertices around the cross section.
-        public var radialSegments: Int = 12
+        public var radialSegments: Int = 20
 
         public init() {}
+    }
+
+    /// Guide points for the spline: the alpha-carbon path, smoothed inside helices and
+    /// strands.
+    ///
+    /// **Why a cartoon cannot spline the raw CA path.** An alpha helix has 3.6 residues per
+    /// turn, so a turn of the backbone is barely three and a half control points. A spline
+    /// through them is perfectly smooth and still traces a rounded triangle, which is what a
+    /// helix genuinely looks like at the level of its alpha carbons and not what anyone means
+    /// by a helix. Every cartoon renderer smooths first; drawing the raw path is why these
+    /// helices came out squared off.
+    ///
+    /// A [1, 2, 1] pass pulls each guide point toward the mean of its neighbours, which for a
+    /// helix is toward the axis and for a strand flattens the pleat.
+    ///
+    /// **How hard to pull is not a matter of taste.** At an alpha helix's 100 degrees per
+    /// residue, one full [1, 2, 1] pass multiplies the helix radius by
+    /// (2 + 2 cos 100 degrees) / 4, which is 0.41. Two full passes leave 17% of the radius:
+    /// the first attempt used 0.85 twice and flattened every helix into a shallow wave, which
+    /// is a worse failure than the squared-off spiral it was fixing. One pass at 0.40 keeps
+    /// about 77% of the radius, which rounds the corners off the 3.6-residue polygon and
+    /// leaves a helix looking like a helix.
+    ///
+    /// Scaled by structure confidence, so a residue that is not yet confidently helical keeps
+    /// its true position and the smoothing eases in with the ribbon.
+    static func guidePoints(_ ca: [SIMD3<Float>], secondaryStructure ss: [SSAssignment],
+                            profile: Profile) -> [SIMD3<Float>] {
+        guard ca.count >= 3, profile.smoothing > 0, profile.smoothingPasses > 0 else { return ca }
+        var guide = ca
+        for _ in 0..<profile.smoothingPasses {
+            var next = guide
+            for i in 1..<(guide.count - 1) {
+                guard ss[i].structure != .coil else { continue }
+                let averaged = (guide[i - 1] + guide[i] * 2 + guide[i + 1]) * 0.25
+                let amount = profile.smoothing * Swift.min(Swift.max(ss[i].confidence, 0), 1)
+                next[i] = guide[i] + (averaged - guide[i]) * amount
+            }
+            guide = next
+        }
+        return guide
     }
 
     /// Build the tube for one frame.
@@ -102,6 +149,9 @@ public enum TubeGeometry {
         guard ca.count >= 2, ss.count == ca.count,
               profile.radialSegments >= 3, profile.samplesPerResidue >= 1
         else { return TubeMesh(vertices: [], indices: []) }
+
+        // Smoothed guide points, not the raw alpha carbons. See `guidePoints`.
+        let ca = guidePoints(ca, secondaryStructure: ss, profile: profile)
 
         let sampleCount = (ca.count - 1) * profile.samplesPerResidue + 1
         var centres: [SIMD3<Float>] = []

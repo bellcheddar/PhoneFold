@@ -727,3 +727,59 @@ are spread over the 120 settled ones.
 The test now measures **reversals** - a state that changes and changes back within a tenth of
 a second - as a fraction of changes rather than of residue-frames. Change is the app's whole
 subject; only reversal is flicker. Measured: 53 changes, 6 reversals, so 89% of changes stick.
+
+### The cartoon: tessellation, smoothing, and what it costs (2026-08-29)
+
+| Measurement | Before | After |
+|---|---|---|
+| Cross-section segments / samples per residue | 12 / 6 | 20 / 10 |
+| Vertices, 314 residues | 21,540 | 62,620 |
+| Geometry + packing + bucketing, 314 residues, release, idle machine | 0.52 ms | **2.52 ms** |
+| The same inside a full parallel test run | - | 3.32 ms |
+| Outline, 300 residues | 0.15 ms / 43,056 tri | 1.24 ms / 119,600 tri |
+| Fraction of a 60 fps frame | 3% | 15% |
+
+**Guide-point smoothing.** An alpha helix turns every 3.6 residues, so a spline through raw
+alpha carbons traces a rounded triangle - which is what a helix looks like at the level of its
+alpha carbons, and not what anyone means by a helix. Guide points inside helices and strands
+are smoothed with a [1, 2, 1] pass before splining, scaled by structure confidence so the
+smoothing eases in with the ribbon.
+
+How hard to pull is arithmetic, not taste. At 100 degrees per residue one full pass multiplies
+the helix radius by (2 + 2 cos 100) / 4 = 0.41, so two full passes leave 17% of it. The first
+attempt used 0.85 twice and flattened every helix into a shallow wave - a worse failure than
+the squared-off spiral it was fixing. One pass at 0.40 keeps about 77% of the radius.
+
+### How much fold is actually in each trajectory (2026-08-29)
+
+Across the readouts now played, first to last, after Kabsch superposition:
+
+| Trajectory | Residues | Rg first → last | RMSD first → last |
+|---|---|---|---|
+| protein_g_b1 | 56 | 10.33 → 10.03 | **0.76 A** |
+| ww_domain | 34 | 9.95 → 9.36 | 0.71 A |
+| villin_hp36 | 36 | 9.77 → 9.15 | 0.76 A |
+| ubiquitin | 76 | 12.05 → 11.41 | 0.85 A |
+| lysozyme | 129 | 14.49 → 13.63 | 0.92 A |
+| trp_cage | 20 | 7.55 → 6.94 | 0.98 A |
+| alpha3d | 73 | 13.32 → 12.42 | 0.98 A |
+| myoglobin | 153 | 16.00 → 15.03 | 1.04 A |
+| beta2ar_7tm | 314 | 24.98 → 23.50 | 1.59 A |
+| proinsulin | 86 | 11.54 → 17.75 | 8.30 A |
+| gfp | 238 | 13.17 → 20.56 | 10.23 A |
+| **genie2_76aa_seed1** | 76 | **1.22 → 10.83** | **10.72 A** |
+| alpha_synuclein | 140 | 11.85 → 24.52 | 16.09 A |
+
+**ESMFold's readouts are not a folding pathway.** The structure module's first IPA layer
+already emits a near-final structure, so nine of the thirteen trajectories move by under
+1.6 A from beginning to end. There is almost nothing to watch, and no rendering or pacing
+change can add it.
+
+The three ESMFold entries that do move - proinsulin, GFP, alpha-synuclein - move by
+*expanding*, not folding: those are the ones the model is least sure about. Alpha-synuclein is
+intrinsically disordered and ESMFold has nothing to converge to.
+
+The one trajectory that is a genuine descent from disorder into structure is the diffusion
+run: Genie 2 goes from Rg 1.22 to 10.83 A over 201 real steps, every one of them a valid
+structure. That is what a watchable fold looks like, and it is why Phase 0 changed engine.
+The cost is that Genie 2 generates de novo backbones, so it cannot fold a named protein.
