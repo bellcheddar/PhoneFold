@@ -296,7 +296,7 @@ Two things Marc may want to weigh, neither urgent:
 
 ---
 
-## OPEN — 2026-08-28 — the Phase 1 P-SEA gate of 85% is not reachable
+## RESOLVED 2026-08-28 — the Phase 1 P-SEA gate of 85% is not reachable
 
 PLAN.md Phase 1, machine-verifiable exit gate:
 
@@ -339,3 +339,22 @@ satisfied. Nothing has been tuned against the test set.
 choosing the convention that flatters it.
 
 Nothing else in Phase 1 is blocked; P1-07, P1-08 and P1-09 proceed regardless.
+
+### Resolution, 2026-08-28: keep 85%, replace the method
+
+Marc chose to hold the bar rather than restate it. P-SEA stays in the tree as a baseline and
+a fallback, and a better CA-only assigner is built to clear 85%.
+
+Approach: a small **learned classifier** over CA-derived features, trained on PDB chains with
+mkdssp labels. This is the honest way to beat a hand-tuned threshold method, and unlike
+tuning P-SEA's published constants it can be validated properly.
+
+Non-negotiable in the design, so the 85% means something:
+
+- The **ten evaluation structures are excluded from training entirely**, as are any chains
+  sharing their PDB entry. A gate measured on training data is not a gate.
+- Features are **CA-only**, as PLAN.md requires. No backbone amides, no hydrogen bonds.
+- The model must be small enough to ship: a few tens of kilobytes of weights, evaluated in
+  plain Swift with no framework.
+- P-SEA's own agreement stays under test as a regression guard, so the baseline cannot
+  silently rot.

@@ -1,7 +1,7 @@
 # PhoneFold — STATE
 
 **Current phase:** 1 (fold engine and frame stream). Phase 0 has deferred items, listed below.
-**Current task:** P1-07
+**Current task:** P1-12
 **Last updated:** 2026-08-28
 
 Status vocabulary: `todo` / `doing` / `blocked` / `done`.
@@ -104,6 +104,9 @@ into a smooth 60 fps stream of enriched `FoldFrame` values. No UI. Human-verifia
 | P1-09 | `actor FoldEngine` exposing `AsyncStream<FoldFrame>`, with `SampleTrajectoryProvider` reading `.pftraj` | P1-05, P1-06, P1-07, P1-08 | todo |
 | P1-10 | Backpressure (bounded buffer, never drop frames), cancellation, thermal and low-power degradation by reducing readouts rather than stuttering | P1-09 | todo |
 | P1-11 | DSSP reference fixtures for 10 PDB structures (mkdssp 4.4.5) | P1-06 | done |
+| P1-12 | Training set: fetch non-redundant PDB chains, compute CA features and mkdssp labels, **excluding every evaluation entry** | P1-11 | todo |
+| P1-13 | Train a small CA-only secondary-structure classifier, export weights as JSON | P1-12 | todo |
+| P1-14 | `LearnedSSE` in `FoldGeometry`: load weights, evaluate, Viterbi-smooth. Must clear the 85% gate on the held-out ten | P1-13 | todo |
 
 **P1-02 is deferred:** on-device accession lookup existed so a user could fold their own
 protein live. The chosen engine generates novel proteins and the named gallery is
@@ -119,7 +122,7 @@ sequence for a language model.
 
 Machine-verifiable:
 - [ ] `swift test` green on macOS and iOS Simulator
-- [ ] P-SEA agrees with a DSSP reference on 10 PDB structures at >=85% per-residue (CA-only) — **NOT MET: 79.4% lenient / 84.8% strict, see BLOCKERS.md. Not marked met.**
+- [ ] CA-only secondary structure agrees with a DSSP reference on 10 held-out PDB structures at >=85% per-residue. P-SEA reaches 79.4% and is kept as a baseline; a learned assigner (P1-12 to P1-14) targets the gate
 - [ ] A bundled trajectory plays end to end from the sample provider
 - [ ] Frame stream sustains 60 fps output with interpolation for a 300-residue input
 - [ ] Zero data races under Thread Sanitizer with Swift 6 strict concurrency
