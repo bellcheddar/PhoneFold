@@ -12,26 +12,18 @@ import FoldRender
 /// rewritten in place each frame rather than a new `MeshResource` being built. RealityKit is
 /// also the visionOS path, which is why it wins over SceneKit here.
 struct FoldCanvas: View {
-    let mesh: TubeMesh?
-    let flashes: [FlashInstance]
-    let colourMode: ColourMode
-    let residues: [AminoAcid]
-    let residueCount: Int
-    /// The frame's own per-residue confidence. Passing zeros here colours a fully confident
-    /// protein as though it had no confidence at all, and the readout above it still reads
-    /// 91: the number and the picture would come from different places.
-    let residueConfidence: [Float]
+    @ObservedObject var player: FoldPlayer
+    @Binding var diagnostic: String
 
     @State private var stage = StageContent()
     @State private var lastDrag: CGSize = .zero
 
     var body: some View {
+        // No `update:` closure driving the mesh. Frames arrive through the player's
+        // `onFrame` sink instead, so drawing does not depend on a SwiftUI re-evaluation and
+        // the fold is not paced by layout.
         RealityView { content in
             content.add(stage.root)
-        } update: { _ in
-            stage.apply(mesh: mesh, flashes: flashes, colourMode: colourMode,
-                        residues: residues, residueCount: residueCount,
-                        residueConfidence: residueConfidence)
         }
         .gesture(
             DragGesture()
@@ -53,8 +45,31 @@ struct FoldCanvas: View {
                 .onEnded { _ in stage.camera.endInteraction() }
         )
         .onTapGesture(count: 2) { stage.reframe() }
-        .onAppear { stage.startClock() }
-        .onDisappear { stage.stopClock() }
+        .onAppear {
+            stage.startClock()
+            stage.colourMode = player.colourMode
+            stage.residues = player.provider?.residues ?? []
+            stage.residueCount = player.provider?.residueCount ?? 0
+            player.onFrame = { [stage] frame, flashes in
+                stage.apply(frame: frame, flashes: flashes)
+                diagnostic = stage.lastDiagnostic
+            }
+        }
+        .onDisappear {
+            stage.stopClock()
+            player.onFrame = nil
+        }
+        .onChange(of: player.colourMode) { _, mode in
+            stage.colourMode = mode
+            // Recolour immediately rather than waiting for the next frame, so switching
+            // mode feels instant even on a paused or finished fold.
+            if let frame = player.latestFrame { stage.apply(frame: frame, flashes: []) }
+        }
+        .onChange(of: player.title) { _, _ in
+            stage.residues = player.provider?.residues ?? []
+            stage.residueCount = player.provider?.residueCount ?? 0
+            stage.reset()
+        }
     }
 }
 
@@ -64,6 +79,11 @@ struct FoldCanvas: View {
 final class StageContent {
     let root = Entity()
     var camera = StageCamera()
+
+    var lastDiagnostic = ""
+    var colourMode: ColourMode = .confidence
+    var residues: [AminoAcid] = []
+    var residueCount: Int = 0
 
     private let protein = ModelEntity()
     private let cameraEntity = Entity()
@@ -148,12 +168,20 @@ final class StageContent {
                                       translation: rotation.act(-(centre + camera.target) * scale))
     }
 
-    func apply(mesh: TubeMesh?, flashes: [FlashInstance], colourMode: ColourMode,
-               residues: [AminoAcid], residueCount: Int, residueConfidence: [Float]) {
-        guard let mesh, !mesh.vertices.isEmpty else { return }
+    /// Reset when the protein changes, so the mesh is reallocated for the new topology.
+    func reset() {
+        tubeMesh = nil
+        vertexCapacity = 0
+        cachedMaterials = []
+        cachedColourKey = []
+    }
+
+    func apply(frame: PreparedFrame, flashes: [FlashInstance]) {
+        let mesh = frame.mesh
+        guard !mesh.vertices.isEmpty else { return }
 
         let options = ColourOptions(residueCount: residueCount, residues: residues)
-        let packed = TubeMeshPacker.pack(mesh, residueConfidence: residueConfidence,
+        let packed = TubeMeshPacker.pack(mesh, residueConfidence: frame.confidence,
                                          mode: colourMode, options: options)
 
         // Allocate once per topology. Vertex count only changes when the protein does.
@@ -173,12 +201,31 @@ final class StageContent {
                 return
             }
         }
+        if Diagnostics.isEnabled {
+            lastDiagnostic = "tri=\(mesh.indices.count / 3) parts=\(buckets.parts.count) "
+                + "idx=\(buckets.indices.count)/\(tubeMesh?.indexCapacity ?? 0) "
+                + "v=\(packed.count)/\(vertexCapacity)"
+        }
         do {
             try tubeMesh?.update(vertices: packed, buckets: buckets)
-            // One material per colour bucket. Reassigned each frame because the colours move
-            // with the fold; SimpleMaterial is a value type and this is not an allocation of
-            // any consequence beside the geometry.
-            protein.model?.materials = materials(for: buckets)
+            // One material per colour bucket, read-modify-write.
+            //
+            // `protein.model?.materials = ...` looks equivalent and is not: `model` hands
+            // back a *copy* of the component, so assigning through the optional chain
+            // mutates the copy and never reaches the entity. The materials array therefore
+            // stayed at whatever the first frame produced - a nearly uniform protein with
+            // two or three buckets - and every later part whose materialIndex exceeded that
+            // count was silently not drawn. The symptom was a backbone in clean-capped
+            // pieces with gaps between them, with the mesh itself complete and correct.
+            // One material per colour bucket, read-modify-write.
+            //
+            // `protein.model?.materials = ...` looks equivalent and is not: `model` hands
+            // back a *copy* of the component, so assigning through the optional chain
+            // mutates the copy rather than the entity.
+            if var component = protein.model {
+                component.materials = materials(for: buckets)
+                protein.model = component
+            }
         } catch {
             print("PHONEFOLD: vertex update FAILED: \(error)")
         }

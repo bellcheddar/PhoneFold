@@ -107,8 +107,16 @@ public final class LowLevelTubeMesh {
         let box = TubeMeshPacker.bounds(vertices)
         let bounds = box.map { BoundingBox(min: $0.minimum, max: $0.maximum) }
             ?? BoundingBox(min: .zero, max: .zero)
+        // `indexOffset` is a **byte** offset into the index buffer, not a count of indices.
+        // It maps onto Metal's `indexBufferOffset`, and the name reads like an index. Passing
+        // the count put every part after the first at a quarter of its intended position, so
+        // the parts overlapped near the start of the buffer and the last three quarters of
+        // the triangles were never drawn. Because a colour bucket is a contiguous run of
+        // residues, the undrawn ones showed up as cleanly cross-sectioned gaps in the chain -
+        // a backbone in pieces, from a mesh whose every index was present and correct.
+        let indexStride = MemoryLayout<UInt32>.stride
         mesh.parts.replaceAll(buckets.parts.enumerated().map { index, part in
-            LowLevelMesh.Part(indexOffset: part.offset, indexCount: part.count,
+            LowLevelMesh.Part(indexOffset: part.offset * indexStride, indexCount: part.count,
                               topology: .triangle, materialIndex: index, bounds: bounds)
         })
         updateCount += 1

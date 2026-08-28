@@ -8,6 +8,7 @@ struct StageView: View {
     @StateObject private var library = TrajectoryLibrary()
     @StateObject private var player = FoldPlayer()
     @State private var selection: TrajectoryLibrary.Entry?
+    @State private var meshDiagnostic = ""
 
     var body: some View {
         ZStack {
@@ -19,11 +20,7 @@ struct StageView: View {
 
             VStack(spacing: 0) {
                 header
-                FoldCanvas(mesh: player.mesh, flashes: player.flashes,
-                           colourMode: player.colourMode,
-                           residues: player.provider?.residues ?? [],
-                           residueCount: player.provider?.residueCount ?? 0,
-                           residueConfidence: player.confidence)
+                FoldCanvas(player: player, diagnostic: $meshDiagnostic)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 FoldHUD(history: player.history, meter: player.meter,
                         confidenceSource: player.confidenceSource,
@@ -48,11 +45,15 @@ struct StageView: View {
                     .font(.system(.title2, design: .default).weight(.semibold))
                     .foregroundStyle(.white)
                 #if DEBUG
-                // On-screen because simctl's console capture returns nothing for this app,
-                // so `print` is not a usable diagnostic channel here.
-                Text(player.diagnostic)
-                    .font(.system(size: 10, design: .monospaced))
-                    .foregroundStyle(Color(hex: 0xFCB900))
+                // On-screen, because simctl's console capture returns nothing for this app:
+                // `print` is not a usable diagnostic channel here, and both of the render
+                // bugs that took longest to find were found by putting counts on the glass.
+                // Off unless asked for, so the stage stays a stage.
+                if Diagnostics.isEnabled {
+                    Text(player.diagnostic + "  " + meshDiagnostic)
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(Color(hex: 0xFCB900))
+                }
                 #endif
                 if player.isGenerated {
                     // A generated protein has never existed. The app says so rather than

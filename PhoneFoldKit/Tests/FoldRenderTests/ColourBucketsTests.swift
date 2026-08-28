@@ -129,3 +129,52 @@ struct ColourBucketsTests {
         #expect(result.indices.count == tube.indices.count)
     }
 }
+
+#if canImport(RealityKit)
+import RealityKit
+
+/// Pins the unit of `LowLevelMesh.Part.indexOffset`.
+///
+/// It is a **byte** offset into the index buffer, and nothing in the type system says so: it
+/// is an `Int` sitting next to `indexCount`, which is a count of indices. Passing a count
+/// there drew each part at a quarter of its intended position, so the parts piled up over the
+/// first quarter of the buffer and three quarters of the triangles never drew. A colour
+/// bucket is a contiguous run of residues, so the result was a backbone rendered in
+/// cleanly cross-sectioned pieces - from a mesh whose every index was present and correct,
+/// which is why the diagnostics all read clean.
+@MainActor
+@Suite("LowLevelMesh part offsets")
+struct LowLevelMeshPartOffsetTests {
+
+    /// Build a plausible tube, bucket it, and check the parts tile the index buffer.
+    @Test("Parts tile the whole index buffer, contiguously, in bytes")
+    func partsTileTheIndexBufferInBytes() throws {
+        let ca = (0..<24).map { i -> SIMD3<Float> in
+            let t = Float(i) * 0.6
+            return SIMD3<Float>(cos(t) * 5, sin(t) * 5, Float(i) * 1.5)
+        }
+        // Rainbow runs N to C, so the buckets are several and each one is a
+        // contiguous run of residues - the shape that made the bug legible on screen.
+        let confidence = ca.indices.map { Float($0) / Float(ca.count - 1) }
+        let ss = confidence.map { SSAssignment(structure: .coil, confidence: $0) }
+        let tube = TubeGeometry.build(caPositions: ca, secondaryStructure: ss)
+        let vertices = TubeMeshPacker.pack(tube, residueConfidence: confidence,
+                                           mode: .rainbow)
+        let buckets = ColourBuckets.split(vertices: vertices, indices: tube.indices)
+        #expect(buckets.parts.count > 1, "the ramp must produce several buckets")
+
+        let mesh = try LowLevelTubeMesh(template: tube)
+        try mesh.update(vertices: vertices, buckets: buckets)
+
+        let stride = MemoryLayout<UInt32>.stride
+        var expectedByteOffset = 0
+        for part in mesh.mesh.parts {
+            #expect(part.indexOffset == expectedByteOffset,
+                    "part offsets must be byte offsets, tiling without gaps or overlap")
+            expectedByteOffset += part.indexCount * stride
+        }
+        #expect(expectedByteOffset == tube.indices.count * stride,
+                "the parts together must cover every triangle exactly once")
+    }
+}
+#endif

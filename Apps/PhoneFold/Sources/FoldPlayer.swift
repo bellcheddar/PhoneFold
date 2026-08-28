@@ -34,22 +34,37 @@ struct PreparedFrame: Sendable {
 @MainActor
 final class FoldPlayer: ObservableObject {
 
-    @Published private(set) var prepared: PreparedFrame?
-    @Published private(set) var flashes: [FlashInstance] = []
+    /// Where finished frames go for drawing.
+    ///
+    /// **Deliberately not `@Published`.** Publishing the mesh drove a full SwiftUI
+    /// re-evaluation of the whole stage - including two `Chart`s over hundreds of samples -
+    /// sixty times a second, and because the producer awaits the main actor to publish, the
+    /// fold ended up paced by SwiftUI's layout rather than by its own clock. The renderer
+    /// takes frames straight from here and writes the vertex buffer without SwiftUI being
+    /// involved at all.
+    var onFrame: (@MainActor (PreparedFrame, [FlashInstance]) -> Void)?
+
     @Published private(set) var isPlaying = false
     @Published private(set) var progress: Double = 0
     @Published var colourMode: ColourMode = .confidence
+    /// Published at `hudUpdateInterval`, not per frame: the counters and traces are read by
+    /// a human and gain nothing from sixty updates a second.
     @Published private(set) var history = FoldHistory()
     @Published private(set) var meter = ComputeMeter()
     /// On-screen diagnostic. simctl's console capture returns nothing for this app, so
     /// `print` is not a usable channel here; the screen is.
     @Published private(set) var diagnostic = "idle"
 
+    /// Frames between HUD publishes. Six at 60 fps is ten updates a second.
+    private let hudUpdateInterval = 6
+    private var historyBuffer = FoldHistory()
+    private var meterBuffer = ComputeMeter()
+    private var lastHUDFrame = -1
+    private(set) var latestFrame: PreparedFrame?
+
     private(set) var provider: (any FoldFrameProvider)?
     private var task: Task<Void, Never>?
 
-    var mesh: TubeMesh? { prepared?.mesh }
-    var confidence: [Float] { prepared?.confidence ?? [] }
     var confidenceSource: ConfidenceSource { provider?.confidenceSource ?? .pLDDT }
     var isGenerated: Bool { provider?.isGenerated ?? false }
     var title: String { provider?.metadata.name ?? "PhoneFold" }
@@ -58,10 +73,15 @@ final class FoldPlayer: ObservableObject {
         stop()
         self.provider = provider
         history.reset()
+        historyBuffer.reset()
+        meterBuffer = ComputeMeter()
+        lastHUDFrame = -1
+        latestFrame = nil
         // Playback, not inference: the app replays a precomputed trajectory, so there is no
         // compute unit to report yet. Saying so is better than implying a utilisation
         // reading that does not exist.
         meter.configure(workload: .playback, unit: .none)
+        meterBuffer.configure(workload: .playback, unit: .none)
         isPlaying = true
 
         let residues = provider.residues
@@ -115,10 +135,12 @@ final class FoldPlayer: ObservableObject {
     }
 
     private func publish(_ frame: PreparedFrame, flashes: [FlashInstance]) {
-        self.prepared = frame
-        self.flashes = flashes
-        self.progress = frame.progress
-        self.history.append(HistorySample(
+        // The renderer first, and without touching any published state: this is the path
+        // that has to keep up with the fold.
+        latestFrame = frame
+        onFrame?(frame, flashes)
+
+        historyBuffer.append(HistorySample(
             frameIndex: frame.index,
             progress: frame.progress,
             radiusOfGyration: frame.metrics.radiusOfGyration,
@@ -130,7 +152,17 @@ final class FoldPlayer: ObservableObject {
             coilFraction: frame.structureFractions.coil,
             newContacts: frame.newContacts.count,
             isRawFrame: !frame.isInterpolated))
-        self.meter.record(frameCostMilliseconds: frame.preparationMilliseconds)
+        meterBuffer.record(frameCostMilliseconds: frame.preparationMilliseconds)
+
+        // Publish the HUD at ten hertz, and always on the last frame so the final reading is
+        // the real one rather than whatever the last multiple of six happened to be.
+        let isFinal = frame.progress >= 0.999
+        if isFinal || frame.index - lastHUDFrame >= hudUpdateInterval {
+            lastHUDFrame = frame.index
+            progress = frame.progress
+            history = historyBuffer
+            meter = meterBuffer
+        }
     }
 
     private func note(_ text: String) { diagnostic = text }

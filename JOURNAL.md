@@ -315,3 +315,39 @@ transition instead reported "5 of 57 colours changed".
 
 Halting here as PLAN.md section 0.3 requires: the phase gate contains human-verifiable
 criteria, none of which has been ticked.
+
+## P2-14 — playback decoupling, and a backbone drawn in pieces (2026-08-28)
+
+Two bugs, one of which hid behind clean diagnostics for most of a session.
+
+**Playback.** The prepared mesh was `@Published`, so every frame drove a full SwiftUI
+re-evaluation of the stage, and because the producer awaited the main actor to publish, the
+fold ended up paced by SwiftUI's layout. Replaced with a plain `onFrame` callback and frame
+production moved to `Task.detached`. Five cold launches now reach an identical final state.
+
+**The fragmented backbone.** After the decoupling the tube drew as four or five cleanly
+cross-sectioned pieces. Every diagnostic read correct - `tri=2736 parts=5 idx=8208/8208
+v=1380/1380`, all 234 frames delivered, the assigner sane - which is precisely why it took
+so long: the mesh really was complete. Two wrong hypotheses were tested and rejected on
+evidence before the right one:
+
+1. `protein.model?.materials = ...` mutating a copy of the component. Real bug, fixed with a
+   read-modify-write, but not this one: the picture was unchanged.
+2. `MeshResource(from:)` snapshotting the mesh's parts at creation. Rebuilt the resource every
+   frame as a test; the picture was pixel-identical, so the parts were reaching the renderer.
+
+The cause was `LowLevelMesh.Part.indexOffset`, which is a **byte** offset into the index
+buffer and sits in the initialiser next to `indexCount`, which is a count of indices. Passing
+a count put every part after the first at a quarter of its intended position, so the parts
+piled up over the first quarter of the buffer and three quarters of the triangles never drew.
+A colour bucket is a contiguous run of residues, so the undrawn ones appeared as clean gaps
+in the chain rather than as scattered holes - which reads as a geometry fault, not a draw-call
+fault, and sent the first two hypotheses in the wrong direction.
+
+Pinned by `LowLevelMeshPartOffsetTests`, which asserts the parts tile the whole index buffer
+in bytes without gaps or overlap. Negative-tested: reverting the fix makes it report
+`288 == 1152`, exactly the factor of four.
+
+The on-screen diagnostic channel is kept, gated behind `PHONEFOLD_DIAGNOSTICS=1` and off by
+default. `simctl launch --console-pty` has returned empty for this app every time it has been
+tried, and both of the expensive render bugs were found by putting counts on the glass.

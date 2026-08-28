@@ -622,3 +622,18 @@ land in the data's actual range to prove anything.
 
 The reference is only regenerated with `PHONEFOLD_RECORD_SNAPSHOTS=1`. A snapshot that
 rewrites itself on mismatch is not a test.
+
+### P2-14 — playback and the fragmented backbone (2026-08-28, iPhone 17 Simulator)
+
+| Measurement | Value |
+|---|---|
+| Frames delivered, trp-cage | 234 / 234 |
+| Frame cost, on-screen readout | 1.7 ms |
+| Cold launches checked for a consistent start | 5 |
+| Protein coverage of the stage at t = 5 s | 26.94, 27.05, 27.07, 26.99, 26.96 % |
+| Package test suite | 210 tests, 37 suites, all passing |
+| 314-residue frame budget | 593.52 ms/frame over 466 frames (Simulator; see the note above) |
+
+Coverage is measured against the stage's own median ground colour rather than an assumed
+background value: the first attempt hard-coded the ground and reported every launch as 100 %
+lit, which is the shape of an answer that is not measuring anything.

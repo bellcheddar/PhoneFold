@@ -2,6 +2,7 @@ import Testing
 import Foundation
 import simd
 import FoldCore
+import FoldGeometry
 @testable import FoldRender
 
 @Suite("Backbone tube geometry")
@@ -180,6 +181,7 @@ struct TubeGeometryTests {
                     "ring \(residue) is centred at \(centre), not \(ca[residue])")
         }
     }
+
 
     @Test("normals point outward from the tube axis")
     func normalsPointOutward() {
