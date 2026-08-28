@@ -106,3 +106,78 @@ can be swept through every frame.
 The collapse is real and late: the chain is still expanding at step 800 (Rg 20.8 A) and only
 compacts in the final 10% of steps. That is a genuinely watchable arc, and it is what the
 Phase 3 score needs in order to have contact-formation events to play.
+
+## Phase 0b — foldingDiff live engine
+
+### Bundle cost
+
+| Component | Parameters | Checkpoint |
+|---|---|---|
+| foldingDiff | 14.5 M | 57.9 MB |
+| ProteinMPNN v_48_020 | 1.66 M | 6.7 MB |
+| **Total** | **16.2 M** | **64.6 MB** |
+
+Against ESMFold's 8.4 GB. Both are MIT-licensed and pure PyTorch.
+
+### Generation, 76 residues on the M1 Max CPU
+
+1000 denoising steps in 18.0 s. 201 frames kept at stride 5, 0.80 MB as `.pftraj`.
+15.76 A of motion, radius of gyration sweeping 5.7 to 22.0 A.
+
+### Backbone geometry after idealised-O placement
+
+Measured on the final frame. N, CA and C come from the model's own sampled dihedrals; O is
+constructed.
+
+| Measurement | Value | Ideal |
+|---|---|---|
+| N-CA | 1.460 A | 1.458 |
+| CA-C | 1.540 A | 1.525 |
+| C-N(i+1) | 1.340 A | 1.329 |
+| CA-CA | 3.823 +- 0.007 A | 3.80 |
+| C=O | 1.231 A | 1.231 (constructed) |
+| CA-C-O | 120.80 deg | 120.8 (constructed) |
+| **O...N(i+1)** | **2.255 +- 0.007 A** | **~2.25; a flipped torsion gives ~1.7** |
+| O-C-N(i+1) | 122.55 deg | ~123 |
+
+The O...N(i+1) distance is the check that matters: it is the one that would catch a sign
+error in the constructed torsion, and it is not a quantity the construction sets directly.
+
+### ProteinMPNN inverse folding, and a control that validates the pipeline
+
+Run on ESMFold's final ubiquitin backbone, which is 0.83 A from experimental 1UBQ:
+
+```
+designed  MTIFVETENGEVIELEVKPDDTIAEVKKKIEEKTGIPPEKQILIYKGKELKDDKTLADYGIKEGDVLKLVLKDLGA
+native    MQIFVKTLTGKTITLEVEPSDTIENVKAKIQDKEGIPPDQQRLIFAGKQLEDGRTLSDYNIQKESTLHLVLRLRGG
+```
+
+It essentially recovered ubiquitin. The pipeline is correct.
+
+That control matters because the generated backbone designs very differently:
+
+| Backbone | residue types | top 4 as % of protein | charged R/K/D/E |
+|---|---|---|---|
+| ESMFold ubiquitin (real fold) | 15 | 53% | **41%** |
+| foldingDiff generated, T=0.1 | 8 | 86% | **1%** |
+| foldingDiff generated, T=0.2 | 13 | 78% | 7% |
+| foldingDiff generated, T=0.3 | 16 | 72% | 5% |
+| foldingDiff generated, T=0.5 | 13 | 72% | 1% |
+
+Raising the sampling temperature does not fix it, so this is a property of the generated
+backbone rather than of the sampling: foldingDiff backbones at 76 residues are low
+designability, and ProteinMPNN fills them with leucine, glycine, proline and alanine.
+
+**Musical consequence, which needs a decision before Phase 3.** The Fantasy profile uses
+R, K, D and E as octave-shift triggers. A real fold offers roughly 41% charged residues; a
+generated one offers 1 to 7%. Those triggers will fire between six and forty times less
+often on a generated protein, and the hydrophobicity colour mode will be nearly uniform.
+Recorded in BLOCKERS.md.
+
+### A trap worth remembering
+
+`protein_mpnn_run.py` does `if args.seed:` and picks a **random** seed when it is falsy, so
+`--seed 0` means "not seeded" rather than "seed zero", and its own help text says so. The
+flag looks deterministic and is not. PLAN.md Phase 3 requires the same protein to yield the
+same piece, so `Tools/assign_sequences.py` refuses seed 0 outright. Verified: a non-zero
+seed reproduces the same sequence across runs, and different seeds differ.

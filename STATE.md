@@ -1,7 +1,7 @@
 # PhoneFold — STATE
 
 **Current phase:** 0 (Model Forge)
-**Current task:** P0-16
+**Current task:** P0-17
 **Last updated:** 2026-08-28
 
 Status vocabulary: `todo` / `doing` / `blocked` / `done`.
@@ -38,7 +38,7 @@ never blocked, and the trunk-patching harness, which is reused by PathDiffusion.
 |---|---|---|---|
 | P0-14 | Add `foldingdiff-denoising` and `pathdiffusion-pathway` to `TrajectoryProvenance` in both `FoldCore` and `Tools/pftraj.py`; extend the cross-language fixture test | P0-03b | done |
 | P0-15 | `Tools/make_foldingdiff_trajectories.py`: sample a backbone, capture every denoising step, write `.pftraj`. Real sampling only | P0-14 | done |
-| P0-16 | ProteinMPNN inverse folding on the final backbone so the trajectory carries a designed sequence the score can use (see BLOCKERS.md) | P0-15 | todo |
+| P0-16 | ProteinMPNN inverse folding on the final backbone so the trajectory carries a designed sequence the score can use (see BLOCKERS.md) | P0-15 | done |
 | P0-17 | Export foldingDiff to Core ML: 14.5 M parameters, fp16, ANE layout, length buckets to 128 | P0-15 | todo |
 | P0-18 | Export ProteinMPNN to Core ML | P0-16 | todo |
 | P0-19 | `Tools/bench_ane.py` + on-device XCTest harness; results to `METRICS.md` | P0-17, P0-18 | todo |

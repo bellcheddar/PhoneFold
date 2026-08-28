@@ -175,3 +175,20 @@ That implies an API change in `FoldCore`: `FoldFrame.pLDDT` becomes a per-residu
 `.denoisingProgress` for generated ones), so the About panel and the readouts can say which
 one they are showing. Recommendation: make this change at the start of Phase 1, before
 anything consumes the field.
+
+### 3. Generated proteins are nearly uncharged, which mutes the Fantasy profile
+
+Measured after P0-16. A real fold designs to about 41% R/K/D/E; a foldingDiff backbone
+designs to 1-7%, and raising ProteinMPNN's temperature does not fix it because it is a
+property of the backbone rather than the sampling.
+
+The Fantasy profile uses exactly those four residues as octave-shift triggers, so on a
+generated protein they fire six to forty times less often, and the Phase 2 hydrophobicity
+colour mode is close to uniform.
+
+Options: accept it and let generated proteins simply sound different from the gallery ones;
+re-weight the octave trigger to whatever the actual composition offers; or bias ProteinMPNN
+towards charged residues, which would be designing for the music rather than for the fold
+and should probably be refused on those grounds.
+
+Not blocking Phase 1 or 2. Needs a call before Phase 3 writes the style profiles.
