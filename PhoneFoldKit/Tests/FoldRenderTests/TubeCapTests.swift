@@ -140,3 +140,50 @@ struct TubeCapTests {
         }
     }
 }
+
+/// The triangles must wind so their geometric normal points **outward**.
+///
+/// This is the one that was missing, and its absence cost a day. RealityKit culls back faces:
+/// flipping the sweep's winding visibly changes the render, which it could not do if both
+/// faces were drawn. With the winding inverted the renderer was discarding the tube's exterior
+/// and drawing its interior - lit by outward vertex normals, so it looked plausible at a glance
+/// and hollow wherever a ribbon curved. Every "see-through" artefact reported over several
+/// rounds was the inside of the tube.
+///
+/// The other tests here calibrate on whatever winding the mesh happens to have, which makes
+/// them robust and made them blind to exactly this. This one pins the convention.
+@Suite("Winding direction")
+struct WindingTests {
+
+    static func mesh() -> TubeMesh {
+        let ca = (0..<24).map { i -> SIMD3<Float> in
+            let t = Float(i) * 0.55
+            return SIMD3<Float>(cos(t) * 4, sin(t) * 4, Float(i) * 1.3)
+        }
+        let ss = ca.indices.map { _ in SSAssignment(structure: .helix, confidence: 1) }
+        return TubeGeometry.build(caPositions: ca, secondaryStructure: ss)
+    }
+
+    @Test("Every sweep triangle winds outward")
+    func windingIsOutward() {
+        let mesh = Self.mesh()
+        var agreeing = 0, disagreeing = 0
+        var triangle = 0
+        while triangle * 3 + 2 < mesh.indices.count {
+            let a = Int(mesh.indices[triangle * 3])
+            let b = Int(mesh.indices[triangle * 3 + 1])
+            let c = Int(mesh.indices[triangle * 3 + 2])
+            let geometric = simd_cross(mesh.vertices[b].position - mesh.vertices[a].position,
+                                       mesh.vertices[c].position - mesh.vertices[a].position)
+            let outward = mesh.vertices[a].normal + mesh.vertices[b].normal
+                + mesh.vertices[c].normal
+            let agreement = simd_dot(geometric, outward)
+            // Zero-area junction quads carry no direction; they are meant to be degenerate.
+            if simd_length(geometric) < 1e-9 { triangle += 1; continue }
+            if agreement > 0 { agreeing += 1 } else { disagreeing += 1 }
+            triangle += 1
+        }
+        #expect(disagreeing == 0,
+                "\(disagreeing) of \(agreeing + disagreeing) triangles wind inward, drawing the tube's interior")
+    }
+}

@@ -540,26 +540,24 @@ public enum TubeGeometry {
                 let b = base + next
                 let c = a + ring
                 let d = b + ring
-                indices.append(contentsOf: [a, c, b, b, c, d])
+                indices.append(contentsOf: [a, b, c, b, d, c])
             }
         }
 
         // End caps: a triangle fan across the first and last ring.
         //
         // Without them the tube is open at both termini - measured as exactly
-        // 2 x radialSegments boundary edges on every build - and this renderer culls
-        // nothing (`faceCulling` and reversed winding are both ignored; see METRICS.md
-        // P2-05), so an open end shows the tube's *interior* wall. On screen that is a
-        // helix ending in a hollow scoop with a dark inside.
+        // 2 x radialSegments boundary edges on every build - and an open end lets you see
+        // straight through the tube, because the far wall's inside is back-facing and culled.
         //
         // The ring vertices are duplicated rather than shared, because a cap is flat: its
         // normal is the outward tangent, not the ring's radial normal, and sharing
         // vertices would smear the cap's shading around the rim.
         //
-        // Winding matches the sweep's own convention - geometric normal *opposing* the
-        // vertex normals (measured: 0 of 4,400 sweep triangles agree) - so `farFacing`,
-        // which calibrates its inversion test on the mesh's majority winding, treats the
-        // caps exactly like the wall they close.
+        // Winding matches the sweep's: geometric normal pointing outward, along the vertex
+        // normals. See `WindingTests` for why that convention is pinned by a test - it was
+        // inverted for a day, and with back-face culling on that meant the renderer drew the
+        // tube's interior and every ribbon looked hollow.
         for end in [0, sampleCount - 1] {
             let outward = end == 0 ? -tangents[0] : tangents[sampleCount - 1]
             // Junction rings are interior only, so the first ring is still ring 0, but the
@@ -581,8 +579,8 @@ public enum TubeGeometry {
                 let rim = capBase + 1 + UInt32(r)
                 let rimNext = capBase + 1 + next
                 indices.append(contentsOf: end == 0
-                               ? [capBase, rim, rimNext]
-                               : [capBase, rimNext, rim])
+                               ? [capBase, rimNext, rim]
+                               : [capBase, rim, rimNext])
             }
         }
         return TubeMesh(vertices: vertices, indices: indices)

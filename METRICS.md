@@ -1266,3 +1266,34 @@ It pinches out instead.
 candidate - short helices might have been all taper and no ribbon. Measured: at every fade
 setting from 0 to 1.5 residues, a 3, 5, 7 and 12-residue helix all still reach a half-width of
 1.29 of a possible 1.35. The taper does not thin short elements.
+
+### The see-through artefacts: the tube was inside out (2026-08-29)
+
+Every "see-through" report over this whole session had one cause, and an earlier measurement
+sent every attempt at it in the wrong direction.
+
+**The correction.** METRICS P2-05 concluded "this renderer culls nothing", from two
+observations: `faceCulling = .front` had no effect, and reversing the triangle winding had no
+effect. Both of those experiments were run on the **outline shell**, never on the protein.
+Flipping the protein sweep's winding changes the render materially - so RealityKit *is* culling
+back faces, and always was.
+
+**The consequence.** The sweep wound its triangles with the geometric normal *opposing* the
+vertex normals: measured at the time as 0 of 4,400 triangles agreeing, and recorded as a
+curiosity to calibrate against rather than as a fault. With back-face culling active that means
+the renderer discarded the tube's exterior and drew its **interior**, lit by the outward vertex
+normals - which looks plausible on a straight run and hollow wherever a ribbon curves or ends.
+The scoops, the pale bands, the grey showing through, the "transparency": all of it was the
+inside of the tube.
+
+Winding flipped, on the sweep and the caps together. 257 tests pass.
+
+**Why no test caught it.** The mesh tests here calibrate on whichever winding the mesh happens
+to have - deliberately, so they are robust to the convention - and that made every one of them
+blind to the convention being wrong. `WindingTests.windingIsOutward` now pins it: negative-
+tested, the old winding fails it at 9,200 of 9,200 triangles.
+
+**What this invalidates.** Several fixes in this file were aimed at symptoms of this: the
+outline shell's CPU far-facing selection was built to stand in for culling that was assumed
+absent, and the missing end caps were described as showing the interior wall when they were in
+fact showing straight through. The caps are still right - an open end is a hole either way.
