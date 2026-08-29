@@ -124,6 +124,37 @@ public enum TubeGeometry {
         }
     }
 
+    /// Precomputed cross sections, one row per quantised sharpness.
+    ///
+    /// The superellipse needs `pow` four times per vertex, and at 314 residues that is a
+    /// quarter of a million calls a frame - measured at 1.1 ms, more than half the entire
+    /// geometry pass. But the sharpness is constant around a ring and varies only with
+    /// confidence, so sixteen rows spanning ellipse to slab cover every section the renderer
+    /// ever sweeps, to a precision far below what a screen shows.
+    struct SectionTable {
+        /// Unit offsets and unit-ish normal weights around one ring.
+        let offsets: [SIMD2<Float>]
+        let normals: [SIMD2<Float>]
+    }
+
+    static let sharpnessLevels = 16
+
+    static func sectionTable(segments: Int, sharpness k: Float) -> SectionTable {
+        var offsets: [SIMD2<Float>] = []
+        var normals: [SIMD2<Float>] = []
+        offsets.reserveCapacity(segments)
+        normals.reserveCapacity(segments)
+        for r in 0..<segments {
+            let angle = 2 * Float.pi * Float(r) / Float(segments)
+            let cosine = cos(angle), sine = sin(angle)
+            offsets.append(SIMD2<Float>(copysign(pow(abs(cosine), 2 / k), cosine),
+                                        copysign(pow(abs(sine), 2 / k), sine)))
+            normals.append(SIMD2<Float>(copysign(pow(abs(cosine), 2 * (k - 1) / k), cosine),
+                                        copysign(pow(abs(sine), 2 * (k - 1) / k), sine)))
+        }
+        return SectionTable(offsets: offsets, normals: normals)
+    }
+
     /// One confidence per secondary-structure element, not per residue.
     ///
     /// The cross section grows with confidence so that structure appears rather than snaps,
@@ -335,6 +366,14 @@ public enum TubeGeometry {
         // Arrowheads, widening then tapering over the last residues of each strand.
         let arrowScale = arrowScales(ss, parameters: parameters, profile: profile)
 
+        // One cross-section table per quantised sharpness, built once for the whole frame.
+        let levels = Swift.max(sharpnessLevels, 2)
+        let tables = (0..<levels).map { level -> SectionTable in
+            let t = Float(level) / Float(levels - 1)
+            return sectionTable(segments: profile.radialSegments,
+                                sharpness: 2 + (profile.ribbonSharpness - 2) * t)
+        }
+
         var vertices: [TubeVertex] = []
         vertices.reserveCapacity(sampleCount * profile.radialSegments)
         var indices: [UInt32] = []
@@ -351,24 +390,23 @@ public enum TubeGeometry {
             // strand and never widen the coil either side of one.
             halfWidth *= arrowScale[s]
 
-            let k = sharpness(for: structure, confidence: confidence, profile: profile)
+            // Superellipse |x/w|^k + |y/h|^k = 1, read from the precomputed table: k = 2 is
+            // the ellipse this used to sweep, higher is a slab with crisp edges.
+            let t = Swift.min(Swift.max(confidence, 0), 1)
+            let level = structure == .coil ? 0
+                : Int((t * Float(levels - 1)).rounded())
+            let table = tables[Swift.min(Swift.max(level, 0), levels - 1)]
             for r in 0..<profile.radialSegments {
-                let angle = 2 * Float.pi * Float(r) / Float(profile.radialSegments)
-                let cosine = cos(angle), sine = sin(angle)
-                // Superellipse |x/w|^k + |y/h|^k = 1, parameterised so k = 2 is the ellipse
-                // this used to sweep.
-                let cx = copysign(pow(abs(cosine), 2 / k), cosine)
-                let sy = copysign(pow(abs(sine), 2 / k), sine)
-                let offset = normal * (cx * halfWidth) + binormal * (sy * halfThickness)
+                let section = table.offsets[r]
+                let offset = normal * (section.x * halfWidth)
+                    + binormal * (section.y * halfThickness)
                 // The surface normal is the gradient of that implicit form, not the radial
                 // direction: n proportional to (sign(x)|x/w|^(k-1)/w, sign(y)|y/h|^(k-1)/h).
                 // Getting this wrong lights a flat slab as though it were still round, which
                 // is most of what made the old sections read as sausages.
-                let gx = copysign(pow(abs(cosine), 2 * (k - 1) / k), cosine)
-                    / Swift.max(halfWidth, 1e-4)
-                let gy = copysign(pow(abs(sine), 2 * (k - 1) / k), sine)
-                    / Swift.max(halfThickness, 1e-4)
-                let rawNormal = normal * gx + binormal * gy
+                let weight = table.normals[r]
+                let rawNormal = normal * (weight.x / Swift.max(halfWidth, 1e-4))
+                    + binormal * (weight.y / Swift.max(halfThickness, 1e-4))
                 let unit = simd_length(rawNormal) > 1e-6
                     ? simd_normalize(rawNormal) : normal
                 vertices.append(TubeVertex(position: centres[s] + offset,

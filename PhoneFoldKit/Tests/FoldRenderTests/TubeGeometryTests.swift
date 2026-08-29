@@ -368,32 +368,21 @@ struct HaloShellTests {
     func haloCost() {
         let (mesh, packed) = Self.tube(residues: 300)
         let eye = simd_normalize(SIMD3<Float>(0.3, 0.4, 1)) * 40
-        var best = Double.greatestFiniteMagnitude
-        // The minimum of several batches, because a single batch on a shared machine swings
-        // by more than the quantity being measured.
-        for _ in 0..<5 {
-            let start = Date()
-            for _ in 0..<10 {
-                let shell = TubeMeshPacker.shell(packed, offset: 0.25, brightness: 1)
-                _ = TubeMeshPacker.farFacing(vertices: shell, indices: mesh.indices, eye: eye)
-            }
-            best = min(best, Date().timeIntervalSince(start) / 10 * 1000)
+        let measured = Bench.ratioToCalibration {
+            let shell = TubeMeshPacker.shell(packed, offset: 0.25, brightness: 1)
+            _ = TubeMeshPacker.farFacing(vertices: shell, indices: mesh.indices, eye: eye)
         }
-        print("outline: \(mesh.indices.count / 3) triangles, \(String(format: "%.2f", best)) ms")
-        // Asserted in release only, and *not* asserted at all in debug.
-        //
-        // The same measurement reads 0.48 ms optimised and 68 ms unoptimised, a factor of a
-        // hundred and forty. A debug bound is not a weaker version of this check, it is a
-        // different check with no budget behind it: the first attempt set one at 60 ms and it
-        // went red twice for reasons that had nothing to do with the outline's cost, once
-        // because a genuine improvement had been made elsewhere. The debug run prints the
-        // number and asserts nothing.
+        let best = measured.milliseconds
+        let calibration = measured.calibration
+        let ratio = measured.ratio
+        print(String(format: "outline: %d triangles, %.2f ms, calibration %.2f ms, ratio %.2f",
+                     mesh.indices.count / 3, best, calibration, ratio))
+        // Asserted in release only, as a ratio against a calibration taken in the same run.
+        // A wall-clock bound here reads 1.24 ms alone and 2.06 ms inside a full parallel run,
+        // for the same code; the ratio does not move with the machine's load. Debug is a
+        // different order of magnitude again and asserts nothing.
         #if !DEBUG
-        // 1.24 ms measured alone for 119,600 triangles at the cartoon's tessellation, and
-        // 2.06 ms for the same code inside a full parallel test run. The bound is set above
-        // the contended figure for the reason given in FrameBudgetTests: a gate that trips on
-        // the scheduler stops being read. It is still under a fifth of a 60 fps frame.
-        #expect(best < 3.0, "the outline must not eat the frame: \(best) ms")
+        #expect(ratio < 1.1, "the outline must not eat the frame: ratio \(ratio)")
         #endif
     }
 }

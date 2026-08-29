@@ -984,3 +984,26 @@ The earlier measurement missed this because it measured total deviation from a s
 which is dominated by genuine curvature: it moved only 2.82 to 1.45 A across the whole range
 and made the smoothing look ineffective. It was measuring the wrong quantity, not reporting a
 wrong answer.
+
+### Performance gates that stop failing for the wrong reason
+
+Both timing tests had been re-recorded or widened repeatedly and still went red intermittently:
+one run in eight failed *both at once*, which is the signature of a load spike rather than a
+regression. They now assert a **ratio** against a calibration measured in the same run, and the
+two measurements are interleaved batch by batch so a spike has to hit every batch, and both
+halves of one equally, to survive. Ten consecutive full runs pass.
+
+And the superellipse turned out to cost real time: four `pow` calls per vertex is a quarter of
+a million a frame at 314 residues, measured at **2.92 ms** against 1.80 before it. The sharpness
+is constant around a ring, so sixteen precomputed rows spanning ellipse to slab cover every
+section the renderer sweeps. Back to **1.65 ms** - faster than before the superellipse existed,
+with the flat faces kept.
+
+| | Geometry, 314 residues |
+|---|---|
+| Original ellipse, 12 x 6 tessellation | 0.52 ms |
+| 20 x 10 tessellation | 2.52 ms |
+| plus 48-level colour quantisation | 2.90 ms |
+| ramp texture instead of quantisation | 1.80 ms |
+| plus superellipse, `pow` per vertex | 2.92 ms |
+| **plus precomputed section tables** | **1.65 ms** |

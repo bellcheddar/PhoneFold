@@ -26,7 +26,13 @@ struct FrameBudgetTests {
     /// tessellation a helix drawn as a ribbon showed its facets and the coil cord was visibly
     /// polygonal. That is 2.9 times the vertices, 21,540 to 62,620, and the cost went from
     /// 0.52 ms to 2.52 ms. Deliberate, and still 15% of a 60 fps frame.
-    static let geometryBaselineMilliseconds = 2.52
+    static let geometryBaselineMilliseconds = 1.65
+    /// The same cost as a multiple of `Bench.calibrationMilliseconds`, which is what is
+    /// actually asserted: 1.65 ms of geometry against a 1.93 ms calibration on an idle M1 Max.
+    ///
+    /// A ratio rather than a wall-clock band because the band was re-recorded three times as
+    /// the renderer changed and still went red on a loaded machine, for the same code.
+    static let geometryBaselineRatio = 0.85
     /// The 60 fps frame budget.
     static let frameBudgetMilliseconds = 1000.0 / 60.0
 
@@ -58,52 +64,37 @@ struct FrameBudgetTests {
 
         // The **minimum** of several batches, not the mean of one.
         //
-        // This runs alongside whatever else the machine is doing, and a single batch mean
-        // swung between 1.13 and 2.46 ms on an idle laptop purely from scheduling noise.
-        // The fastest batch is the closest estimate of the actual compute cost, and it makes
-        // the gate stable enough to be worth having.
-        let batches = 5
-        let iterations = 10
+        // Measured against a calibration taken in the same run, so a busy machine cannot
+        // fail this on its own. See `Bench`.
         var vertices = 0
-        var best = Double.greatestFiniteMagnitude
-        for _ in 0..<batches {
-            let start = Date()
-            for _ in 0..<iterations {
-                // Exactly what the app does per frame: build the tube and pack it. The
-                // bucket split used to be measured here and is no longer on the render path -
-                // the protein is one part with a ramp texture now - so timing it would be
-                // timing work that does not happen.
-                let mesh = TubeGeometry.build(caPositions: ca, secondaryStructure: ss)
-                let packed = TubeMeshPacker.pack(mesh, residueConfidence: confidence,
-                                                 mode: .confidence, options: options)
-                vertices = packed.count
-            }
-            best = Swift.min(best, Date().timeIntervalSince(start) / Double(iterations) * 1000)
+        let measured = Bench.ratioToCalibration {
+            // Exactly what the app does per frame: build the tube and pack it. The bucket
+            // split used to be measured here and is no longer on the render path - the
+            // protein is one part with a ramp texture now - so timing it would be timing work
+            // that does not happen.
+            let mesh = TubeGeometry.build(caPositions: ca, secondaryStructure: ss)
+            let packed = TubeMeshPacker.pack(mesh, residueConfidence: confidence,
+                                             mode: .confidence, options: options)
+            vertices = packed.count
         }
-        let perFrame = best
+        let perFrame = measured.milliseconds
+        let calibration = measured.calibration
+        let ratio = measured.ratio
         print(String(format: "frame budget: %.2f ms for %d residues, %d vertices "
-                     + "(baseline %.2f ms, budget %.2f ms)",
-                     perFrame, ca.count, vertices,
-                     Self.geometryBaselineMilliseconds, Self.frameBudgetMilliseconds))
+                     + "(calibration %.2f ms, ratio %.2f, reference %.2f)",
+                     perFrame, ca.count, vertices, calibration, ratio,
+                     Self.geometryBaselineRatio))
 
         if ProcessInfo.processInfo.environment["PHONEFOLD_SKIP_PERF_BUDGET"] == "1" { return }
         #if DEBUG
         // Optimisation off is a different order of magnitude; only catch a catastrophe.
         #expect(perFrame < 3000)
         #else
-        // A 50% band, not 20%.
-        //
-        // The baseline is measured on an idle machine; the suite runs its tests in parallel,
-        // so when this runs as part of a full run it competes for cores with everything else
-        // and reads high - 2.52 ms alone against 3.32 ms in the suite, for the same code.
-        // Taking the fastest of several batches narrows that and does not remove it. A band
-        // tight enough to catch a 20% regression would mostly catch the scheduler, and a gate
-        // that fails for reasons unrelated to the code stops being read.
-        //
-        // The bound that actually protects the frame is the next one: half the 60 fps budget.
-        let ceiling = Swift.max(Self.geometryBaselineMilliseconds * 1.5, 2.5)
-        #expect(perFrame < ceiling,
-                "frame cost regressed beyond the recorded baseline plus 50 percent")
+        // A ratio, not a wall-clock band. The band was re-recorded three times as the
+        // renderer changed and still went red on a loaded machine; the ratio holds whatever
+        // else the box is doing, which is what makes it worth reading.
+        #expect(ratio < Self.geometryBaselineRatio * 1.5,
+                "geometry cost regressed: ratio \(ratio) against \(Self.geometryBaselineRatio)")
         // And it must still leave most of the frame for the actual draw.
         #expect(perFrame < Self.frameBudgetMilliseconds * 0.5)
         #endif
