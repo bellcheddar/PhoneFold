@@ -125,7 +125,17 @@ struct ColourBucketsTests {
         let result = ColourBuckets.split(vertices: packed, indices: tube.indices)
         print("ubiquitin, confidence mode: \(result.parts.count) parts")
         #expect(result.parts.count >= 2, "a real protein should not be one flat colour")
-        #expect(result.parts.count <= 40, "too many draw calls: \(result.parts.count)")
+        // Measured on this frame, against the quantisation step each choice gives:
+        //
+        //   levels 16 -> 36 parts, 6.67% per step      levels 40 -> 61 parts, 2.56%
+        //   levels 24 -> 44 parts, 4.35%               levels 48 -> 65 parts, 2.13%
+        //   levels 32 -> 51 parts, 3.23%               levels 64 -> 77 parts, 1.59%
+        //
+        // Parts grow far more slowly than the key space because a protein's colours lie along
+        // a ramp rather than filling the cube. Sixteen levels banded visibly on a strand
+        // ribbon; forty-eight is the shipped choice at 65 parts, and this bound is set to
+        // catch a change of kind rather than to pin the exact number.
+        #expect(result.parts.count <= 80, "too many draw calls: \(result.parts.count)")
         #expect(result.indices.count == tube.indices.count)
     }
 }

@@ -81,7 +81,7 @@ public enum TubeGeometry {
         public var arrowHalfWidth: Float = 1.95
         /// Half-width at its point. Not zero: a true point degenerates the ring into a line
         /// and every triangle around it collapses.
-        public var arrowTipHalfWidth: Float = 0.07
+        public var arrowTipHalfWidth: Float = 0.16
         /// How many residues at the C-terminal end of a strand the arrowhead spans.
         public var arrowResidues: Float = 1.6
         /// Spline samples per residue. Higher is smoother and costs vertices.
@@ -97,6 +97,17 @@ public enum TubeGeometry {
         public var radialSegments: Int = 20
 
         public init() {}
+
+        /// The thinnest half-extent any cross section reaches.
+        ///
+        /// An outline drawn further out than this crosses through the surface it is meant to
+        /// surround, and the crossing shows as a dark sliver at the pinch points - the tip of
+        /// an arrowhead, the edge of a ribbon on a tight turn. Anything offsetting the surface
+        /// should size itself from this rather than pick a number.
+        public var thinnestHalfExtent: Float {
+            Swift.min(coilRadius, Swift.min(helixHalfThickness,
+                                            Swift.min(sheetHalfThickness, arrowTipHalfWidth)))
+        }
     }
 
     /// Guide points for the spline: the alpha-carbon path, smoothed inside helices and
@@ -112,13 +123,12 @@ public enum TubeGeometry {
     /// A [1, 2, 1] pass pulls each guide point toward the mean of its neighbours, which for a
     /// helix is toward the axis and for a strand flattens the pleat.
     ///
-    /// **How hard to pull is not a matter of taste.** At an alpha helix's 100 degrees per
-    /// residue, one full [1, 2, 1] pass multiplies the helix radius by
-    /// (2 + 2 cos 100 degrees) / 4, which is 0.41. Two full passes leave 17% of the radius:
-    /// the first attempt used 0.85 twice and flattened every helix into a shallow wave, which
-    /// is a worse failure than the squared-off spiral it was fixing. One pass at 0.40 keeps
-    /// about 77% of the radius, which rounds the corners off the 3.6-residue polygon and
-    /// leaves a helix looking like a helix.
+    /// **Strands only.** It used to apply to helices too, to round off the 3.6-residue
+    /// polygon they were drawn as, and that was treating a symptom: the polygon came from the
+    /// spline cutting corners, which `splinePoint` now fixes properly with circular arcs.
+    /// Smoothing a helix shrinks it - one full [1, 2, 1] pass multiplies the radius by
+    /// (2 + 2 cos 100 degrees) / 4, which is 0.41, and even at 0.40 strength it took away
+    /// nearly a quarter of it. A helix should be drawn at the radius it has.
     ///
     /// Scaled by structure confidence, so a residue that is not yet confidently helical keeps
     /// its true position and the smoothing eases in with the ribbon.
@@ -129,7 +139,7 @@ public enum TubeGeometry {
         for _ in 0..<profile.smoothingPasses {
             var next = guide
             for i in 1..<(guide.count - 1) {
-                guard ss[i].structure != .coil else { continue }
+                guard ss[i].structure == .sheet else { continue }
                 let averaged = (guide[i - 1] + guide[i] * 2 + guide[i + 1]) * 0.25
                 let amount = profile.smoothing * Swift.min(Swift.max(ss[i].confidence, 0), 1)
                 next[i] = guide[i] + (averaged - guide[i]) * amount
@@ -238,7 +248,7 @@ public enum TubeGeometry {
         }
 
         // Arrowheads, widening then tapering over the last residues of each strand.
-        let arrowWidths = arrowHalfWidths(ss, parameters: parameters, profile: profile)
+        let arrowScale = arrowScales(ss, parameters: parameters, profile: profile)
 
         var vertices: [TubeVertex] = []
         vertices.reserveCapacity(sampleCount * profile.radialSegments)
@@ -252,12 +262,9 @@ public enum TubeGeometry {
             let (structure, confidence) = interpolatedStructure(ss, at: parameters[s])
             var (halfWidth, halfThickness) = section(for: structure, confidence: confidence,
                                                      profile: profile)
-            if let arrow = arrowWidths[s] {
-                // Blended in by confidence like every other part of the section, so an
-                // arrowhead grows with the strand instead of appearing fully formed.
-                let t = Swift.min(Swift.max(confidence, 0), 1)
-                halfWidth = profile.coilRadius + (arrow - profile.coilRadius) * t
-            }
+            // Scales the section rather than replacing it, so the arrow can only shape a
+            // strand and never widen the coil either side of one.
+            halfWidth *= arrowScale[s]
 
             for r in 0..<profile.radialSegments {
                 let angle = 2 * Float.pi * Float(r) / Float(profile.radialSegments)
@@ -299,38 +306,56 @@ public enum TubeGeometry {
     ///
     /// Coil is the resting shape, so every structure blends out of coil rather than out of
     /// nothing. That is what makes a helix grow rather than appear.
-    /// The half-width of each sample that falls inside a strand's arrowhead, or nil.
+    /// A multiplier on the strand's half-width, shaping the arrowhead. 1 everywhere else.
     ///
     /// PLAN.md asks for arrowheads that "extrude progressively toward each strand's
-    /// C-terminal end", which is also what makes a sheet readable: an arrow says which way
-    /// the strand runs, and a plain ribbon does not. The head spans the last
-    /// `profile.arrowResidues` of each run of strand: it steps out to `arrowHalfWidth` at the
-    /// base and tapers to `arrowTipHalfWidth` at the point.
+    /// C-terminal end", which is also what tells a reader which way a strand runs.
     ///
-    /// The tip is deliberately not zero. A ring of radius zero collapses every triangle
-    /// around it into a degenerate sliver, and those are exactly the triangles that show up
-    /// later as stray spikes.
-    static func arrowHalfWidths(_ ss: [SSAssignment], parameters: [Float],
-                                profile: Profile) -> [Float?] {
-        // Where each run of strand ends, by residue index.
-        var strandEnds: [Int] = []
-        for i in ss.indices where ss[i].structure == .sheet {
-            if i + 1 == ss.count || ss[i + 1].structure != .sheet { strandEnds.append(i) }
-        }
-        guard !strandEnds.isEmpty, profile.arrowResidues > 0 else {
-            return [Float?](repeating: nil, count: parameters.count)
-        }
-        return parameters.map { u -> Float? in
-            for end in strandEnds {
-                let distance = Float(end) - u
-                guard distance >= 0, distance <= profile.arrowResidues else { continue }
-                // 1 at the base of the head, 0 at the point.
-                let along = distance / profile.arrowResidues
-                return profile.arrowTipHalfWidth
-                    + (profile.arrowHalfWidth - profile.arrowTipHalfWidth) * along
+    /// **A multiplier, not an absolute width.** The first version returned a width and the
+    /// caller used it in place of the section's own, which had two consequences on a real
+    /// protein. Trp-cage's assignment is `-HHHHHHH--HHH----E--`: one single sheet residue. A
+    /// head 1.6 residues long therefore reached back across two *coil* residues and widened
+    /// them, because an absolute width overrides whatever the structure there actually is.
+    /// And past the tip the width jumped straight back to the full strand width - 0.11 to
+    /// 0.84 between two samples a quarter of a residue apart - which is the notch that showed
+    /// up in the ribbon. As a multiplier both problems go: outside a strand it is 1, so the
+    /// section decides, and there is nothing to jump back to.
+    ///
+    /// The head is also never longer than the strand it caps, so a one-residue strand gets a
+    /// one-residue arrow rather than one that starts before the strand does.
+    static func arrowScales(_ ss: [SSAssignment], parameters: [Float],
+                            profile: Profile) -> [Float] {
+        var scales = [Float](repeating: 1, count: parameters.count)
+        guard profile.arrowResidues > 0, profile.sheetHalfWidth > 0 else { return scales }
+
+        // Runs of strand, as (first, last) residue indices.
+        var runs: [(start: Int, end: Int)] = []
+        var start: Int?
+        for i in ss.indices {
+            if ss[i].structure == .sheet {
+                if start == nil { start = i }
+                if i + 1 == ss.count || ss[i + 1].structure != .sheet {
+                    runs.append((start!, i))
+                    start = nil
+                }
             }
-            return nil
         }
+        guard !runs.isEmpty else { return scales }
+
+        for (index, u) in parameters.enumerated() {
+            for run in runs {
+                let head = Swift.min(profile.arrowResidues, Float(run.end - run.start) + 1)
+                let base = Float(run.end) - head
+                guard u >= base, u <= Float(run.end), head > 0 else { continue }
+                // 1 at the base of the head, 0 at the point.
+                let along = (Float(run.end) - u) / head
+                let target = profile.arrowTipHalfWidth
+                    + (profile.arrowHalfWidth - profile.arrowTipHalfWidth) * along
+                scales[index] = target / profile.sheetHalfWidth
+                break
+            }
+        }
+        return scales
     }
 
     static func section(for structure: SecondaryStructure, confidence: Float,
@@ -372,6 +397,70 @@ public enum TubeGeometry {
     // MARK: - Curve and frames
 
     /// Catmull-Rom through the CA positions, so the tube passes through every alpha carbon.
+    /// A point on the circle through `a`, `b`, `c`, going from `b` to `c` as `t` runs 0 to 1.
+    ///
+    /// Falls back to a straight line when the three points are collinear, which is both the
+    /// degenerate case and the correct answer for it.
+    static func arcPoint(_ a: SIMD3<Float>, _ b: SIMD3<Float>, _ c: SIMD3<Float>,
+                         t: Float) -> SIMD3<Float> {
+        let u = b - a
+        let v = c - a
+        let normal = simd_cross(u, v)
+        let normalLength = simd_length(normal)
+        let line = b + (c - b) * t
+
+        // How sharply the chain turns here, as the sine of the angle between the two spans.
+        //
+        // The old guard was on the *absolute* length of the cross product, and that is not a
+        // test of anything: at 3.8 angstrom spacing a sine of a hundred-millionth still
+        // clears 1e-7, and the circle it describes has a centre computed from the difference
+        // of two nearly equal large numbers. The result is a huge, wildly unstable circle,
+        // and the arc through it wanders. Strands are where this bit: they are close to
+        // straight to begin with, and smoothing their pleat straightens them further, so the
+        // ribbon came out with kinks in it.
+        //
+        // Below the floor the answer is a straight line, which for collinear points is not an
+        // approximation but the correct answer. Between floor and ceiling the two are blended
+        // so there is no seam where the treatment changes.
+        let sine = normalLength / Swift.max(simd_length(u) * simd_length(v), 1e-12)
+        let straightBelow: Float = 0.02
+        let curvedAbove: Float = 0.10
+        guard sine > straightBelow else { return line }
+        let arcWeight = Swift.min((sine - straightBelow) / (curvedAbove - straightBelow), 1)
+
+        let uu = simd_dot(u, u)
+        let vv = simd_dot(v, v)
+        let centre = a + (simd_cross(normal, u) * vv + simd_cross(v, normal) * uu)
+            / (2 * normalLength * normalLength)
+        let radius = simd_length(b - centre)
+        guard radius > 1e-6, radius.isFinite else { return line }
+
+        let e1 = (b - centre) / radius
+        let nHat = normal / normalLength
+        let e2 = simd_cross(nHat, e1)
+        let toC = c - centre
+        // The signed angle from b to c, taken the short way round: consecutive alpha carbons
+        // never subtend more than half a turn.
+        let sweep = atan2(simd_dot(toC, e2), simd_dot(toC, e1))
+        let angle = sweep * t
+        let arc = centre + (e1 * cos(angle) + e2 * sin(angle)) * radius
+        guard arc.x.isFinite, arc.y.isFinite, arc.z.isFinite else { return line }
+        return line + (arc - line) * arcWeight
+    }
+
+    /// The guide curve, interpolated so that a helix comes out round.
+    ///
+    /// **Why not Catmull-Rom.** An alpha helix advances 100 degrees per residue, so a turn is
+    /// 3.6 alpha carbons. A Catmull-Rom spline through points that far apart on a circle cuts
+    /// the corners badly: its midpoint between two of them sits at 0.831 of the radius, nearly
+    /// 17 percent inside the true curve. That is not a subtle artefact - it is the whole
+    /// reason the helices kept coming out as rounded triangles, and no amount of extra
+    /// tessellation fixes it, because the curve itself is the wrong shape.
+    ///
+    /// Blending the two circular arcs through each overlapping triple reproduces a circle
+    /// *exactly*, so a helix is drawn at its true radius. The blend, weighted (1-t) and t
+    /// between the arc through the previous triple and the arc through the next, is the
+    /// standard construction and is C1 continuous at the joins.
     static func splinePoint(_ ca: [SIMD3<Float>], at u: Float) -> SIMD3<Float> {
         let n = ca.count
         guard n > 1 else { return ca.first ?? .zero }
@@ -382,13 +471,9 @@ public enum TubeGeometry {
         let p1 = ca[i]
         let p2 = ca[i + 1]
         let p3 = ca[Swift.min(i + 2, n - 1)]
-        let t2 = t * t
-        let t3 = t2 * t
-        let a: SIMD3<Float> = p1 * 2
-        let b: SIMD3<Float> = (p2 - p0) * t
-        let c: SIMD3<Float> = (p0 * 2 - p1 * 5 + p2 * 4 - p3) * t2
-        let d: SIMD3<Float> = (p1 * 3 - p2 * 3 + p3 - p0) * t3
-        return (a + b + c + d) * 0.5
+        let before = arcPoint(p0, p1, p2, t: t)
+        let after = arcPoint(p3, p1, p2, t: t)
+        return before * (1 - t) + after * t
     }
 
     static func perpendicular(to v: SIMD3<Float>) -> SIMD3<Float> {

@@ -45,7 +45,7 @@ struct FrameBudgetTests {
                               residues: bundle.residues))
     }
 
-    @Test("tube geometry, packing and bucketing stay within 20% of the recorded baseline")
+    @Test("tube geometry and packing stay within the recorded baseline")
     func geometryBudget() throws {
         let (ca, ss, confidence, options) = try Self.fixture()
 
@@ -69,10 +69,13 @@ struct FrameBudgetTests {
         for _ in 0..<batches {
             let start = Date()
             for _ in 0..<iterations {
+                // Exactly what the app does per frame: build the tube and pack it. The
+                // bucket split used to be measured here and is no longer on the render path -
+                // the protein is one part with a ramp texture now - so timing it would be
+                // timing work that does not happen.
                 let mesh = TubeGeometry.build(caPositions: ca, secondaryStructure: ss)
                 let packed = TubeMeshPacker.pack(mesh, residueConfidence: confidence,
                                                  mode: .confidence, options: options)
-                _ = ColourBuckets.split(vertices: packed, indices: mesh.indices)
                 vertices = packed.count
             }
             best = Swift.min(best, Date().timeIntervalSince(start) / Double(iterations) * 1000)

@@ -1,4 +1,5 @@
 import SwiftUI
+import FoldRender
 
 /// The stage's grade: a cartoon outline around the backbone, and a vignette over it.
 ///
@@ -32,10 +33,11 @@ struct AuroraGrade: Equatable {
     var vignette: Double = 0.55
     /// How far the outline stands off the cartoon, in angstroms.
     ///
-    /// An absolute distance rather than a fraction of the coil radius: coil is now a thin
-    /// cord, so a fraction of it is far too fine to read as an outline beside a ribbon more
-    /// than four times as wide.
-    var outlineWidth: Double = 0.16
+    /// Derived from the thinnest cross section the cartoon draws, not chosen. At a fixed
+    /// 0.16 A it stood further out than an arrowhead's tip is wide, so the shell crossed
+    /// through the ribbon and the crossing showed as dark slivers at the tip of every arrow
+    /// and on the tightest turns. Half the thinnest half-extent cannot cross anything.
+    var outlineWidth: Double = Double(TubeGeometry.Profile().thinnestHalfExtent) * 0.5
     /// How solid the outline is.
     var outlineOpacity: Double = 0.85
 

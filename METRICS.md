@@ -813,3 +813,97 @@ of them, against 182 in the finished structure. It renders as a magenta mass.
 60 fps, so playback stretches: 13 seconds of wall clock covered 7% of the trajectory. The
 cause is the contact count, not the geometry. Fixable - the degenerate prefix can be trimmed
 or the tracker capped - but not yet fixed.
+
+### The colour ramp: a gradient instead of a staircase (2026-08-29)
+
+Marc reported the gradients as jagged. Measured on the screenshot he sent: **26 discrete steps
+along one strand ribbon**, about 19 px apart, each about 3 levels per channel. That is not
+aliasing, it is the quantiser: colour was delivered by splitting the mesh into one part per
+quantised colour and tinting each part's material, so every part is one flat colour and a ramp
+arrives as a staircase.
+
+Finer quantisation is a dead end. The counting sort's working memory grows with the cube of
+the level count:
+
+| Levels | Parts (draw calls) | Step | Key space |
+|---|---|---|---|
+| 16 | 36 | 6.67% | 4,096 |
+| 32 | 51 | 3.23% | 32,768 |
+| 48 | 65 | 2.13% | 110,592 |
+| 64 | 77 | 1.59% | 262,144 |
+
+Going 16 to 48 already cost 0.38 ms a frame in zeroing alone, and 2.13% per step was still
+visible.
+
+**Replaced with a ramp texture.** 1024 by 3 texels, one row per secondary structure, baked by
+calling `Colouring` itself on a synthetic vertex so it cannot drift from the colour the rest of
+the code believes in. Each vertex carries the coordinate that looks up its own colour, and the
+GPU interpolates between texels.
+
+| | Before | After |
+|---|---|---|
+| Draw calls for the protein | 65 | **1** |
+| Colour steps along a ribbon | 26 | none |
+| Geometry pass, 314 residues | 2.90 ms | **1.84 ms** |
+| Vertex size | 64 bytes | 80 bytes (stride) |
+
+One bug worth recording. RealityKit samples the texture's V axis the opposite way up from the
+row order, so a sheet vertex asking for row 2 read row 0 and came out coil slate. Helix sits in
+the middle row and was unaffected either way, which is why the symptom was "the strand has no
+colour" rather than "the colours are wrong": on screen the sheet vanished into the coil. The
+rows are reversed when the image is built, so the pure logic stays in structure order and
+stays testable.
+
+### The spline was the reason helices were not round
+
+An alpha helix advances 100 degrees per residue, so a turn is 3.6 alpha carbons. Measured on a
+unit circle sampled at that step, a Catmull-Rom spline's midpoint between two samples sits at
+**0.831 of the radius** - it cuts 16.9% off the corner. That is why helices kept drawing as
+rounded triangles, and no amount of tessellation or guide-point smoothing fixes it, because the
+curve itself is the wrong shape. Smoothing made it worse: a [1, 2, 1] pass multiplies a helix's
+radius by 0.41, so rounding the polygon that way also shrank it.
+
+Replaced with a blend of the two circular arcs through each overlapping triple, which
+reproduces a circle exactly. On an ideal helix, radius 2.3 A and rise 1.5 A:
+
+| | worst radius | error |
+|---|---|---|
+| Catmull-Rom | 1.912 A | 16.9% |
+| Circular arcs | 2.194 A | **4.6%** |
+
+The 4.6% residual is expected and honest: the circle through three points of a *helix* is a
+tilted circle, not the helix, so its projection dips slightly inside. Guide-point smoothing now
+applies to strands only, where flattening the pleat is what it is for.
+
+### The drag that got stuck
+
+`isInteracting` was cleared only by SwiftUI's `onEnded`, and `onEnded` does not always run - a
+gesture pre-empted by the simultaneous magnify, or cancelled by the system, simply stops. When
+it did not run the camera stayed interacting for good, `advance` returned early every tick, and
+the orbit never came back. The interaction now also ends on 0.3 s without input.
+
+### The artefacts, and what each one actually was (2026-08-29)
+
+**Dark slivers at arrowhead tips and on tight turns.** The outline shell was offset a fixed
+0.16 A while an arrowhead's tip was 0.07 A wide, so the shell crossed through the ribbon it
+was meant to surround and its far wall came out in front. The offset is now derived from
+`Profile.thinnestHalfExtent` - half of the thinnest section the cartoon draws - so it cannot
+cross anything, and the arrow tip is 0.16 A rather than 0.07.
+
+**A notch in the strand.** trp-cage's assignment is `-HHHHHHH--HHH----E--`: exactly one sheet
+residue. The arrowhead returned an absolute half-width over a fixed 1.6-residue span, so it
+reached back across two *coil* residues and widened them, and past the tip the width jumped
+from 0.11 to 0.84 between samples a quarter of a residue apart. It is now a multiplier on the
+section rather than a replacement for it - 1 outside a strand, so the structure decides and
+there is nothing to jump back to - and the head is never longer than the strand it caps.
+
+**A near-collinear guard that guarded nothing.** `arcPoint` rejected degenerate triples on the
+absolute length of a cross product: at 3.8 A spacing a sine of one part in a hundred million
+still clears 1e-7, and the circle it describes has a centre computed from the difference of two
+nearly equal large numbers. It is now a relative test with a smooth blend to a straight line.
+
+Worth recording honestly: this last one was found by reasoning, not by measurement, and the
+measurement then said it was not the bug. A probe over trp-cage's real geometry found **no**
+residue below a turn sine of 0.15, so nothing was ill-conditioned and the strand's kink was
+the arrowhead all along. The conditioning stays because the guard it replaced was meaningless,
+not because it fixed what it was written to fix.

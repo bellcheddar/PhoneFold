@@ -66,11 +66,11 @@ public final class LowLevelTubeMesh {
             // custom shader; the channel itself is delivered correctly.
             .init(semantic: .color, format: .float4, layoutIndex: 0,
                   offset: MemoryLayout<RenderVertex>.offset(of: \.colour)!),
-            // The raw scalars, split across two texture coordinates because the shader API
-            // exposes uv0 and uv1 as float2 each, not float4. Declaring them float4 here
-            // compiles but hands the shader the wrong lanes.
+            // uv0 is where the colour comes from: it indexes the ramp texture, which is what
+            // makes the protein a gradient instead of a staircase of flat-tinted mesh parts.
+            // See `ColourRamp`.
             .init(semantic: .uv0, format: .float2, layoutIndex: 0,
-                  offset: MemoryLayout<RenderVertex>.offset(of: \.residueParameter)!),
+                  offset: MemoryLayout<RenderVertex>.offset(of: \.rampCoordinate)!),
             .init(semantic: .uv1, format: .float2, layoutIndex: 0,
                   offset: MemoryLayout<RenderVertex>.offset(of: \.structureCode)!),
         ]

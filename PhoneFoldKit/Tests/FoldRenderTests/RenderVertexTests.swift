@@ -30,8 +30,13 @@ struct RenderVertexTests {
     @Test("the vertex layout matches what the mesh descriptor assumes")
     func layout() {
         #expect(MemoryLayout<SIMD3<Float>>.size == 16, "SIMD3 is padded, not tightly packed")
-        #expect(MemoryLayout<RenderVertex>.size == 64)
-        #expect(MemoryLayout<RenderVertex>.stride == 64)
+        // 72 bytes of fields, striding 80 because the struct is 16-byte aligned. It grew
+        // from 64 when `rampCoordinate` was added, which is what lets the colour come from a
+        // texture rather than from one flat tint per mesh part. At 62,620 vertices that is
+        // 5.0 MB a mesh against 4.0 MB before, for a gradient with no steps in it and one
+        // draw call instead of sixty-five.
+        #expect(MemoryLayout<RenderVertex>.size == 72)
+        #expect(MemoryLayout<RenderVertex>.stride == 80)
         #expect(MemoryLayout<RenderVertex>.offset(of: \.position) == 0)
         #expect(MemoryLayout<RenderVertex>.offset(of: \.normal) == 16)
         // The four scalars must be contiguous: they are read as one float4 attribute.
@@ -42,6 +47,9 @@ struct RenderVertexTests {
         #expect(MemoryLayout<RenderVertex>.offset(of: \.residueConfidence) == base + 12)
         // And the float4 attributes must not read past the end of the struct.
         #expect(base + 16 <= MemoryLayout<RenderVertex>.stride)
+        // uv0 reads the ramp coordinate; it must sit inside the stride like the rest.
+        let ramp = MemoryLayout<RenderVertex>.offset(of: \.rampCoordinate)!
+        #expect(ramp + 8 <= MemoryLayout<RenderVertex>.stride)
         let colour = MemoryLayout<RenderVertex>.offset(of: \.colour)!
         #expect(colour == 48)
         #expect(colour + 16 <= MemoryLayout<RenderVertex>.stride)

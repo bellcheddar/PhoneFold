@@ -31,10 +31,18 @@ public struct RenderVertex: Sendable, Equatable {
     /// compute a mode itself, and keeping them means a future move to a Metal surface shader
     /// does not change the vertex layout again.
     public var colour: SIMD4<Float>
+    /// Where this vertex reads its colour out of the ramp texture. See `ColourRamp`.
+    ///
+    /// This is what the stock material actually samples, and the reason the protein is drawn
+    /// as a gradient rather than as a staircase of flat-tinted parts. `colour` above is kept
+    /// because it is still the truth for tests, for snapshots, and for any future path that
+    /// can read a vertex colour channel.
+    public var rampCoordinate: SIMD2<Float>
 
     public init(position: SIMD3<Float>, normal: SIMD3<Float>, residueParameter: Float,
                 structureConfidence: Float, structureCode: Float, residueConfidence: Float,
-                colour: SIMD4<Float> = SIMD4<Float>(1, 1, 1, 1)) {
+                colour: SIMD4<Float> = SIMD4<Float>(1, 1, 1, 1),
+                rampCoordinate: SIMD2<Float> = .zero) {
         self.position = position
         self.normal = normal
         self.residueParameter = residueParameter
@@ -42,6 +50,7 @@ public struct RenderVertex: Sendable, Equatable {
         self.structureCode = structureCode
         self.residueConfidence = residueConfidence
         self.colour = colour
+        self.rampCoordinate = rampCoordinate
     }
 }
 
@@ -74,6 +83,8 @@ public enum TubeMeshPacker {
                 Colouring.colour(packed, from: mode, to: $0, t: t, options: colourOptions)
             } ?? Colouring.colour(packed, mode: mode, options: colourOptions)
             packed.colour = SIMD4<Float>(rgb.x, rgb.y, rgb.z, 1)
+            packed.rampCoordinate = ColourRamp.coordinate(for: packed, mode: mode,
+                                                          options: colourOptions)
             return packed
         }
     }

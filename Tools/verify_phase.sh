@@ -156,7 +156,7 @@ case "$PHASE" in
     fi
 
     for marker in "all four colour modes match their stored snapshot" \
-                  "tube geometry, packing and bucketing stay within 20%" \
+                  "tube geometry and packing stay within the recorded baseline" \
                   "no NaNs across a whole real trajectory"; do
       if grep -q "$marker" /tmp/pf_test_release.log 2>/dev/null; then
         pass "ran: $marker"

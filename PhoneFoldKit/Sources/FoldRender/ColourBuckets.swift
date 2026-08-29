@@ -16,9 +16,28 @@ import FoldCore
 /// per-residue colour with materials that work on every platform. Sixteen buckets across a
 /// ramp is under two percent of the colour range per step, which is below what the eye picks
 /// out on a curved surface.
+/// **No longer on the render path.** The app draws the protein as a single part with a ramp
+/// texture now - see `ColourRamp` - because every part here is one flat tint, and a ramp
+/// delivered as flat tints is a staircase. This is kept because it is still the fallback for
+/// any path that cannot sample a texture, and because its tests pin the byte-offset contract
+/// of `LowLevelMesh.Part`, which is worth keeping honest either way.
 public enum ColourBuckets {
 
-    public static let defaultCount = 16
+    /// Levels per channel.
+    ///
+    /// Sixteen levels was justified in an earlier comment as "under two percent of the colour
+    /// range per step". That arithmetic was wrong: sixteen levels is fifteen steps, so 6.7%
+    /// per step, and on a strand ribbon several angstroms wide and lit almost evenly across
+    /// its face those steps showed as clean diagonal bands. Forty-eight levels is 2.1% per
+    /// step.
+    ///
+    /// Two costs, both measured. Draw calls: not 48 cubed of them, because only buckets that
+    /// contain triangles become parts and a protein's colours lie along a ramp rather than
+    /// filling the cube. And the counting sort's working arrays, which are sized by the key
+    /// space and zeroed every frame: that took the 314-residue geometry pass from 2.52 ms to
+    /// 2.90 ms. Worth 0.38 ms of a 16.7 ms budget to lose the banding; not worth going
+    /// further without making the scratch buffers persistent.
+    public static let defaultCount = 48
 
     public struct Result: Sendable {
         /// Indices reordered so each bucket's triangles are contiguous.

@@ -131,8 +131,8 @@ final class StageContent {
     /// The bucket colours are quantised, so they change far less often than the frame rate:
     /// rebuilding a material per bucket per frame was allocating ~29 materials sixty times a
     /// second for colours that were usually identical to the previous frame's.
-    private var cachedMaterials: [RealityKit.Material] = []
-    private var cachedColourKey: [SIMD3<Float>] = []
+    /// Which mode the current ramp texture was built for.
+    private var rampMode: ColourMode?
     /// The halo shell. A second entity so it can carry its own translucent material and
     /// its own culling without disturbing the tube's per-bucket parts.
     private let outline = ModelEntity()
@@ -262,8 +262,7 @@ final class StageContent {
     func reset() {
         tubeMesh = nil
         vertexCapacity = 0
-        cachedMaterials = []
-        cachedColourKey = []
+        rampMode = nil
     }
 
     func apply(frame: PreparedFrame, flashes: [FlashInstance]) {
@@ -274,9 +273,11 @@ final class StageContent {
         let packed = TubeMeshPacker.pack(mesh, residueConfidence: frame.confidence,
                                          mode: colourMode, options: options)
 
-        // Allocate once per topology. Vertex count only changes when the protein does.
-        let buckets = ColourBuckets.split(vertices: packed, indices: mesh.indices)
-
+        // One part, one material, and the colour comes out of a ramp texture that each vertex
+        // indexes through uv0. This replaced splitting the mesh into a part per quantised
+        // colour: every part was one flat tint, so the ramp arrived as a visible staircase -
+        // 26 measurable steps along a single strand ribbon - and making the quantisation finer
+        // cost memory as the cube of the level count. See `ColourRamp`.
         if tubeMesh == nil || vertexCapacity != packed.count {
             // Not `try?`: swallowing this hid a mesh that never got built, and the symptom
             // was an empty stage with no error anywhere.
@@ -285,37 +286,28 @@ final class StageContent {
                 tubeMesh = built
                 vertexCapacity = packed.count
                 protein.model = ModelComponent(mesh: try built.resource(),
-                                               materials: materials(for: buckets))
+                                               materials: [proteinMaterial(options: options)])
             } catch {
                 print("PHONEFOLD: mesh build FAILED: \(error)")
                 return
             }
         }
         if Diagnostics.isEnabled {
-            lastDiagnostic = "tri=\(mesh.indices.count / 3) parts=\(buckets.parts.count) "
-                + "idx=\(buckets.indices.count)/\(tubeMesh?.indexCapacity ?? 0) "
+            lastDiagnostic = "tri=\(mesh.indices.count / 3) "
+                + "idx=\(mesh.indices.count)/\(tubeMesh?.indexCapacity ?? 0) "
                 + "v=\(packed.count)/\(vertexCapacity)"
         }
         do {
-            try tubeMesh?.update(vertices: packed, buckets: buckets)
-            // One material per colour bucket, read-modify-write.
-            //
-            // `protein.model?.materials = ...` looks equivalent and is not: `model` hands
-            // back a *copy* of the component, so assigning through the optional chain
-            // mutates the copy and never reaches the entity. The materials array therefore
-            // stayed at whatever the first frame produced - a nearly uniform protein with
-            // two or three buckets - and every later part whose materialIndex exceeded that
-            // count was silently not drawn. The symptom was a backbone in clean-capped
-            // pieces with gaps between them, with the mesh itself complete and correct.
-            if var component = protein.model {
-                component.materials = materials(for: buckets)
+            try tubeMesh?.update(vertices: packed)
+            if rampMode != colourMode, var component = protein.model {
+                component.materials = [proteinMaterial(options: options)]
                 protein.model = component
             }
         } catch {
             print("PHONEFOLD: vertex update FAILED: \(error)")
         }
 
-        updateOutline(mesh: mesh, packed: packed, buckets: buckets)
+        updateOutline(mesh: mesh, packed: packed)
 
         // Normalise so the framing does not depend on whether the protein is 20 residues
         // or 300, then apply the camera's orbit to it.
@@ -350,8 +342,7 @@ final class StageContent {
     /// halo keeps its proportion when the cross section morphs: a helix is thicker than a
     /// coil and a sheet is a flat ribbon, and a fixed offset would give the ribbon a halo
     /// several times its own thickness.
-    private func updateOutline(mesh: TubeMesh, packed: [RenderVertex],
-                            buckets: ColourBuckets.Result) {
+    private func updateOutline(mesh: TubeMesh, packed: [RenderVertex]) {
         guard grade.outlineOpacity > 0, grade.outlineWidth > 0 else {
             if outline.model != nil { outline.model = nil; outlineMesh = nil; outlineShell = [] }
             return
@@ -427,34 +418,59 @@ final class StageContent {
         return material
     }
 
-    private func materials(for buckets: ColourBuckets.Result) -> [RealityKit.Material] {
-        let key = buckets.parts.map(\.colour)
-        if key.count == cachedColourKey.count,
-           zip(key, cachedColourKey).allSatisfy({ simd_distance($0, $1) < 1e-4 }) {
-            return cachedMaterials
+    /// The protein's one material: the ramp texture, sampled through uv0.
+    ///
+    /// Rebuilt only when the colour mode changes, which is a tap rather than a frame. The
+    /// texture itself is 1024 by 3 texels, so this is a few milliseconds once, not per frame.
+    private func proteinMaterial(options: ColourOptions) -> RealityKit.Material {
+        rampMode = colourMode
+        var material = SimpleMaterial()
+        material.roughness = 0.9
+        material.metallic = 0
+        if let texture = rampTexture(options: options) {
+            material.color = .init(tint: .white, texture: .init(texture))
+        } else {
+            // A ramp that will not build should not take the protein down with it.
+            material.color = .init(tint: .init(red: 0.42, green: 0.55, blue: 0.65, alpha: 1))
         }
-        let built = buildMaterials(for: buckets)
-        cachedColourKey = key
-        cachedMaterials = built
-        return built
+        return material
     }
 
-    private func buildMaterials(for buckets: ColourBuckets.Result) -> [RealityKit.Material] {
-        buckets.parts.map { part in
-            // The bucket colour is linear; SimpleMaterial takes sRGB, so convert back.
-            func encode(_ c: Float) -> CGFloat {
-                let v = Swift.min(Swift.max(c, 0), 1)
-                return CGFloat(v <= 0.0031308 ? v * 12.92
-                               : 1.055 * pow(v, 1 / 2.4) - 0.055)
-            }
-            var material = SimpleMaterial(
-                color: .init(red: encode(part.colour.x), green: encode(part.colour.y),
-                             blue: encode(part.colour.z), alpha: 1),
-                roughness: 0.42, isMetallic: false)
-            material.faceCulling = .none
-            return material
+    private func rampTexture(options: ColourOptions) -> TextureResource? {
+        let width = ColourRamp.width
+        let height = ColourRamp.height
+        // Rows reversed on the way into the image.
+        //
+        // `ColourRamp` numbers its rows by `SecondaryStructure.rawValue` - coil 0, helix 1,
+        // sheet 2 - and RealityKit samples the texture's V axis the other way up, so a sheet
+        // vertex asking for row 2 was reading row 0 and coming out coil slate. Helix sat in
+        // the middle row and was unaffected either way, which is why the symptom was "the
+        // strand has no colour" rather than "the colours are wrong": on screen the sheet
+        // simply vanished into the coil.
+        let logical = ColourRamp.texels(mode: colourMode, options: options)
+        let stride = ColourRamp.width * 4
+        var pixels = [UInt8](repeating: 0, count: logical.count)
+        for row in 0..<ColourRamp.height {
+            let source = row * stride
+            let destination = (ColourRamp.height - 1 - row) * stride
+            pixels.replaceSubrange(destination..<(destination + stride),
+                                   with: logical[source..<(source + stride)])
         }
+        let space = CGColorSpace(name: CGColorSpace.sRGB)!
+        let info = CGImageAlphaInfo.premultipliedLast.rawValue
+        guard let provider = CGDataProvider(data: Data(pixels) as CFData),
+              let image = CGImage(width: width, height: height, bitsPerComponent: 8,
+                                  bitsPerPixel: 32, bytesPerRow: width * 4,
+                                  space: space, bitmapInfo: CGBitmapInfo(rawValue: info),
+                                  provider: provider, decode: nil, shouldInterpolate: true,
+                                  intent: .defaultIntent)
+        else { return nil }
+        pixels.removeAll()
+        return try? TextureResource.generate(
+            from: image, withName: "phonefold-ramp",
+            options: .init(semantic: .color, mipmapsMode: .none))
     }
+
 
     /// Kept for device testing: the custom shader path, which may well work on real hardware
     /// where the Simulator's constant buffer limit does not apply. Opt in with

@@ -207,3 +207,42 @@ struct DragDirectionTests {
         #expect(simd_distance(camera.subjectRotation.act(Self.front), before) < 1e-6)
     }
 }
+
+/// The stage must not be left frozen by a gesture that never announced its end.
+@Suite("Stalled interactions")
+struct StalledInteractionTests {
+
+    /// SwiftUI's `onEnded` does not always run. When it did not, `isInteracting` stayed true
+    /// for the life of the app, `advance` returned early every tick, and the orbit never came
+    /// back: the stage was stuck. Ending the interaction on a timeout makes the camera
+    /// recover on its own rather than depending on a callback that may not arrive.
+    @Test("A drag with no ending still lets the orbit resume")
+    func orbitResumesWithoutAnOnEnded() {
+        var camera = StageCamera()
+        camera.drag(deltaX: 20, deltaY: 0)          // and no endInteraction, ever
+        // Long enough to pass the input timeout and the resume delay and the ease-in.
+        let before = camera.yaw
+        for _ in 0..<600 { camera.advance(deltaTime: 1.0 / 60) }
+        #expect(camera.isOrbiting, "the camera never came back from the drag")
+        #expect(camera.yaw != before, "the orbit is not actually turning")
+    }
+
+    @Test("A drag that keeps arriving is not timed out from under the finger")
+    func continuousDragIsNotInterrupted() {
+        var camera = StageCamera()
+        for _ in 0..<120 {
+            camera.drag(deltaX: 1, deltaY: 0)
+            camera.advance(deltaTime: 1.0 / 60)
+            #expect(!camera.isOrbiting, "the orbit fought the drag")
+        }
+    }
+
+    @Test("An explicit end is still respected immediately")
+    func explicitEndStillWorks() {
+        var camera = StageCamera()
+        camera.drag(deltaX: 10, deltaY: 0)
+        camera.endInteraction()
+        for _ in 0..<400 { camera.advance(deltaTime: 1.0 / 60) }
+        #expect(camera.isOrbiting)
+    }
+}

@@ -144,19 +144,40 @@ struct TubeGeometryTests {
             SSAssignment(structure: (4...9).contains(i) ? .sheet : .coil, confidence: 1)
         }
         let parameters = stride(from: Float(0), through: 11, by: 0.25).map { $0 }
-        let widths = TubeGeometry.arrowHalfWidths(ss, parameters: parameters, profile: profile)
+        let scales = TubeGeometry.arrowScales(ss, parameters: parameters, profile: profile)
 
-        let head = zip(parameters, widths).filter { $0.1 != nil }
+        let head = zip(parameters, scales).filter { $0.1 != 1 }
         #expect(!head.isEmpty, "the strand must have an arrowhead")
-        // It lives at the C-terminal end of the strand, not the N-terminal one.
-        #expect(head.allSatisfy { $0.0 > 6 }, "the head belongs at the far end of the strand")
-        // Widest at the base, narrowest at the point.
+        // It lives at the C-terminal end of the strand, never outside it.
+        #expect(head.allSatisfy { $0.0 > 7 && $0.0 <= 9 },
+                "the head must stay inside the strand's own residues")
         let sorted = head.sorted { $0.0 < $1.0 }
-        #expect(sorted.first!.1! > sorted.last!.1!, "it must taper toward the C-terminus")
-        #expect(sorted.first!.1! > profile.sheetHalfWidth,
-                "and step out wider than the strand it caps")
-        #expect(sorted.last!.1! > 0,
+        #expect(sorted.first!.1 > sorted.last!.1, "it must taper toward the C-terminus")
+        #expect(sorted.first!.1 > 1, "and step out wider than the strand it caps")
+        #expect(sorted.last!.1 > 0,
                 "the point must not close completely: a zero ring collapses its triangles")
+    }
+
+    /// The case that produced the notch on screen: trp-cage has exactly one sheet residue.
+    ///
+    /// An absolute width would reach back over the coil either side of it and widen that too,
+    /// and past the tip the ribbon would snap back to full strand width. A multiplier of 1
+    /// outside the strand cannot do either.
+    @Test("a one-residue strand does not widen the coil around it")
+    func shortStrandStaysInsideItself() {
+        let profile = TubeGeometry.Profile()
+        let ss = (0..<20).map { i in
+            SSAssignment(structure: i == 17 ? .sheet : .coil, confidence: 0.71)
+        }
+        let parameters = stride(from: Float(0), through: 19, by: 0.05).map { $0 }
+        let scales = TubeGeometry.arrowScales(ss, parameters: parameters, profile: profile)
+        for (u, scale) in zip(parameters, scales) where u < 16 || u > 17.001 {
+            #expect(scale == 1, "the arrow reached u=\(u), outside its own strand")
+        }
+        // And there is no cliff: consecutive samples never jump by more than a little.
+        var worst: Float = 0
+        for i in 1..<scales.count { worst = Swift.max(worst, abs(scales[i] - scales[i - 1])) }
+        #expect(worst < 1.0, "the arrow profile steps by \(worst) between adjacent samples")
     }
 
     /// PLAN.md: structure grows rather than snapping. At zero confidence every structure
@@ -421,5 +442,147 @@ extension HaloShellTests {
         }
         #expect(!kept.isEmpty, "the halo must not be emptied by the filter")
         #expect(inverted == 0, "\(inverted) inverted triangles survived into the halo")
+    }
+}
+
+/// The guide curve has to reproduce a circle, because an alpha helix is one.
+@Suite("Circular interpolation")
+struct CircularInterpolationTests {
+
+    /// Points on a unit circle, 100 degrees apart: the angular step of an alpha helix.
+    static func circle(step: Double = 100, count: Int = 12) -> [SIMD3<Float>] {
+        (0..<count).map { i in
+            let a = Double(i) * step * .pi / 180
+            return SIMD3<Float>(Float(cos(a)), Float(sin(a)), 0)
+        }
+    }
+
+    @Test("A circle sampled at a helix's angular step is drawn at its true radius")
+    func reproducesACircle() {
+        let ca = Self.circle()
+        var worst: Float = 0
+        // Interior spans only: the ends have no neighbour on one side, so the arc through the
+        // duplicated point is not the circle and is not expected to be.
+        for step in 0...400 {
+            let u = 1 + Float(step) / 400 * Float(ca.count - 3)
+            let radius = simd_length(TubeGeometry.splinePoint(ca, at: u))
+            worst = Swift.max(worst, abs(radius - 1))
+        }
+        #expect(worst < 0.01, "worst radial error \(worst) of a unit circle")
+    }
+
+    /// The measurement that identified the bug, kept as a test so it cannot come back.
+    @Test("Catmull-Rom would cut the corner by about a sixth")
+    func catmullRomWouldCutTheCorner() {
+        let ca = Self.circle()
+        // Catmull-Rom's midpoint between two samples, written out.
+        let p0 = ca[0], p1 = ca[1], p2 = ca[2], p3 = ca[3]
+        let weighted: SIMD3<Float> = p1 * 9 + p2 * 9 - p0 - p3
+        let catmullMid: SIMD3<Float> = weighted / 16
+        #expect(abs(simd_length(catmullMid) - 0.8314) < 0.001,
+                "the old spline sat at 0.83 of the radius")
+        // And the arc blend does not.
+        #expect(abs(simd_length(TubeGeometry.splinePoint(ca, at: 1.5)) - 1) < 0.01)
+    }
+
+    @Test("A helix keeps a constant radius about its own axis")
+    func helixKeepsItsRadius() {
+        // An ideal alpha helix: radius 2.3 A, rise 1.5 A, 100 degrees per residue.
+        let ca = (0..<18).map { i -> SIMD3<Float> in
+            let a = Double(i) * 100 * .pi / 180
+            return SIMD3<Float>(Float(2.3 * cos(a)), Float(2.3 * sin(a)), Float(1.5 * Double(i)))
+        }
+        var minimum = Float.greatestFiniteMagnitude
+        var maximum: Float = 0
+        for step in 0...400 {
+            let u = 1 + Float(step) / 400 * Float(ca.count - 3)
+            let p = TubeGeometry.splinePoint(ca, at: u)
+            let radial = simd_length(SIMD3<Float>(p.x, p.y, 0))
+            minimum = Swift.min(minimum, radial)
+            maximum = Swift.max(maximum, radial)
+        }
+        // Measured, not chosen. On this helix Catmull-Rom pinches to 1.912, a 16.9% error;
+        // the arc blend reaches 2.194, a 4.6% one. The residual is real and expected: the
+        // circle through three points of a *helix* is a tilted circle, not the helix, so its
+        // projection dips slightly inside. A flat circle, which is the pathological case for
+        // the old spline, is now exact.
+        #expect(minimum > 2.3 * 0.94, "the helix pinches in to \(minimum) of 2.3")
+        #expect(maximum < 2.3 * 1.02, "the helix bulges out to \(maximum) of 2.3")
+    }
+
+    @Test("Collinear points give a straight line, not a division by nothing")
+    func collinearIsALine() {
+        let ca = (0..<6).map { SIMD3<Float>(Float($0) * 3.8, 0, 0) }
+        for step in 0...20 {
+            let u = Float(step) / 20 * Float(ca.count - 1)
+            let p = TubeGeometry.splinePoint(ca, at: u)
+            #expect(p.y.isFinite && p.z.isFinite)
+            #expect(abs(p.y) < 1e-4 && abs(p.z) < 1e-4)
+            #expect(abs(p.x - u * 3.8) < 1e-3)
+        }
+    }
+}
+
+extension CircularInterpolationTests {
+
+    /// A nearly straight run must come out nearly straight.
+    ///
+    /// This is where the arc interpolation misbehaved: a strand is close to straight already,
+    /// and smoothing its pleat straightens it further, so the circle through three of its
+    /// points is enormous and its centre is the difference of two nearly equal large numbers.
+    /// The arc through it wandered, and the ribbon came out with kinks in it.
+    @Test("An almost-straight chain does not wander")
+    func almostStraightStaysStraight() {
+        for wobble in [Float(0), 0.0005, 0.005, 0.02] {
+            let ca = (0..<10).map { i in
+                SIMD3<Float>(Float(i) * 3.8, wobble * Float(i % 2 == 0 ? 1 : -1), 0)
+            }
+            var worst: Float = 0
+            for step in 0...200 {
+                let u = 1 + Float(step) / 200 * Float(ca.count - 3)
+                let p = TubeGeometry.splinePoint(ca, at: u)
+                #expect(p.x.isFinite && p.y.isFinite && p.z.isFinite)
+                // Never further off the axis than the wobble that is actually there, with a
+                // little room for the curve rounding the zigzag's corners.
+                worst = Swift.max(worst, abs(p.y))
+            }
+            #expect(worst <= wobble + 0.001,
+                    "wobble \(wobble) grew to \(worst) - the interpolation is wandering")
+        }
+    }
+
+    /// And the conditioning must not have cost the thing it was added around.
+    @Test("Conditioning did not break the circle it was added to preserve")
+    func circleSurvivesTheConditioning() {
+        let ca = Self.circle()
+        for step in 0...200 {
+            let u = 1 + Float(step) / 200 * Float(ca.count - 3)
+            #expect(abs(simd_length(TubeGeometry.splinePoint(ca, at: u)) - 1) < 0.01)
+        }
+    }
+}
+
+extension HaloShellTests {
+
+    /// An outline may not stand further out than the surface is thick.
+    ///
+    /// This is the invariant behind the dark slivers Marc saw at the tips of arrowheads: the
+    /// shell was offset 0.16 A while an arrow tip's half-width was 0.07, so the shell crossed
+    /// through the ribbon and its far wall came out in front. Sizing the offset from the
+    /// profile makes it impossible; this pins that the profile's own answer is usable.
+    @Test("The thinnest cross section is thick enough to carry an outline")
+    func thinnestExtentIsUsable() {
+        let profile = TubeGeometry.Profile()
+        #expect(profile.thinnestHalfExtent > 0)
+        #expect(profile.thinnestHalfExtent <= profile.coilRadius)
+        #expect(profile.thinnestHalfExtent <= profile.arrowTipHalfWidth)
+        #expect(profile.thinnestHalfExtent <= profile.sheetHalfThickness)
+        #expect(profile.thinnestHalfExtent <= profile.helixHalfThickness)
+        // And an offset of half of it clears every section with room to spare.
+        let offset = profile.thinnestHalfExtent * 0.5
+        for section in [profile.coilRadius, profile.arrowTipHalfWidth,
+                        profile.sheetHalfThickness, profile.helixHalfThickness] {
+            #expect(offset < section, "an outline at \(offset) crosses a section of \(section)")
+        }
     }
 }

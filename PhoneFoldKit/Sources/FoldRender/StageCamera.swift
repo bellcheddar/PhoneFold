@@ -33,6 +33,17 @@ public struct StageCamera: Sendable, Equatable {
 
     private var idleTime: Float = 0
     private var isInteracting = false
+    /// Seconds since the last drag or pinch callback arrived.
+    ///
+    /// The interaction is ended by this, not only by `endInteraction`. SwiftUI's `onEnded`
+    /// does not always run - a gesture pre-empted by the simultaneous magnify, or cancelled
+    /// by the system, simply stops - and when it did not run the camera stayed in the
+    /// interacting state for good: `advance` returns early there, so the orbit never came
+    /// back and the stage sat still until the app was relaunched. That is what "the drag gets
+    /// stuck" was.
+    private var sinceLastInput: Float = 0
+    /// How long without input before an interaction is treated as over.
+    public var inputTimeout: Float = 0.3
     /// Distance at the start of the current pinch, so magnification is relative to where the
     /// gesture began rather than compounding every callback.
     private var pinchAnchor: Float?
@@ -47,8 +58,13 @@ public struct StageCamera: Sendable, Equatable {
     public mutating func advance(deltaTime: Float) {
         guard deltaTime > 0 else { return }
         if isInteracting {
-            idleTime = 0
-            return
+            sinceLastInput += deltaTime
+            guard sinceLastInput >= inputTimeout else {
+                idleTime = 0
+                return
+            }
+            // No input for a while: the gesture is over whether or not anyone said so.
+            endInteraction()
         }
         idleTime += deltaTime
         // Resume gently rather than snapping back to full speed the instant the finger lifts.
@@ -80,6 +96,7 @@ public struct StageCamera: Sendable, Equatable {
     public mutating func drag(deltaX: Float, deltaY: Float, sensitivity: Float = 0.006) {
         isInteracting = true
         idleTime = 0
+        sinceLastInput = 0
         yaw += deltaX * sensitivity
         pitch = Swift.min(Swift.max(pitch + deltaY * sensitivity, -Self.pitchLimit),
                           Self.pitchLimit)
@@ -89,6 +106,7 @@ public struct StageCamera: Sendable, Equatable {
     public mutating func magnify(scale: Float) {
         isInteracting = true
         idleTime = 0
+        sinceLastInput = 0
         let anchor = pinchAnchor ?? distance
         pinchAnchor = anchor
         distance = Swift.min(Swift.max(anchor / Swift.max(scale, 0.01), minimumDistance),
@@ -98,6 +116,7 @@ public struct StageCamera: Sendable, Equatable {
     public mutating func endInteraction() {
         isInteracting = false
         idleTime = 0
+        sinceLastInput = 0
         pinchAnchor = nil
     }
 
@@ -105,6 +124,7 @@ public struct StageCamera: Sendable, Equatable {
     public mutating func pan(deltaX: Float, deltaY: Float, sensitivity: Float = 0.0015) {
         isInteracting = true
         idleTime = 0
+        sinceLastInput = 0
         let right = SIMD3<Float>(cos(yaw), 0, -sin(yaw))
         let up = SIMD3<Float>(0, 1, 0)
         target += (right * -deltaX + up * deltaY) * sensitivity * distance
