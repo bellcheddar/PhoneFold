@@ -84,6 +84,18 @@ public enum TubeGeometry {
         public var arrowTipHalfWidth: Float = 0.16
         /// How many residues at the C-terminal end of a strand the arrowhead spans.
         public var arrowResidues: Float = 1.6
+        /// Over how many residues a ribbon narrows into the cord at its ends.
+        ///
+        /// The cross section used to collapse across a single residue - measured on alpha-3D,
+        /// half-width 1.328 to 0.200 between u=19 and u=20, a step of 0.226 A every tenth of
+        /// a residue. That leaves a broad, nearly flat shoulder facing along the chain at the
+        /// end of every ribbon, and a face at that angle catches the light quite differently
+        /// from the ribbon it belongs to: on screen it is a pale band across the end, which
+        /// reads as something showing through.
+        ///
+        /// Spread over more residues the shoulder becomes a wedge instead of a step. Capped at
+        /// a third of the element's own length, so a four-residue strand is not all taper.
+        public var boundaryFadeResidues: Float = 1.5
         /// How many times to average the ribbon's roll along the chain.
         ///
         /// Removes the per-residue alternation of a beta pleat, which otherwise corkscrews a
@@ -193,6 +205,39 @@ public enum TubeGeometry {
         return SectionTable(offsets: offsets, normals: normals)
     }
 
+    /// Ease each element's confidence down toward its ends, so the ribbon tapers into the
+    /// cord over several residues rather than collapsing across one.
+    ///
+    /// Applied after `levelledConfidence`, which gives an element one confidence; this is what
+    /// puts the ends back, in a controlled way. The fade is capped at a third of the element's
+    /// length so a short strand keeps a body.
+    static func taperedConfidence(_ ss: [SSAssignment], profile: Profile) -> [SSAssignment] {
+        guard !ss.isEmpty, profile.boundaryFadeResidues > 0 else { return ss }
+        var tapered = ss
+        var start = 0
+        while start < ss.count {
+            var end = start
+            while end + 1 < ss.count, ss[end + 1].structure == ss[start].structure { end += 1 }
+            if ss[start].structure != .coil {
+                let length = Float(end - start + 1)
+                let fade = Swift.min(profile.boundaryFadeResidues, Swift.max(length / 3, 0.5))
+                for i in start...end {
+                    // Distance in residues to whichever end of this element is nearer.
+                    let toStart = Float(i - start) + 0.5
+                    let toEnd = Float(end - i) + 0.5
+                    let nearest = Swift.min(toStart, toEnd)
+                    let ease = Swift.min(nearest / fade, 1)
+                    // Smoothstep, so the taper leaves and arrives without a corner.
+                    let eased = ease * ease * (3 - 2 * ease)
+                    tapered[i] = SSAssignment(structure: ss[i].structure,
+                                              confidence: ss[i].confidence * eased)
+                }
+            }
+            start = end + 1
+        }
+        return tapered
+    }
+
     /// One confidence per secondary-structure element, not per residue.
     ///
     /// The cross section grows with confidence so that structure appears rather than snaps,
@@ -291,8 +336,18 @@ public enum TubeGeometry {
               profile.radialSegments >= 3, profile.samplesPerResidue >= 1
         else { return TubeMesh(vertices: [], indices: []) }
 
-        // One confidence per element, so a ribbon has one width. See `levelledConfidence`.
-        let ss = levelledConfidence(ss)
+        // Two assignments, and the difference matters.
+        //
+        // `paint` is one confidence per element: what the ribbon is coloured by. `ss` is that
+        // eased down at each element's ends, which is what the *shape* is swept from, so a
+        // ribbon narrows into the cord over a couple of residues instead of collapsing across
+        // one. Tapering the colour as well would put the grey wash back at every ribbon end -
+        // the exact artefact the colour path was separated out to remove.
+        // Named so it cannot be shadowed by the per-ring `paint` below: reading the tapered
+        // array there would put the grey wash back at every ribbon end, which is the artefact
+        // the colour path was separated out to remove in the first place.
+        let paintTrack = levelledConfidence(ss)
+        let ss = taperedConfidence(paintTrack, profile: profile)
         // Smoothed guide points, not the raw alpha carbons. See `guidePoints`.
         let ca = guidePoints(ca, secondaryStructure: ss, profile: profile)
 
@@ -444,7 +499,7 @@ public enum TubeGeometry {
             let binormal = simd_normalize(simd_cross(tangent, normal))
             let (structure, confidence) = interpolatedStructure(ss, at: parameters[s])
             // The shape morphs across a boundary; the colour does not. See `colouredStructure`.
-            let paint = ss[paintResidue]
+            let paint = paintTrack[paintResidue]
             let (halfWidth, halfThickness) = section(for: structure, confidence: confidence,
                                                      profile: profile,
                                                      widthScale: arrowScale[s])

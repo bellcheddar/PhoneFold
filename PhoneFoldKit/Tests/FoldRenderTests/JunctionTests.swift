@@ -128,3 +128,72 @@ struct JunctionTests {
                     * profile.radialSegments + 2 * (profile.radialSegments + 1))
     }
 }
+
+/// A ribbon narrows into the cord over several residues, and the colour does not follow it.
+@Suite("Boundary taper")
+struct BoundaryTaperTests {
+
+    static func chain(_ n: Int) -> [SIMD3<Float>] {
+        (0..<n).map { i in
+            let t = Float(i) * 0.6
+            return SIMD3<Float>(cos(t) * 3, sin(t) * 3, Float(i) * 1.4)
+        }
+    }
+
+    /// Ten helix residues then ten coil.
+    static func assignment() -> [SSAssignment] {
+        (0..<20).map { SSAssignment(structure: $0 < 10 ? .helix : .coil, confidence: 0.95) }
+    }
+
+    @Test("The ribbon tapers into the cord instead of collapsing across one residue")
+    func taperIsGradual() {
+        let ss = TubeGeometry.levelledConfidence(Self.assignment())
+        var sharp = TubeGeometry.Profile(); sharp.boundaryFadeResidues = 0
+        var eased = TubeGeometry.Profile(); eased.boundaryFadeResidues = 1.5
+
+        func worstStep(_ profile: TubeGeometry.Profile) -> Float {
+            let track = TubeGeometry.taperedConfidence(ss, profile: profile)
+            var previous: Float = -1
+            var worst: Float = 0
+            for k in stride(from: Float(7), through: 12, by: 0.1) {
+                let (structure, confidence) = TubeGeometry.interpolatedStructure(track, at: k)
+                let (w, _) = TubeGeometry.section(for: structure, confidence: confidence,
+                                                 profile: profile, widthScale: 1)
+                if previous >= 0 { worst = Swift.max(worst, abs(w - previous)) }
+                previous = w
+            }
+            return worst
+        }
+        let before = worstStep(sharp)
+        let after = worstStep(eased)
+        #expect(after < before * 0.6,
+                "the shoulder is still abrupt: \(before) to \(after) per tenth of a residue")
+    }
+
+    /// The taper is for the *shape*. If it reaches the colour, every ribbon end washes out to
+    /// coil slate again - which is exactly what happened when the per-ring `paint` shadowed
+    /// the levelled array and indexed the tapered one instead.
+    @Test("Tapering the shape does not change any vertex's colour attributes")
+    func taperDoesNotTouchColour() {
+        let ca = Self.chain(20)
+        let ss = Self.assignment()
+        var sharp = TubeGeometry.Profile(); sharp.boundaryFadeResidues = 0
+        var eased = TubeGeometry.Profile(); eased.boundaryFadeResidues = 1.5
+
+        let a = TubeGeometry.build(caPositions: ca, secondaryStructure: ss, profile: sharp)
+        let b = TubeGeometry.build(caPositions: ca, secondaryStructure: ss, profile: eased)
+        try? #require(a.vertices.count == b.vertices.count)
+        var differing = 0
+        for (x, y) in zip(a.vertices, b.vertices) {
+            if x.structure != y.structure
+                || abs(x.structureConfidence - y.structureConfidence) > 1e-6 { differing += 1 }
+        }
+        #expect(differing == 0,
+                "\(differing) vertices changed colour attributes when only the shape should move")
+        // And the shape really did move, or the test above proves nothing.
+        var moved = 0
+        for (x, y) in zip(a.vertices, b.vertices)
+        where simd_distance(x.position, y.position) > 1e-4 { moved += 1 }
+        #expect(moved > 0, "the taper did not change the geometry at all")
+    }
+}

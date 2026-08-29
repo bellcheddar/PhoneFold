@@ -1214,3 +1214,30 @@ cord-in-front-of-ribbon occlusion boundaries dominate any colour-range count, an
 auto-orbit means the poses differ. What worked was pose-independent: the mesh invariant
 (zero visible mixed-structure triangles), plus a pixel transect across one identified
 junction in each image.
+
+### The pale band at a ribbon end was a shoulder, and the shoulder was one residue wide
+
+Measured on the settled frame, half-width across a helix-to-coil junction:
+
+| | Half-width at u=19 | at u=20 | Worst step per 0.1 residue |
+|---|---|---|---|
+| Before | 1.328 | 0.200 | **0.226 A** |
+| After | 0.493 | 0.200 | **0.084 A** |
+
+The cross section collapsed from full ribbon to cord across a single residue, leaving a broad,
+nearly flat face pointing along the chain at the end of every ribbon. A face at that angle
+catches the light quite differently from the ribbon it belongs to, and on screen that is a pale
+band across the end - which is what has been reported as a see-through artefact for several
+rounds. Protein G's sheet-to-coil junction measured the same: 0.218 A per tenth of a residue.
+
+`taperedConfidence` now eases each element's confidence down toward its own ends over
+`boundaryFadeResidues` (1.5, capped at a third of the element's length), smoothstepped, so the
+shoulder becomes a wedge. 2.7 times gentler on both proteins.
+
+**And a bug caught by the snapshot test, which is the reason to have one.** The taper is for the
+*shape*: the colour must keep the element's own confidence, or every ribbon end washes out to
+coil slate again. The per-ring `let paint = ss[paintResidue]` shadowed the levelled array and
+indexed the tapered one, so it did exactly that - 15 of 86 snapshot colours moved, and 361
+vertices carry the wrong colour attributes on a 20-residue test chain. Renaming the levelled
+array to `paintTrack` fixes it; with the fix the colour snapshots are **unchanged**, which is
+the proof the colour path is independent of the taper. Negative-tested both ways.
