@@ -55,6 +55,9 @@ struct FoldCanvas: View {
                     stage.camera.drag(deltaX: Float(value.translation.width - lastDrag.width),
                                       deltaY: Float(value.translation.height - lastDrag.height))
                     lastDrag = value.translation
+                    // Applied here rather than waiting for the next clock tick, so the
+                    // rotation cannot depend on that task still running.
+                    stage.applyCamera()
                 }
                 .onEnded { _ in
                     lastDrag = .zero
@@ -64,7 +67,10 @@ struct FoldCanvas: View {
         )
         .simultaneousGesture(
             MagnifyGesture()
-                .onChanged { stage.camera.magnify(scale: Float($0.magnification)) }
+                .onChanged {
+                    stage.camera.magnify(scale: Float($0.magnification))
+                    stage.applyCamera()
+                }
                 .onEnded { _ in stage.camera.endInteraction() }
         )
         .onTapGesture(count: 2) { stage.reframe() }
@@ -226,7 +232,7 @@ final class StageContent {
     /// visually identical for an orbit rig, and it is the arrangement that demonstrably
     /// renders. The `StageCamera` model is unchanged and still fully tested; only where its
     /// transform is applied has moved.
-    private func applyCamera() {
+    func applyCamera() {
         cameraEntity.transform = Transform(
             scale: .one,
             rotation: simd_quatf(angle: 0, axis: SIMD3<Float>(0, 1, 0)),
@@ -302,7 +308,10 @@ final class StageContent {
             }
         }
         if Diagnostics.isEnabled {
-            lastDiagnostic = "tri=\(mesh.indices.count / 3) "
+            lastDiagnostic = String(format: "yaw %.2f pitch %.2f %@ | ",
+                                    camera.yaw, camera.pitch,
+                                    camera.isOrbiting ? "orbiting" : "held")
+                + "tri=\(mesh.indices.count / 3) "
                 + "idx=\(mesh.indices.count)/\(tubeMesh?.indexCapacity ?? 0) "
                 + "v=\(packed.count)/\(vertexCapacity)"
         }

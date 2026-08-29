@@ -1007,3 +1007,30 @@ with the flat faces kept.
 | ramp texture instead of quantisation | 1.80 ms |
 | plus superellipse, `pow` per vertex | 2.92 ms |
 | **plus precomputed section tables** | **1.65 ms** |
+
+### The helix edges: vertices in the wrong places (2026-08-29)
+
+Uniform angular sampling is badly behaved on a flattened superellipse, and the numbers are the
+opposite of what intuition suggests. Measured on the helix ribbon - half-width 1.05,
+half-thickness 0.30, sharpness 6 - twenty uniform-angle samples put **fourteen of the twenty on
+the two thin edges**, leaving the broad faces spanned by segments 9.8 times longer than the
+shortest. Shading interpolated across spacing that uneven is what made the sides look coarse.
+
+Spacing the ring by arc length instead: segment ratio 9.8 to **2.8**, and six of twenty on the
+edges rather than fourteen. Free at runtime, because the sections are already precomputed per
+sharpness level; the aspect ratio used to place them travels with the sharpness, since a
+section flattens and squares off together.
+
+### The camera, again
+
+Two changes, neither of which is a diagnosis - the drag still cannot be reproduced here.
+
+The rotation is now applied from the gesture itself rather than waiting for the next tick of
+the render clock, so it cannot depend on that task still running. And the auto-orbit's resume
+delay went from 2.5 s to 8 s: PLAN.md wants the orbit instantly overridden by a drag, which it
+was, but resuming two and a half seconds after the finger lifts means a view you have just set
+starts sliding away while you are still looking at it.
+
+The camera's state is now on the glass under `PHONEFOLD_DIAGNOSTICS=1` - yaw, pitch, and
+whether it believes it is orbiting or held - because four attempts at this have been guesses
+and a screenshot of those three numbers during a stuck drag would settle it.

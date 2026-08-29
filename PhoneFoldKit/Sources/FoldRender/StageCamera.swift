@@ -23,7 +23,12 @@ public struct StageCamera: Sendable, Equatable {
     /// Radians per second of automatic orbit.
     public var autoOrbitRate: Float = 0.12
     /// Seconds of stillness after an interaction before the orbit resumes.
-    public var resumeDelay: Float = 2.5
+    ///
+    /// Eight, not two and a half. PLAN.md wants the orbit instantly overridden by a drag, and
+    /// it is - but resuming two and a half seconds after the finger lifts means a view you
+    /// just set starts sliding away while you are still looking at it, which is indenting
+    /// something quite different from "cinematic". Long enough to read as deliberate.
+    public var resumeDelay: Float = 8.0
 
     public var minimumDistance: Float = 0.35
     public var maximumDistance: Float = 6.0

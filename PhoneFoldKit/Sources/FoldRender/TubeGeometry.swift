@@ -139,13 +139,51 @@ public enum TubeGeometry {
 
     static let sharpnessLevels = 16
 
-    static func sectionTable(segments: Int, sharpness k: Float) -> SectionTable {
+    static func sectionTable(segments: Int, sharpness k: Float,
+                             aspect: Float) -> SectionTable {
+        // Angles chosen so the ring's vertices are evenly spaced *along the section*, not
+        // evenly spaced in angle.
+        //
+        // Uniform angle is badly behaved on a flattened superellipse. Measured on the helix
+        // ribbon - half-width 1.05, half-thickness 0.30, sharpness 6 - twenty uniform-angle
+        // samples put **fourteen of them on the two thin edges**, leaving the broad faces
+        // spanned by segments 9.8 times longer than the shortest. Shading interpolated across
+        // spacing that uneven is what made the sides of the helices look coarse. Spacing by
+        // arc length takes the ratio to 2.8 and puts six on the edges.
+        //
+        // `aspect` is the section's width-to-thickness ratio, which decides where the arc
+        // length actually is; it travels with the sharpness, since a section flattens and
+        // squares off together.
+        let dense = 2048
+        var points: [SIMD2<Float>] = []
+        points.reserveCapacity(dense)
+        for i in 0..<dense {
+            let angle = 2 * Float.pi * Float(i) / Float(dense)
+            let cosine = cos(angle), sine = sin(angle)
+            points.append(SIMD2<Float>(
+                copysign(pow(abs(cosine), 2 / k), cosine) * aspect,
+                copysign(pow(abs(sine), 2 / k), sine)))
+        }
+        var cumulative = [Float](repeating: 0, count: dense + 1)
+        for i in 0..<dense {
+            cumulative[i + 1] = cumulative[i]
+                + simd_length(points[(i + 1) % dense] - points[i])
+        }
+        let total = cumulative[dense]
+
         var offsets: [SIMD2<Float>] = []
         var normals: [SIMD2<Float>] = []
         offsets.reserveCapacity(segments)
         normals.reserveCapacity(segments)
         for r in 0..<segments {
-            let angle = 2 * Float.pi * Float(r) / Float(segments)
+            let wanted = total * Float(r) / Float(segments)
+            // First dense sample at or past the wanted arc length.
+            var lo = 0, hi = dense
+            while lo < hi {
+                let mid = (lo + hi) / 2
+                if cumulative[mid] < wanted { lo = mid + 1 } else { hi = mid }
+            }
+            let angle = 2 * Float.pi * Float(Swift.min(lo, dense - 1)) / Float(dense)
             let cosine = cos(angle), sine = sin(angle)
             offsets.append(SIMD2<Float>(copysign(pow(abs(cosine), 2 / k), cosine),
                                         copysign(pow(abs(sine), 2 / k), sine)))
@@ -368,10 +406,15 @@ public enum TubeGeometry {
 
         // One cross-section table per quantised sharpness, built once for the whole frame.
         let levels = Swift.max(sharpnessLevels, 2)
+        // A section flattens and squares off together, so the aspect ratio used to place the
+        // vertices travels with the sharpness: round at level 0, the ribbon's own ratio at
+        // the top.
+        let ribbonAspect = profile.helixHalfWidth / Swift.max(profile.helixHalfThickness, 1e-4)
         let tables = (0..<levels).map { level -> SectionTable in
             let t = Float(level) / Float(levels - 1)
             return sectionTable(segments: profile.radialSegments,
-                                sharpness: 2 + (profile.ribbonSharpness - 2) * t)
+                                sharpness: 2 + (profile.ribbonSharpness - 2) * t,
+                                aspect: 1 + (ribbonAspect - 1) * t)
         }
 
         var vertices: [TubeVertex] = []

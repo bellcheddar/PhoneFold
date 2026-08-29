@@ -10,11 +10,12 @@ struct StageCameraTests {
     func autoOrbit() {
         var camera = StageCamera()
         let start = camera.yaw
-        // Before the resume delay elapses, nothing moves.
-        camera.advance(deltaTime: 1.0)
+        // Timed against the camera's own delay rather than a number: the delay is a matter of
+        // taste and has been changed, and a test that pins the taste fails for no reason.
+        camera.advance(deltaTime: camera.resumeDelay * 0.4)
         #expect(camera.yaw == start, "the orbit should wait out the idle delay")
+        camera.advance(deltaTime: camera.resumeDelay)
         camera.advance(deltaTime: 2.0)
-        camera.advance(deltaTime: 1.0)
         #expect(camera.yaw > start, "the orbit should have resumed")
     }
 
@@ -22,7 +23,7 @@ struct StageCameraTests {
     @Test("a drag takes over immediately and stops the orbit")
     func dragOverridesOrbit() {
         var camera = StageCamera()
-        for _ in 0..<10 { camera.advance(deltaTime: 0.5) }
+        for _ in 0..<10 { camera.advance(deltaTime: camera.resumeDelay * 0.5) }
         #expect(camera.isOrbiting)
 
         let before = camera.yaw
@@ -220,9 +221,10 @@ struct StalledInteractionTests {
     func orbitResumesWithoutAnOnEnded() {
         var camera = StageCamera()
         camera.drag(deltaX: 20, deltaY: 0)          // and no endInteraction, ever
-        // Long enough to pass the input timeout and the resume delay and the ease-in.
+        // Long enough to pass the input timeout, the resume delay and the ease-in.
         let before = camera.yaw
-        for _ in 0..<600 { camera.advance(deltaTime: 1.0 / 60) }
+        let ticks = Int((camera.inputTimeout + camera.resumeDelay + 3) * 60)
+        for _ in 0..<ticks { camera.advance(deltaTime: 1.0 / 60) }
         #expect(camera.isOrbiting, "the camera never came back from the drag")
         #expect(camera.yaw != before, "the orbit is not actually turning")
     }
@@ -242,7 +244,7 @@ struct StalledInteractionTests {
         var camera = StageCamera()
         camera.drag(deltaX: 10, deltaY: 0)
         camera.endInteraction()
-        for _ in 0..<400 { camera.advance(deltaTime: 1.0 / 60) }
+        for _ in 0..<Int(camera.resumeDelay * 120) { camera.advance(deltaTime: 1.0 / 60) }
         #expect(camera.isOrbiting)
     }
 }
