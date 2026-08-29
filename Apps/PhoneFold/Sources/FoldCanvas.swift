@@ -157,7 +157,16 @@ final class StageContent {
         // An explicit camera, rather than relying on RealityView's default framing. Without
         // one the protein renders correctly but tiny, because the default camera sits far
         // enough back to frame a room-scale scene.
-        cameraEntity.components.set(PerspectiveCameraComponent(near: 0.01, far: 100,
+        // near 0.05 and far 20, not 0.01 and 100.
+        //
+        // The depth buffer's precision is governed by the ratio of the two, and 10,000 to 1
+        // spends almost all of it on the first fraction of the scene. The protein is scaled to
+        // about 1.15 units and the camera sits at 1.5, so a ribbon 0.5 A thick is roughly 0.03
+        // units and the outline stands 0.005 units off the surface - both inside the noise at
+        // that ratio, which is what put dark creases along the ribbons and slits through the
+        // helices. 400 to 1 gives twenty-five times the precision where the protein actually
+        // is, and still clears the closest the camera can be brought (0.35).
+        cameraEntity.components.set(PerspectiveCameraComponent(near: 0.05, far: 20,
                                                                fieldOfViewInDegrees: 42))
         root.addChild(cameraEntity)
         applyCamera()

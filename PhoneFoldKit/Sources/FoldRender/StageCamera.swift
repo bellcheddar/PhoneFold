@@ -43,7 +43,13 @@ public struct StageCamera: Sendable, Equatable {
     /// stuck" was.
     private var sinceLastInput: Float = 0
     /// How long without input before an interaction is treated as over.
-    public var inputTimeout: Float = 0.3
+    ///
+    /// Two seconds, not a fraction of one. This is a backstop for a gesture whose end was
+    /// never announced, and nothing else: a hand holding the protein still for a moment
+    /// mid-drag is completely normal, and at 0.3 s the interaction was being ended out from
+    /// under a finger that had not lifted. Long enough that only a genuinely abandoned
+    /// gesture trips it.
+    public var inputTimeout: Float = 2.0
     /// Distance at the start of the current pinch, so magnification is relative to where the
     /// gesture began rather than compounding every callback.
     private var pinchAnchor: Float?

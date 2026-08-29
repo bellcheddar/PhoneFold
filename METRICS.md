@@ -907,3 +907,30 @@ measurement then said it was not the bug. A probe over trp-cage's real geometry 
 residue below a turn sine of 0.15, so nothing was ill-conditioned and the strand's kink was
 the arrowhead all along. The conditioning stays because the guard it replaced was meaningless,
 not because it fixed what it was written to fix.
+
+### Three reports, three measured causes (2026-08-29, second pass)
+
+**The ribbon artefacts were depth precision, not geometry.** A probe over both an ideal helix
+and the real trp-cage frame found the swept mesh clean: 191 rings, **0 reversals and 0 folded
+edges of 3,800**. So nothing was folding. The camera was set to near 0.01 / far 100, a ratio of
+10,000 to 1, which spends nearly all the depth buffer on the first fraction of the scene. The
+protein is scaled to about 1.15 units with the camera at 1.5, so a ribbon 0.5 A thick is about
+0.03 units and the outline stands 0.005 units off the surface - both inside the noise at that
+ratio. Now near 0.05 / far 20, a ratio of 400 to 1: twenty-five times the precision where the
+protein actually is, and still clear of the closest the camera can come (0.35).
+
+**The strand's notch was still the arrowhead.** Measured on the real chain, the half-width
+jumped **0.123 to 0.719 between samples a tenth of a residue apart at u = 17.10**. The taper
+ended at the strand's last residue *index*, but `interpolatedStructure` fades a structure out
+over the half residue past it, so for that half residue the width snapped back to the full
+strand. The point now sits at the end of the strand's extent.
+
+**And a bug I introduced myself.** The 0.3 s input timeout added to recover from a lost
+`onEnded` was firing *during* a drag: a hand holding still for half a second is ordinary, and
+the camera was ending the interaction out from under a finger that had not lifted. Two seconds
+now - long enough that only a genuinely abandoned gesture trips it.
+
+Measured on the drag itself, under synthesised events: a 500 px sweep rotates the protein and
+it stays put on release, and a slow drag in five bursts with 0.45 s pauses tracked through
+every burst (3.80, 4.00, 4.17, 4.20, 4.12 mean pixel change). So the mechanism works; what
+remains, if anything, is about how the input arrives.

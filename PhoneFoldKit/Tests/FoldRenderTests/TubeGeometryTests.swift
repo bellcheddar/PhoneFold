@@ -149,8 +149,8 @@ struct TubeGeometryTests {
         let head = zip(parameters, scales).filter { $0.1 != 1 }
         #expect(!head.isEmpty, "the strand must have an arrowhead")
         // It lives at the C-terminal end of the strand, never outside it.
-        #expect(head.allSatisfy { $0.0 > 7 && $0.0 <= 9 },
-                "the head must stay inside the strand's own residues")
+        #expect(head.allSatisfy { $0.0 > 7 && $0.0 <= 9.5 },
+                "the head must stay inside the strand's own extent")
         let sorted = head.sorted { $0.0 < $1.0 }
         #expect(sorted.first!.1 > sorted.last!.1, "it must taper toward the C-terminus")
         #expect(sorted.first!.1 > 1, "and step out wider than the strand it caps")
@@ -171,9 +171,15 @@ struct TubeGeometryTests {
         }
         let parameters = stride(from: Float(0), through: 19, by: 0.05).map { $0 }
         let scales = TubeGeometry.arrowScales(ss, parameters: parameters, profile: profile)
-        for (u, scale) in zip(parameters, scales) where u < 16 || u > 17.001 {
+        // The head may run half a residue past the last strand residue, because that is where
+        // the strand's own extent ends - `interpolatedStructure` fades a structure out over
+        // that half residue. It may not reach any further, and never back before the strand.
+        for (u, scale) in zip(parameters, scales) where u < 16 || u > 17.5001 {
             #expect(scale == 1, "the arrow reached u=\(u), outside its own strand")
         }
+        // And it must actually come to a point by the end of that extent.
+        let atTip = zip(parameters, scales).filter { abs($0.0 - 17.5) < 0.03 }.map(\.1)
+        #expect(atTip.allSatisfy { $0 < 0.25 }, "the arrow has not tapered by its tip")
         // And there is no cliff: consecutive samples never jump by more than a little.
         var worst: Float = 0
         for i in 1..<scales.count { worst = Swift.max(worst, abs(scales[i] - scales[i - 1])) }

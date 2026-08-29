@@ -346,9 +346,15 @@ public enum TubeGeometry {
             for run in runs {
                 let head = Swift.min(profile.arrowResidues, Float(run.end - run.start) + 1)
                 let base = Float(run.end) - head
-                guard u >= base, u <= Float(run.end), head > 0 else { continue }
-                // 1 at the base of the head, 0 at the point.
-                let along = (Float(run.end) - u) / head
+                // The point sits at the end of the *strand's extent*, not at its last residue
+                // index. `interpolatedStructure` fades a structure out over the half residue
+                // past its last one, so stopping the taper at the index left the width
+                // snapping back to the full strand for that half residue: measured as a jump
+                // from 0.123 to 0.719 between two samples a tenth of a residue apart, which
+                // is the notch that kept appearing in the ribbon.
+                let tip = Float(run.end) + 0.5
+                guard u >= base, u <= tip, head > 0 else { continue }
+                let along = Swift.max((tip - u) / (head + 0.5), 0)
                 let target = profile.arrowTipHalfWidth
                     + (profile.arrowHalfWidth - profile.arrowTipHalfWidth) * along
                 scales[index] = target / profile.sheetHalfWidth
