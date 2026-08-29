@@ -22,6 +22,25 @@ struct PreparedFrame: Sendable {
     let progress: Double
     let preparationMilliseconds: Double
     let recycle: Int
+    let secondaryStructure: [SSAssignment]
+}
+
+/// Everything needed to redraw a frame that has already been played, minus the mesh.
+///
+/// The mesh is the expensive part - 62,620 vertices at 314 residues - and rebuilding it from
+/// the alpha carbons costs 2.5 ms, so it is rebuilt on demand rather than kept. What is kept
+/// is small: about 5 MB for the longest bundled trajectory at its largest protein, against
+/// gigabytes if the meshes were held.
+struct ScrubFrame: Sendable {
+    let index: Int
+    let progress: Double
+    let isInterpolated: Bool
+    let recycle: Int
+    let caPositions: [SIMD3<Float>]
+    let secondaryStructure: [SSAssignment]
+    let confidence: [Float]
+    let metrics: FrameMetrics
+    let structureFractions: (helix: Float, sheet: Float, coil: Float)
 }
 
 /// Drives one fold.
@@ -69,6 +88,26 @@ final class FoldPlayer: ObservableObject {
     private var lastHUDFrame = -1
     private(set) var latestFrame: PreparedFrame?
 
+    /// Every frame played so far, so the traces can be scrubbed.
+    ///
+    /// The engine is deliberately **not** paused while scrubbing. It is paced to real time and
+    /// finishes in about twelve seconds either way, so letting it run means the store keeps
+    /// filling and the whole trajectory becomes reachable, rather than only the part that had
+    /// played when the finger went down.
+    private var store: [ScrubFrame] = []
+    /// The store's progresses, kept alongside it.
+    ///
+    /// The search needs a plain `[Double]` and this runs on every movement of a finger; a
+    /// `store.map(\.progress)` there would rebuild a seven-hundred-element array sixty times
+    /// a second to look at one value in it.
+    private var storeProgresses: [Double] = []
+    /// Where the scrubber is, or nil when the display is following the live frame.
+    @Published private(set) var scrubbedProgress: Double?
+    /// The counters for the frame under the scrubber, so the readouts describe what is on the
+    /// stage rather than where the fold has got to.
+    @Published private(set) var scrubbedSample: HistorySample?
+    var isScrubbing: Bool { scrubbedProgress != nil }
+
     private(set) var provider: (any FoldFrameProvider)?
     private var task: Task<Void, Never>?
 
@@ -102,6 +141,10 @@ final class FoldPlayer: ObservableObject {
         meterBuffer = ComputeMeter()
         lastHUDFrame = -1
         latestFrame = nil
+        store.removeAll(keepingCapacity: true)
+        storeProgresses.removeAll(keepingCapacity: true)
+        scrubbedProgress = nil
+        scrubbedSample = nil
         // Playback, not inference: the app replays a precomputed trajectory, so there is no
         // compute unit to report yet. Saying so is better than implying a utilisation
         // reading that does not exist.
@@ -155,7 +198,8 @@ final class FoldPlayer: ObservableObject {
                         newContacts: frame.newContacts,
                         progress: total > 1 ? Double(frame.index) / Double(total - 1) : 0,
                         preparationMilliseconds: Date().timeIntervalSince(started) * 1000,
-                        recycle: frame.recycle)
+                        recycle: frame.recycle,
+                        secondaryStructure: frame.secondaryStructure)
 
                     delivered += 1
                     await self?.publish(preparedFrame, flashes: live)
@@ -172,7 +216,15 @@ final class FoldPlayer: ObservableObject {
         // The renderer first, and without touching any published state: this is the path
         // that has to keep up with the fold.
         latestFrame = frame
-        onFrame?(frame, flashes)
+        store.append(ScrubFrame(
+            index: frame.index, progress: frame.progress,
+            isInterpolated: frame.isInterpolated, recycle: frame.recycle,
+            caPositions: frame.caPositions, secondaryStructure: frame.secondaryStructure,
+            confidence: frame.confidence, metrics: frame.metrics,
+            structureFractions: frame.structureFractions))
+        storeProgresses.append(frame.progress)
+        // While the scrubber holds the stage, the live head must not draw over it.
+        if !isScrubbing { onFrame?(frame, flashes) }
 
         historyBuffer.append(HistorySample(
             frameIndex: frame.index,
@@ -198,6 +250,55 @@ final class FoldPlayer: ObservableObject {
             history = historyBuffer
             meter = meterBuffer
         }
+    }
+
+    // MARK: - Scrubbing
+
+    /// Show the played frame nearest `target`, expressed as 0...1 through the trajectory.
+    ///
+    /// Clamped to what has actually been played: dragging past the live head holds at the
+    /// newest frame rather than showing nothing, which is what makes dragging during playback
+    /// feel like a scrubber rather than like a broken one.
+    func scrub(to target: Double) {
+        guard !store.isEmpty else { return }
+        let wanted = Swift.min(Swift.max(target, 0), 1)
+        scrubbedProgress = wanted
+        guard let index = Scrubbing.nearestIndex(toProgress: wanted,
+                                                 in: storeProgresses) else { return }
+        render(store[index])
+    }
+
+    /// Hand the stage back to the live fold.
+    func endScrub() {
+        scrubbedProgress = nil
+        scrubbedSample = nil
+        if let latestFrame { onFrame?(latestFrame, []) }
+    }
+
+    /// Rebuild one stored frame's mesh and draw it.
+    ///
+    /// No contact flashes: they are events that happened at a moment, and replaying them
+    /// under a scrubber would show flashes that are not firing now.
+    private func render(_ frame: ScrubFrame) {
+        let mesh = TubeGeometry.build(caPositions: frame.caPositions,
+                                      secondaryStructure: frame.secondaryStructure)
+        scrubbedSample = HistorySample(
+            frameIndex: frame.index, progress: frame.progress,
+            radiusOfGyration: frame.metrics.radiusOfGyration,
+            compactness: frame.metrics.compactness,
+            contactCount: frame.metrics.contactCount,
+            meanConfidence: frame.metrics.meanConfidence,
+            helixFraction: frame.structureFractions.helix,
+            sheetFraction: frame.structureFractions.sheet,
+            coilFraction: frame.structureFractions.coil,
+            newContacts: 0, isRawFrame: !frame.isInterpolated, recycle: frame.recycle)
+        let prepared = PreparedFrame(
+            index: frame.index, isInterpolated: frame.isInterpolated,
+            caPositions: frame.caPositions, mesh: mesh, confidence: frame.confidence,
+            metrics: frame.metrics, structureFractions: frame.structureFractions,
+            newContacts: [], progress: frame.progress, preparationMilliseconds: 0,
+            recycle: frame.recycle, secondaryStructure: frame.secondaryStructure)
+        onFrame?(prepared, [])
     }
 
     private func note(_ text: String) { diagnostic = text }

@@ -17,6 +17,13 @@ struct FoldHUD: View {
     let meter: ComputeMeter
     let confidenceSource: ConfidenceSource
     let progress: Double
+    /// Where the scrubber is, or nil when the display is following the fold.
+    let playhead: Double?
+    /// The frame under the scrubber, when there is one. The counters follow the stage.
+    let scrubbed: HistorySample?
+    /// Called with 0...1 through the trajectory as the finger moves.
+    let onScrub: (Double) -> Void
+    let onScrubEnd: () -> Void
 
     private var samples: [HistorySample] { history.samples }
 
@@ -38,6 +45,41 @@ struct FoldHUD: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    /// Turn a trace into a scrubber.
+    ///
+    /// A plain overlay rather than `chartOverlay` with the chart proxy. Both traces have an x
+    /// domain of exactly 0...1 and no axis, so the fraction across the view is the position in
+    /// the trajectory, and going through the proxy's plot frame only added a conversion that
+    /// put the playhead somewhere other than under the finger. See `Scrubbing`.
+    ///
+    /// `minimumDistance: 0` so a tap lands too: on a trace 58 points tall, requiring a drag
+    /// before responding makes it feel dead.
+    private var scrubSurface: some View {
+        GeometryReader { geometry in
+            Rectangle()
+                .fill(.clear)
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged {
+                            onScrub(Scrubbing.progress(atX: $0.location.x,
+                                                       width: geometry.size.width))
+                        }
+                        .onEnded { _ in onScrubEnd() }
+                )
+        }
+    }
+
+    /// The line showing where the scrubber is, drawn in both traces.
+    @ChartContentBuilder
+    private var playheadMark: some ChartContent {
+        if let playhead {
+            RuleMark(x: .value("t", playhead))
+                .foregroundStyle(.white.opacity(0.75))
+                .lineStyle(StrokeStyle(lineWidth: 1))
+        }
+    }
+
     // MARK: - Counters
 
     private var counters: some View {
@@ -55,7 +97,7 @@ struct FoldHUD: View {
 
     private var countersRow: some View {
         HStack(alignment: .top, spacing: 14) {
-            if let now = history.latest {
+            if let now = scrubbed ?? history.latest {
                 counter("Rg", String(format: "%.1f Å", now.radiusOfGyration))
                 counter("Compact", String(format: "%.2f", now.compactness),
                         tint: now.compactness < 1.25 ? Color(hex: 0x22E5FF) : Color(hex: 0xFCB900))
@@ -136,11 +178,13 @@ struct FoldHUD: View {
                          stacking: .standard)
                     .foregroundStyle(Color(hex: 0x6B7C93).opacity(0.55))
             }
+            playheadMark
         }
         .chartXScale(domain: 0...1)
         .chartYScale(domain: 0...1)
         .chartXAxis(.hidden)
         .chartYAxis(.hidden)
+        .overlay { scrubSurface }
         .overlay(alignment: .topLeading) { traceLabel("Structure") }
     }
 
@@ -170,12 +214,14 @@ struct FoldHUD: View {
                     .foregroundStyle(Color(hex: 0x22E5FF))
                     .interpolationMethod(.monotone)
             }
+            playheadMark
         }
         .chartXScale(domain: 0...1)
         .chartYScale(domain: Double(history.range(\.radiusOfGyration).lowerBound)
                      ... Double(history.range(\.radiusOfGyration).upperBound))
         .chartXAxis(.hidden)
         .chartYAxis(.hidden)
+        .overlay { scrubSurface }
         .overlay(alignment: .topLeading) { traceLabel("Radius of gyration") }
     }
 
@@ -192,18 +238,35 @@ struct FoldHUD: View {
     /// note onsets the Phase 3 score will play.
     private var timeline: some View {
         GeometryReader { geometry in
+            let width = Swift.max(geometry.size.width, 1)
             ZStack(alignment: .leading) {
                 Capsule().fill(Color.white.opacity(0.10)).frame(height: 3)
                 Capsule().fill(Color(hex: 0x22E5FF))
-                    .frame(width: geometry.size.width * min(max(progress, 0), 1), height: 3)
+                    .frame(width: width * min(max(progress, 0), 1), height: 3)
                 ForEach(history.contactEvents, id: \.frameIndex) { event in
                     Capsule()
                         .fill(Color(hex: 0xFCB900).opacity(0.75))
                         .frame(width: 1.5, height: 9)
-                        .offset(x: geometry.size.width * min(max(event.progress, 0), 1) - 0.75)
+                        .offset(x: width * min(max(event.progress, 0), 1) - 0.75)
+                }
+                if let playhead {
+                    Circle()
+                        .fill(.white)
+                        .frame(width: 9, height: 9)
+                        .offset(x: width * min(max(playhead, 0), 1) - 4.5)
                 }
             }
             .frame(height: 10)
+            // The bar is three points tall; the target is not. A hairline is fine to look at
+            // and impossible to hit, so the whole strip takes the gesture.
+            .contentShape(Rectangle().inset(by: -8))
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged {
+                        onScrub(Scrubbing.progress(atX: $0.location.x, width: width))
+                    }
+                    .onEnded { _ in onScrubEnd() }
+            )
         }
         .frame(height: 10)
     }

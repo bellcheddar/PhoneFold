@@ -24,7 +24,11 @@ struct StageView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 FoldHUD(history: player.history, meter: player.meter,
                         confidenceSource: player.confidenceSource,
-                        progress: player.progress)
+                        progress: player.progress,
+                        playhead: player.scrubbedProgress,
+                        scrubbed: player.scrubbedSample,
+                        onScrub: { player.scrub(to: $0) },
+                        onScrubEnd: { player.endScrub() })
                     // Without priority the RealityView above, which takes all the space it
                     // is offered, squeezes the panel until the charts collapse to zero
                     // height and simply vanish.

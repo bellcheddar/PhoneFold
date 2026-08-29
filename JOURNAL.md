@@ -379,3 +379,38 @@ replaced the RealityView with its unsupported-effect placeholder, and the placeh
 as red when you paint it red. The mistake only surfaced when a shader with structure in its
 output (the vignette gradient) showed that gradient sitting on the placeholder. A probe whose
 output is uniform cannot tell success from the failure it is looking for.
+
+## Scrubbing the traces (2026-08-29)
+
+Marc asked for the structure trace, the radius-of-gyration trace and the timeline to be
+draggable so he can see what is happening at any moment of a fold.
+
+The mesh is the expensive thing to keep - 62,620 vertices at 314 residues - so the player
+keeps a light record of every frame it has played (alpha carbons, secondary structure,
+confidence, metrics) and rebuilds the mesh on demand when the scrubber lands on one. That is
+about 5 MB for the largest bundled trajectory against gigabytes if the meshes were held, and
+2.5 ms to rebuild, which is a drag frame's worth of work.
+
+The engine is deliberately **not** paused while scrubbing. It is paced to real time and
+finishes in twelve seconds either way, so letting it run means the store keeps filling and the
+whole trajectory becomes reachable rather than only the part that had played when the finger
+went down.
+
+Two things worth recording about how this was built.
+
+The first version put the gesture in a SwiftUI `chartOverlay` and mapped the touch through the
+chart proxy's plot frame. The playhead came out somewhere other than under the finger, and
+there was no way to check it without driving a real cursor around Marc's desktop - which I
+did, briefly, and which put a click on his terminal instead of the app. That is not a way to
+verify anything. Both traces have an x domain of exactly 0...1 and no axis, so the fraction
+across the view *is* the position in the trajectory: the conversion was not needed, and
+removing it left arithmetic that can be tested. `Scrubbing` is that arithmetic, with the
+nearest-frame search checked against a linear scan at five hundred positions on an unevenly
+spaced trajectory.
+
+The nearest-frame search is a binary search over an array kept beside the store, not a
+`store.map(\.progress)`. The map would rebuild a seven-hundred-element array sixty times a
+second to read one value out of it.
+
+Not verified end to end: the gesture itself. The arithmetic is tested and the app builds and
+runs on both platforms, but whether the drag feels right is Marc's to judge.
