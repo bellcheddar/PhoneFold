@@ -70,13 +70,13 @@ public enum TubeGeometry {
     /// structural biologist already reads.
     public struct Profile: Sendable {
         /// Radius of the thin round cord used for coil.
-        public var coilRadius: Float = 0.22
+        public var coilRadius: Float = 0.20
         /// The helix ribbon: wide and flat, so a helix reads as a coiled band.
-        public var helixHalfWidth: Float = 1.05
-        public var helixHalfThickness: Float = 0.30
+        public var helixHalfWidth: Float = 1.35
+        public var helixHalfThickness: Float = 0.25
         /// The strand ribbon.
-        public var sheetHalfWidth: Float = 1.10
-        public var sheetHalfThickness: Float = 0.26
+        public var sheetHalfWidth: Float = 1.40
+        public var sheetHalfThickness: Float = 0.22
         /// Half-width at the base of a strand's arrowhead.
         public var arrowHalfWidth: Float = 1.95
         /// Half-width at its point. Not zero: a true point degenerates the ring into a line
@@ -427,6 +427,8 @@ public enum TubeGeometry {
             let normal = normals[s]
             let binormal = simd_normalize(simd_cross(tangent, normal))
             let (structure, confidence) = interpolatedStructure(ss, at: parameters[s])
+            // The shape morphs across a boundary; the colour does not. See `colouredStructure`.
+            let (paintStructure, paintConfidence) = colouredStructure(ss, at: parameters[s])
             var (halfWidth, halfThickness) = section(for: structure, confidence: confidence,
                                                      profile: profile)
             // Scales the section rather than replacing it, so the arrow can only shape a
@@ -455,8 +457,8 @@ public enum TubeGeometry {
                 vertices.append(TubeVertex(position: centres[s] + offset,
                                            normal: unit,
                                            residueParameter: parameters[s],
-                                           structureConfidence: confidence,
-                                           structure: structure))
+                                           structureConfidence: paintConfidence,
+                                           structure: paintStructure))
             }
         }
 
@@ -608,6 +610,26 @@ public enum TubeGeometry {
 
     /// The assignment at a fractional residue position, with confidence eased between
     /// neighbours so the section changes smoothly rather than in steps at residue boundaries.
+    /// The structure and confidence a sample should be **coloured** by.
+    ///
+    /// Deliberately not `interpolatedStructure`, which fades the outgoing structure's
+    /// confidence to zero at a boundary so the cross section can pass through coil on its way
+    /// from ribbon to cord. That morph is right for the *shape* - PLAN.md wants structure to
+    /// grow rather than snap - and wrong for the colour, because it takes the ribbon's colour
+    /// to coil slate as well. On a settled protein that puts a grey wedge across the last
+    /// residue of every helix, which reads as the coil showing through the ribbon.
+    ///
+    /// Colour instead takes the nearer residue's own element, at its own confidence, so it
+    /// changes at the boundary the way a cartoon's does while the shape still morphs.
+    static func colouredStructure(_ ss: [SSAssignment], at u: Float)
+        -> (SecondaryStructure, Float) {
+        guard !ss.isEmpty else { return (.coil, 0) }
+        let clamped = Swift.min(Swift.max(u, 0), Float(ss.count - 1))
+        let nearest = Int(clamped.rounded())
+        let residue = ss[Swift.min(Swift.max(nearest, 0), ss.count - 1)]
+        return (residue.structure, residue.confidence)
+    }
+
     static func interpolatedStructure(_ ss: [SSAssignment], at u: Float)
         -> (SecondaryStructure, Float) {
         guard !ss.isEmpty else { return (.coil, 0) }

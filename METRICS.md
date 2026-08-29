@@ -1115,3 +1115,33 @@ A note on measuring this. The first attempt counted dark pixels inside the prote
 and returned 46.8% against 46.2% - no signal at all - because a protein is not convex and the
 gap between two helices dominates the count. The measurement had to distinguish an *enclosed*
 dark run from an open one before it could see a difference of three times.
+
+### The grey through the ribbon was the colour fade, not geometry (2026-08-29)
+
+`interpolatedStructure` fades the outgoing structure's confidence to zero at a boundary, so the
+cross section can pass through coil on its way from ribbon to cord. That morph is right for the
+*shape* - PLAN.md wants structure to grow rather than snap - and wrong for the colour, because
+it took the ribbon's colour all the way to coil slate as well. On a settled protein that puts a
+grey wedge across the last residue of every helix, soft-edged, which reads exactly as the coil
+showing through the ribbon.
+
+Colour now comes from `colouredStructure`: the nearer residue's own element at its own
+confidence, so it changes at the boundary the way a cartoon's does while the shape still morphs.
+The colour snapshots moved by 5 of 58 in `secondaryStructure` alone - the boundary samples, and
+nothing else.
+
+Ribbon proportions also brought to the convention, which is roughly PyMOL's:
+
+| | Was | Now | PyMOL default |
+|---|---|---|---|
+| Helix half-width | 1.05 | **1.35** | 1.35 (`cartoon_oval_length`) |
+| Helix half-thickness | 0.30 | 0.25 | 0.25 (`cartoon_oval_width`) |
+| Sheet half-width | 1.10 | **1.40** | 1.40 (`cartoon_rect_length`) |
+| Sheet half-thickness | 0.26 | 0.22 | 0.20 (`cartoon_rect_width`) |
+| Coil radius | 0.22 | 0.20 | 0.20 (`cartoon_loop_radius`) |
+
+**A measurement that did not work, recorded so it is not repeated.** Counting grey pixels
+enclosed by magenta gave 32,254 before and 37,316 after - apparently worse. It is not a valid
+comparison: the ribbon got wider in the same change, so there is more magenta and more enclosed
+area, and the auto-orbit means the two captures are not the same pose. Two changes in one pass
+with a metric sensitive to both. This one was judged by eye, and said so.
