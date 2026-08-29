@@ -472,6 +472,46 @@ public enum TubeGeometry {
                 indices.append(contentsOf: [a, c, b, b, c, d])
             }
         }
+
+        // End caps: a triangle fan across the first and last ring.
+        //
+        // Without them the tube is open at both termini - measured as exactly
+        // 2 x radialSegments boundary edges on every build - and this renderer culls
+        // nothing (`faceCulling` and reversed winding are both ignored; see METRICS.md
+        // P2-05), so an open end shows the tube's *interior* wall. On screen that is a
+        // helix ending in a hollow scoop with a dark inside.
+        //
+        // The ring vertices are duplicated rather than shared, because a cap is flat: its
+        // normal is the outward tangent, not the ring's radial normal, and sharing
+        // vertices would smear the cap's shading around the rim.
+        //
+        // Winding matches the sweep's own convention - geometric normal *opposing* the
+        // vertex normals (measured: 0 of 4,400 sweep triangles agree) - so `farFacing`,
+        // which calibrates its inversion test on the mesh's majority winding, treats the
+        // caps exactly like the wall they close.
+        for end in [0, sampleCount - 1] {
+            let outward = end == 0 ? -tangents[0] : tangents[sampleCount - 1]
+            let ringBase = end * profile.radialSegments
+            let capBase = UInt32(vertices.count)
+            let sample = vertices[ringBase]
+            vertices.append(TubeVertex(position: centres[end], normal: outward,
+                                       residueParameter: sample.residueParameter,
+                                       structureConfidence: sample.structureConfidence,
+                                       structure: sample.structure))
+            for r in 0..<profile.radialSegments {
+                var rim = vertices[ringBase + r]
+                rim.normal = outward
+                vertices.append(rim)
+            }
+            for r in 0..<profile.radialSegments {
+                let next = UInt32((r + 1) % profile.radialSegments)
+                let rim = capBase + 1 + UInt32(r)
+                let rimNext = capBase + 1 + next
+                indices.append(contentsOf: end == 0
+                               ? [capBase, rim, rimNext]
+                               : [capBase, rimNext, rim])
+            }
+        }
         return TubeMesh(vertices: vertices, indices: indices)
     }
 

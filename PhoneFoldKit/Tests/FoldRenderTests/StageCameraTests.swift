@@ -3,20 +3,28 @@ import Foundation
 import simd
 @testable import FoldRender
 
+/// The rotation between two attitudes, as an angle. Robust to the double cover: q and -q
+/// are the same rotation, so the angle is folded into [0, pi].
+private func turn(from a: simd_quatf, to b: simd_quatf) -> Float {
+    let angle = (b * a.inverse).angle
+    return Swift.min(angle, 2 * .pi - angle)
+}
+
 @Suite("Stage camera")
 struct StageCameraTests {
 
     @Test("the automatic orbit runs, but only after the idle delay")
     func autoOrbit() {
         var camera = StageCamera()
-        let start = camera.yaw
+        let start = camera.attitude
         // Timed against the camera's own delay rather than a number: the delay is a matter of
         // taste and has been changed, and a test that pins the taste fails for no reason.
         camera.advance(deltaTime: camera.resumeDelay * 0.4)
-        #expect(camera.yaw == start, "the orbit should wait out the idle delay")
+        #expect(turn(from: start, to: camera.attitude) < 1e-6,
+                "the orbit should wait out the idle delay")
         camera.advance(deltaTime: camera.resumeDelay)
         camera.advance(deltaTime: 2.0)
-        #expect(camera.yaw > start, "the orbit should have resumed")
+        #expect(turn(from: start, to: camera.attitude) > 0, "the orbit should have resumed")
     }
 
     /// PLAN.md: the auto-orbit is "instantly overridden by drag".
@@ -26,16 +34,18 @@ struct StageCameraTests {
         for _ in 0..<10 { camera.advance(deltaTime: camera.resumeDelay * 0.5) }
         #expect(camera.isOrbiting)
 
-        let before = camera.yaw
+        let before = camera.attitude
         camera.drag(deltaX: 100, deltaY: 0)
-        #expect(camera.yaw > before, "the drag should have rotated the view")
+        #expect(turn(from: before, to: camera.attitude) > 0,
+                "the drag should have rotated the view")
         #expect(camera.isOrbiting == false, "the orbit must yield to the hand")
 
         // And it does not resume the moment the finger lifts.
         camera.endInteraction()
-        let afterDrag = camera.yaw
+        let afterDrag = camera.attitude
         camera.advance(deltaTime: 0.5)
-        #expect(camera.yaw == afterDrag, "the orbit resumed too eagerly")
+        #expect(turn(from: afterDrag, to: camera.attitude) < 1e-6,
+                "the orbit resumed too eagerly")
     }
 
     /// Drags accumulate. An earlier version set the rotation from the gesture's total
@@ -43,26 +53,48 @@ struct StageCameraTests {
     @Test("drags accumulate rather than resetting between gestures")
     func dragsAccumulate() {
         var camera = StageCamera()
+        let start = camera.attitude
         camera.drag(deltaX: 50, deltaY: 0)
-        let first = camera.yaw
+        let first = turn(from: start, to: camera.attitude)
         camera.endInteraction()
         camera.drag(deltaX: 50, deltaY: 0)
-        #expect(camera.yaw > first, "the second drag should build on the first")
-        #expect(abs(camera.yaw - 2 * first) < 1e-5)
+        let total = turn(from: start, to: camera.attitude)
+        #expect(total > first, "the second drag should build on the first")
+        #expect(abs(total - 2 * first) < 1e-4)
     }
 
-    /// At exactly vertical the up vector is undefined and the view flips through the pole.
-    @Test("pitch clamps short of vertical, however hard it is dragged")
-    func pitchClamps() {
+    /// The regression behind "the drag is stuck". Pitch used to be clamped to
+    /// +/-(pi/2 - 0.05), which from the resting tilt of 0.18 at 0.006 rad/point was reached
+    /// after 223 points of downward drag - one ordinary trackpad drag - after which vertical
+    /// input did nothing at all while horizontal kept working. The protein is a subject
+    /// rotation with no pole to protect, so a vertical drag must keep turning it forever.
+    @Test("a vertical drag never saturates, however far it goes")
+    func verticalDragNeverSaturates() {
         var camera = StageCamera()
-        for _ in 0..<200 { camera.drag(deltaX: 0, deltaY: 500) }
-        #expect(camera.pitch <= StageCamera.pitchLimit)
-        for _ in 0..<400 { camera.drag(deltaX: 0, deltaY: -500) }
-        #expect(camera.pitch >= -StageCamera.pitchLimit)
-        // And the orientation stays finite at the limit.
-        let q = camera.orientation
-        #expect(q.vector.x.isFinite && q.vector.y.isFinite
-                && q.vector.z.isFinite && q.vector.w.isFinite)
+        // 40 x 100 points = 24 radians: several full tumbles. Every step must keep
+        // rotating by the full increment; the old clamp stopped after ~2 steps.
+        for step in 0..<40 {
+            let before = camera.attitude
+            camera.drag(deltaX: 0, deltaY: 100)
+            let advanced = turn(from: before, to: camera.attitude)
+            #expect(abs(advanced - 0.6) < 1e-3,
+                    "vertical drag saturated at step \(step): moved \(advanced) rad")
+        }
+    }
+
+    /// Screen-space consistency: the drag directions must hold in every orientation,
+    /// including upside down - the reason increments are premultiplied about screen axes.
+    @Test("dragging right still turns right when the protein is upside down")
+    func dragDirectionsSurviveInversion() {
+        var camera = StageCamera()
+        // Tumble the protein through half a turn vertically: upside down.
+        camera.drag(deltaX: 0, deltaY: .pi / 0.006)
+        // The material point currently facing the camera.
+        let facing = camera.attitude.inverse.act(SIMD3<Float>(0, 0, 1))
+        camera.drag(deltaX: 60, deltaY: 0)
+        let moved = camera.subjectRotation.act(facing)
+        #expect(moved.x > 0.05,
+                "inverted, dragging right should still carry the front right, got \(moved)")
     }
 
     /// Magnification is relative to where the pinch began. Applying the cumulative scale on
@@ -90,6 +122,28 @@ struct StageCameraTests {
         #expect(camera.distance <= camera.maximumDistance)
     }
 
+    /// PLAN.md: "Mac adds scroll-wheel zoom". Signed steps, clamped like the pinch.
+    @Test("scroll zoom moves the distance the right way and clamps")
+    func scrollZoom() {
+        var camera = StageCamera()
+        let start = camera.distance
+        camera.zoom(steps: 0.2)
+        #expect(camera.distance < start, "positive steps should zoom in")
+        camera.zoom(steps: -0.4)
+        #expect(camera.distance > start * 0.9, "negative steps should zoom out")
+        for _ in 0..<100 { camera.zoom(steps: 1) }
+        #expect(camera.distance >= camera.minimumDistance)
+        for _ in 0..<100 { camera.zoom(steps: -1) }
+        #expect(camera.distance <= camera.maximumDistance)
+        // A zoom is an interaction: the orbit must yield to it like any other.
+        #expect(camera.isOrbiting == false)
+        // And junk input changes nothing.
+        let held = camera.distance
+        camera.zoom(steps: 0)
+        camera.zoom(steps: .nan)
+        #expect(camera.distance == held)
+    }
+
     @Test("double-tap reframes to fit the structure")
     func reframe() {
         var camera = StageCamera()
@@ -102,6 +156,8 @@ struct StageCameraTests {
         #expect(camera.target == .zero)
         #expect(camera.distance > camera.minimumDistance)
         #expect(camera.distance <= camera.maximumDistance)
+        #expect(turn(from: camera.attitude, to: StageCamera.restingAttitude) < 1e-5,
+                "reframe should restore the resting tilt")
 
         // An off-centre structure is centred, not just resized.
         camera.reframe(bounds: (minimum: SIMD3<Float>(9, 9, 9),
@@ -139,12 +195,13 @@ struct StageCameraTests {
         #expect(camera.target == held)
     }
 
-    /// The camera must always look at what it is targeting, from its stated distance.
+    /// The camera must always look at what it is targeting, from its stated distance -
+    /// at *any* attitude now that the protein tumbles freely, poles included.
     @Test("position and orientation are consistent for any pose")
     func poseIsConsistent() {
         var camera = StageCamera()
-        for step in 0..<40 {
-            camera.drag(deltaX: Float(step) * 13, deltaY: Float(step % 7) * 11 - 33)
+        for step in 0..<80 {
+            camera.drag(deltaX: Float(step) * 13, deltaY: Float(step % 11) * 47 - 200)
             camera.endInteraction()
             camera.magnify(scale: 1 + Float(step % 5) * 0.3)
             camera.endInteraction()
@@ -222,11 +279,11 @@ struct StalledInteractionTests {
         var camera = StageCamera()
         camera.drag(deltaX: 20, deltaY: 0)          // and no endInteraction, ever
         // Long enough to pass the input timeout, the resume delay and the ease-in.
-        let before = camera.yaw
+        let before = camera.attitude
         let ticks = Int((camera.inputTimeout + camera.resumeDelay + 3) * 60)
         for _ in 0..<ticks { camera.advance(deltaTime: 1.0 / 60) }
         #expect(camera.isOrbiting, "the camera never came back from the drag")
-        #expect(camera.yaw != before, "the orbit is not actually turning")
+        #expect(camera.attitude != before, "the orbit is not actually turning")
     }
 
     @Test("A drag that keeps arriving is not timed out from under the finger")

@@ -48,17 +48,19 @@ struct StageView: View {
                 Text(player.title)
                     .font(.system(.title2, design: .default).weight(.semibold))
                     .foregroundStyle(.white)
-                #if DEBUG
                 // On-screen, because simctl's console capture returns nothing for this app:
                 // `print` is not a usable diagnostic channel here, and both of the render
                 // bugs that took longest to find were found by putting counts on the glass.
                 // Off unless asked for, so the stage stays a stage.
+                //
+                // Not `#if DEBUG`: it was, and the app Marc runs is a Release build, so the
+                // overlay added to diagnose the stuck drag could never appear in the one
+                // place it was needed. Env-gated is already opt-in enough.
                 if Diagnostics.isEnabled {
                     Text(player.diagnostic + "  " + meshDiagnostic)
                         .font(.system(size: 10, design: .monospaced))
                         .foregroundStyle(Color(hex: 0xFCB900))
                 }
-                #endif
                 if player.isGenerated {
                     // A generated protein has never existed. The app says so rather than
                     // letting it be mistaken for a prediction.

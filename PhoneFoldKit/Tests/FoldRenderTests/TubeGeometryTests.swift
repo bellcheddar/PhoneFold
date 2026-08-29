@@ -30,8 +30,9 @@ struct TubeGeometryTests {
                                       secondaryStructure: Self.assignments(20, .helix),
                                       profile: profile)
         let samples = (20 - 1) * 4 + 1
-        #expect(mesh.vertices.count == samples * 8)
-        #expect(mesh.triangleCount == (samples - 1) * 8 * 2)
+        // The sweep, plus two end caps: a centre and a duplicated rim ring each.
+        #expect(mesh.vertices.count == samples * 8 + 2 * (8 + 1))
+        #expect(mesh.triangleCount == (samples - 1) * 8 * 2 + 2 * 8)
         #expect(mesh.isWellFormed)
     }
 
@@ -229,9 +230,10 @@ struct TubeGeometryTests {
         #expect(mesh.isWellFormed)
 
         // Vertex 0 of each ring traces a continuous path if the frame never flips.
+        // Only the sweep's rings: the cap vertices appended after them are not rings.
         var worst: Float = 0
         let ring = profile.radialSegments
-        let rings = mesh.vertices.count / ring
+        let rings = (ca.count - 1) * profile.samplesPerResidue + 1
         for s in 1..<rings {
             let a = mesh.vertices[(s - 1) * ring].position
             let b = mesh.vertices[s * ring].position
@@ -251,7 +253,9 @@ struct TubeGeometryTests {
                                       profile: profile)
         // The ring at each whole-residue parameter should be centred on that alpha carbon.
         for residue in 0..<16 {
-            let ringVertices = mesh.vertices.filter {
+            // Only the sweep: the end caps duplicate the terminal rings' vertices.
+            let sweep = mesh.vertices.prefix((16 - 1) * profile.samplesPerResidue * 12 + 12)
+            let ringVertices = sweep.filter {
                 abs($0.residueParameter - Float(residue)) < 1e-4
             }
             #expect(ringVertices.count == profile.radialSegments)
@@ -269,7 +273,12 @@ struct TubeGeometryTests {
         let mesh = TubeGeometry.build(caPositions: ca,
                                       secondaryStructure: Self.assignments(12, .coil))
         var checked = 0
-        for (index, vertex) in mesh.vertices.enumerated() where index % 7 == 0 {
+        // Only the sweep: cap normals point along the tangent, not outward from the axis.
+        let profile = TubeGeometry.Profile()
+        let sweepCount = ((ca.count - 1) * profile.samplesPerResidue + 1)
+            * profile.radialSegments
+        for (index, vertex) in mesh.vertices.prefix(sweepCount).enumerated()
+        where index % 7 == 0 {
             let axis = TubeGeometry.splinePoint(ca, at: vertex.residueParameter)
             let outward = vertex.position - axis
             guard simd_length(outward) > 1e-4 else { continue }

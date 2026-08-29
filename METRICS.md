@@ -1034,3 +1034,56 @@ starts sliding away while you are still looking at it.
 The camera's state is now on the glass under `PHONEFOLD_DIAGNOSTICS=1` - yaw, pitch, and
 whether it believes it is orbiting or held - because four attempts at this have been guesses
 and a screenshot of those three numbers during a stuck drag would settle it.
+
+### Two defects measured to ground: the hollow ribbon ends, and the drag (2026-08-29)
+
+**The hollow ends were real holes: the sweep never emitted caps.** `TubeGeometry.build`
+connects consecutive rings with quads and stopped there, and the boundary-edge count says so
+exactly: **40 boundary edges on every build - 2 x 20 radial segments** - whether the chain is
+helix, sheet or coil, and nothing else in the mesh is open. This renderer culls nothing
+(measured in P2-05: `faceCulling` and reversed winding both ignored), so each open terminus
+showed the tube's interior wall - on screen, an end facing the camera is a hollow scoop with
+a dark inside.
+
+Capped with a triangle fan per end. Three details were set by measurement rather than taste:
+
+| Measurement | Value | Consequence |
+|---|---|---|
+| Boundary edges, before / after | 40 / **0** (welded by position) | the surface is closed; the test reverts to 40 without the fix |
+| Sweep triangles whose geometric normal agrees with their vertex normals | **0 of 4,400** | the sweep is wound with geometric normals *inward*; the caps copy that convention so `farFacing`'s majority calibration treats them like the wall they close |
+| Cost, alpha3d in the live app | 14,420 → 14,462 vertices, 28,800 → 28,840 triangles | 2 x (radial + 1) vertices and 2 x radial triangles; the rim is duplicated because a cap is flat and needs the tangent as its normal |
+
+**The drag that reads as stuck: the pitch clamp.** Pitch was clamped to +/-(pi/2 - 0.05) to
+protect a camera-orbit up vector - but the app orbits the *protein* against a fixed camera,
+`position`/`orientation` are consumed by nothing, and a subject quaternion has no pole. From
+the resting tilt 0.18 at 0.006 rad/point the clamp is reached after **223 points of downward
+drag** (283 upward): one ordinary trackpad drag, after which vertical input does nothing at
+all while horizontal keeps working. Measured on the old code, consecutive 100-point vertical
+drags advanced the attitude by **0.600, 0.600, 0.141, then 0.000 rad forever**; on the new
+attitude-quaternion camera all forty steps advance 0.600 rad, and increments premultiply
+about the screen axes so "drag right turns right" survives being upside down (tested).
+In the app, a synthesised 600-point vertical click-drag now carries the rotation straight
+through the old stopping point - rot 179 degrees at 220 points, 141 at 600, having passed
+through the pole - and holds on release.
+
+Honest scope: Marc's report is still not reproduced with real trackpad input. The clamp is
+the one measurable mechanism that behaves exactly like "stuck" (dies mid-gesture, one axis
+only), and it is now gone; if the report survives this fix, the overlay below settles it.
+
+**The diagnostics that could never have appeared.** Last round's camera-state overlay was
+wrapped in `#if DEBUG`, and the app Marc runs is a Release build: `PHONEFOLD_DIAGNOSTICS=1`
+showed nothing in the only build that mattered (measured - launched Release with it set, no
+overlay). The gate is now the environment variable alone, and the overlay carries the drag /
+magnify / scroll event counters, the last drag delta, and rot / distance / orbiting-or-held,
+updated from the gesture callback itself. One screenshot during a stuck drag now separates
+"no events arriving" from "events arriving, camera not moving" from "camera moving, screen
+not updating".
+
+**Scroll-wheel zoom** (PLAN.md's "Mac adds scroll-wheel zoom") via a local `.scrollWheel`
+monitor. Gating by `.onHover` measurably failed - synthesised pointer moves plus scrolls left
+the consumed count at 0 - so the stage's frame is tracked with `onGeometryChange` and the
+event location hit-tested against it. Verified in the running app: 8 of 8 scroll events over
+the stage consumed, distance 1.50 → 0.67, held; the same scroll over the gallery leaves the
+camera untouched and the gallery scrolling. One earlier run before the counters existed
+consumed nothing and has not reproduced since; the seen/used counters stay in the overlay so
+a recurrence is one screenshot rather than another guessing round.

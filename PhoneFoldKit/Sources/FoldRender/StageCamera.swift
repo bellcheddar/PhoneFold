@@ -11,14 +11,30 @@ import FoldCore
 /// engine; the camera is a pure function of accumulated input and elapsed time.
 public struct StageCamera: Sendable, Equatable {
 
-    /// Rotation about the vertical axis, radians.
-    public private(set) var yaw: Float = 0
-    /// Elevation, radians. Clamped short of the poles.
-    public private(set) var pitch: Float = 0.18
+    /// The subject's accumulated rotation, as a quaternion rather than yaw and pitch.
+    ///
+    /// It was yaw and pitch, with pitch clamped to +/-(pi/2 - 0.05) to protect the up
+    /// vector of a camera orbit - and that clamp is what made a vertical drag die
+    /// mid-gesture. From the resting pitch of 0.18 at 0.006 radians per point, the clamp
+    /// was reached after **223 points of downward drag** (283 upward): one ordinary
+    /// trackpad drag, after which vertical input did nothing while horizontal kept
+    /// working. On the stage the protein is what rotates, against a fixed camera on +Z,
+    /// and a quaternion on the subject has no pole to protect - so the protein now
+    /// tumbles freely, like the object in the hand the drag is meant to be.
+    ///
+    /// Each drag increment is applied about the *screen* axes (premultiplied), which is
+    /// what keeps "drag right turns right, drag down tips toward you" true in every
+    /// orientation, including upside down. Composing on the other side would flip the
+    /// horizontal direction whenever the protein is inverted.
+    public private(set) var attitude = Self.restingAttitude
     /// Distance from the target, in stage units.
     public private(set) var distance: Float = 1.5
     /// What the camera looks at. Eased toward the action when following.
     public private(set) var target: SIMD3<Float> = .zero
+
+    /// The framing tilt the stage opens with: slightly above, as a stage should be lit.
+    public static let restingAttitude = simd_quatf(angle: 0.18,
+                                                   axis: SIMD3<Float>(1, 0, 0))
 
     /// Radians per second of automatic orbit.
     public var autoOrbitRate: Float = 0.12
@@ -26,15 +42,12 @@ public struct StageCamera: Sendable, Equatable {
     ///
     /// Eight, not two and a half. PLAN.md wants the orbit instantly overridden by a drag, and
     /// it is - but resuming two and a half seconds after the finger lifts means a view you
-    /// just set starts sliding away while you are still looking at it, which is indenting
+    /// just set starts sliding away while you are still looking at it, which is
     /// something quite different from "cinematic". Long enough to read as deliberate.
     public var resumeDelay: Float = 8.0
 
     public var minimumDistance: Float = 0.35
     public var maximumDistance: Float = 6.0
-    /// Just short of vertical: at exactly +/- pi/2 the up vector is undefined and the view
-    /// snaps through the pole.
-    public static let pitchLimit: Float = .pi / 2 - 0.05
 
     private var idleTime: Float = 0
     private var isInteracting = false
@@ -81,36 +94,36 @@ public struct StageCamera: Sendable, Equatable {
         // Resume gently rather than snapping back to full speed the instant the finger lifts.
         guard idleTime >= resumeDelay else { return }
         let easeIn = Swift.min((idleTime - resumeDelay) / 1.5, 1)
-        yaw += autoOrbitRate * deltaTime * easeIn
-        yaw = yaw.truncatingRemainder(dividingBy: 2 * .pi)
+        rotate(aboutScreenX: 0, aboutScreenY: autoOrbitRate * deltaTime * easeIn)
     }
 
     // MARK: - Interaction
 
-    /// A drag, in points, since the previous callback.
     /// The rotation to apply to the subject, so that dragging turns it like an object in
     /// the hand rather than like a camera flying around it.
     ///
     /// The stage orbits the *protein* against a fixed camera on +Z, so this is the rotation
-    /// the protein carries. The signs are the whole of it, and they were the wrong way round:
-    /// dragging right turned the protein left. They are hard to get right by reasoning at the
-    /// call site and easy to check here, which is why the maths lives in the camera and not
-    /// in the view.
+    /// the protein carries. The signs are the whole of it, and they were the wrong way round
+    /// once already: dragging right turned the protein left. They are hard to get right by
+    /// reasoning at the call site and easy to check here, which is why the maths lives in
+    /// the camera and not in the view.
     ///
     /// Dragging **right** turns the front of the protein toward the right of the screen.
     /// Dragging **down** brings its top toward the viewer.
-    public var subjectRotation: simd_quatf {
-        simd_quatf(angle: pitch, axis: SIMD3<Float>(1, 0, 0))
-            * simd_quatf(angle: yaw, axis: SIMD3<Float>(0, 1, 0))
-    }
+    public var subjectRotation: simd_quatf { attitude }
 
+    /// A drag, in points, since the previous callback.
     public mutating func drag(deltaX: Float, deltaY: Float, sensitivity: Float = 0.006) {
         isInteracting = true
         idleTime = 0
         sinceLastInput = 0
-        yaw += deltaX * sensitivity
-        pitch = Swift.min(Swift.max(pitch + deltaY * sensitivity, -Self.pitchLimit),
-                          Self.pitchLimit)
+        rotate(aboutScreenX: deltaY * sensitivity, aboutScreenY: deltaX * sensitivity)
+    }
+
+    private mutating func rotate(aboutScreenX x: Float, aboutScreenY y: Float) {
+        let turn = simd_quatf(angle: x, axis: SIMD3<Float>(1, 0, 0))
+            * simd_quatf(angle: y, axis: SIMD3<Float>(0, 1, 0))
+        attitude = simd_normalize(turn * attitude)
     }
 
     /// Pinch. `scale` is the gesture's cumulative magnification, 1 at the start.
@@ -121,6 +134,21 @@ public struct StageCamera: Sendable, Equatable {
         let anchor = pinchAnchor ?? distance
         pinchAnchor = anchor
         distance = Swift.min(Swift.max(anchor / Swift.max(scale, 0.01), minimumDistance),
+                             maximumDistance)
+    }
+
+    /// Scroll-wheel zoom, for the Mac: PLAN.md's "Mac adds scroll-wheel zoom".
+    ///
+    /// `steps` is signed scroll input - positive zooms in - already scaled by the caller to
+    /// taste. Exponential, so a step is the same *proportion* of the distance wherever the
+    /// camera is, and clamped like the pinch. Scroll has no end event (momentum just stops
+    /// arriving), so the interaction is left to the input timeout to close.
+    public mutating func zoom(steps: Float) {
+        guard steps != 0, steps.isFinite else { return }
+        isInteracting = true
+        idleTime = 0
+        sinceLastInput = 0
+        distance = Swift.min(Swift.max(distance * exp(-steps), minimumDistance),
                              maximumDistance)
     }
 
@@ -136,15 +164,17 @@ public struct StageCamera: Sendable, Equatable {
         isInteracting = true
         idleTime = 0
         sinceLastInput = 0
-        let right = SIMD3<Float>(cos(yaw), 0, -sin(yaw))
-        let up = SIMD3<Float>(0, 1, 0)
+        // Screen axes carried into the subject's space, so a pan tracks the screen
+        // whatever orientation the protein has been tumbled into.
+        let right = attitude.inverse.act(SIMD3<Float>(1, 0, 0))
+        let up = attitude.inverse.act(SIMD3<Float>(0, 1, 0))
         target += (right * -deltaX + up * deltaY) * sensitivity * distance
     }
 
     /// Double-tap: frame the whole structure and stop following.
     public mutating func reframe(bounds: (minimum: SIMD3<Float>, maximum: SIMD3<Float>)?) {
         target = .zero
-        pitch = 0.18
+        attitude = Self.restingAttitude
         distance = 1.5
         if let bounds {
             let extent = simd_length(bounds.maximum - bounds.minimum)
@@ -169,23 +199,21 @@ public struct StageCamera: Sendable, Equatable {
 
     // MARK: - Output
 
-    /// Camera position in world space.
+    /// Camera position in the subject's space: the fixed eye on +Z, carried back through
+    /// the subject's rotation.
     public var position: SIMD3<Float> {
-        let horizontal = distance * cos(pitch)
-        return target + SIMD3<Float>(horizontal * sin(yaw),
-                                     distance * sin(pitch),
-                                     horizontal * cos(yaw))
+        target + attitude.inverse.act(SIMD3<Float>(0, 0, distance))
     }
 
-    /// Orientation looking at the target, with world up.
+    /// Orientation looking at the target.
+    ///
+    /// The up vector comes from the attitude itself rather than from world up, because the
+    /// protein can now be tumbled through the poles: at a pole, world up is parallel to the
+    /// view axis and the basis would collapse, but the attitude's own up never is.
     public var orientation: simd_quatf {
         let forward = simd_normalize(target - position)
-        let worldUp = SIMD3<Float>(0, 1, 0)
-        var right = simd_cross(forward, worldUp)
-        // Guarded because at the poles forward and up are parallel and the cross product
-        // collapses. The pitch clamp makes this unreachable, but a NaN basis would spin the
-        // view wildly rather than fail, so it is worth the two lines.
-        if simd_length(right) < 1e-5 { right = SIMD3<Float>(1, 0, 0) }
+        var right = simd_cross(forward, attitude.inverse.act(SIMD3<Float>(0, 1, 0)))
+        if simd_length(right) < 1e-5 { right = attitude.inverse.act(SIMD3<Float>(1, 0, 0)) }
         right = simd_normalize(right)
         let up = simd_cross(right, forward)
         let matrix = simd_float3x3(right, up, -forward)

@@ -5,6 +5,9 @@ import Metal
 import simd
 import FoldCore
 import FoldRender
+#if os(macOS)
+import AppKit
+#endif
 
 /// The stage itself: the protein, drawn from the tube mesh.
 ///
@@ -52,12 +55,17 @@ struct FoldCanvas: View {
                     }
                     // Deltas, not the cumulative translation: using the total resets the
                     // rotation to zero on release and snaps the view back.
-                    stage.camera.drag(deltaX: Float(value.translation.width - lastDrag.width),
-                                      deltaY: Float(value.translation.height - lastDrag.height))
+                    let dx = Float(value.translation.width - lastDrag.width)
+                    let dy = Float(value.translation.height - lastDrag.height)
+                    stage.camera.drag(deltaX: dx, deltaY: dy)
                     lastDrag = value.translation
+                    stage.noteDrag(dx, dy)
                     // Applied here rather than waiting for the next clock tick, so the
                     // rotation cannot depend on that task still running.
                     stage.applyCamera()
+                    // And the diagnostics update from the gesture itself, so a screenshot
+                    // taken during a stuck drag shows the state at that moment.
+                    diagnostic = stage.lastDiagnostic
                 }
                 .onEnded { _ in
                     lastDrag = .zero
@@ -69,10 +77,23 @@ struct FoldCanvas: View {
             MagnifyGesture()
                 .onChanged {
                     stage.camera.magnify(scale: Float($0.magnification))
+                    stage.noteMagnify()
                     stage.applyCamera()
+                    diagnostic = stage.lastDiagnostic
                 }
                 .onEnded { _ in stage.camera.endInteraction() }
         )
+        #if os(macOS)
+        // Scroll only acts over the stage itself, so the gallery and scrubber keep their
+        // own scrolling. The stage's frame is tracked and the event's location hit-tested
+        // against it - not `.onHover`, which measurably failed to arm under synthesised
+        // pointer moves and depends on tracking-area bookkeeping this has no need of.
+        .onGeometryChange(for: CGRect.self) { proxy in
+            proxy.frame(in: .global)
+        } action: { frame in
+            stage.stageFrame = frame
+        }
+        #endif
         .onTapGesture(count: 2) { stage.reframe() }
         .onReceive(NotificationCenter.default.publisher(
             for: ProcessInfo.thermalStateDidChangeNotification)) { _ in
@@ -85,6 +106,9 @@ struct FoldCanvas: View {
         .onAppear {
             stage.updateForConditions()
             stage.startClock()
+            #if os(macOS)
+            stage.installScrollMonitor()
+            #endif
             stage.colourMode = player.colourMode
             stage.residues = player.provider?.residues ?? []
             stage.residueCount = player.provider?.residueCount ?? 0
@@ -95,6 +119,9 @@ struct FoldCanvas: View {
         }
         .onDisappear {
             stage.stopClock()
+            #if os(macOS)
+            stage.removeScrollMonitor()
+            #endif
             player.onFrame = nil
         }
         .onChange(of: player.colourMode) { _, mode in
@@ -126,6 +153,107 @@ final class StageContent {
     var colourMode: ColourMode = .confidence
     var residues: [AminoAcid] = []
     var residueCount: Int = 0
+
+    /// Interaction counters, on the glass under PHONEFOLD_DIAGNOSTICS=1.
+    ///
+    /// The stuck drag has never reproduced here, under synthesised events or otherwise, so
+    /// the app now tells on itself: one screenshot during a stuck drag distinguishes "no
+    /// gesture events arriving" (`drag` not climbing) from "events arriving, camera not
+    /// moving" (`drag` climbing, `rot` frozen) from "the magnify pre-empted the drag"
+    /// (`mag` climbing during a one-finger drag).
+    private(set) var dragEvents = 0
+    private(set) var magnifyEvents = 0
+    private(set) var scrollEvents = 0
+    /// Every scroll event the monitor saw, consumed or not: separates "no events arrive"
+    /// from "events arrive but the stage hit-test rejects them".
+    private(set) var scrollEventsSeen = 0
+    private var lastScrollLocation = CGPoint.zero
+    private var lastDragDelta = SIMD2<Float>(0, 0)
+    private var meshInfo = ""
+    #if os(macOS)
+    /// The stage's frame in the window's SwiftUI coordinate space, kept current by
+    /// `onGeometryChange`. The scroll monitor hit-tests event locations against it, which
+    /// is what lets scroll act on the stage without stealing the gallery's and scrubber's
+    /// own scrolling.
+    var stageFrame = CGRect.zero
+    private var scrollMonitor: Any?
+    #endif
+
+    func noteDrag(_ deltaX: Float, _ deltaY: Float) {
+        dragEvents += 1
+        lastDragDelta = SIMD2<Float>(deltaX, deltaY)
+        refreshDiagnostic()
+    }
+
+    func noteMagnify() {
+        magnifyEvents += 1
+        refreshDiagnostic()
+    }
+
+    func refreshDiagnostic() {
+        guard Diagnostics.isEnabled else { return }
+        let rotation = camera.subjectRotation
+        // Fold the double cover so the display never reads 350 degrees for 10.
+        var angle = rotation.angle * 180 / .pi
+        if angle > 180 { angle = 360 - angle }
+        var scroll = "scr \(scrollEvents)"
+        #if os(macOS)
+        scroll += String(format: "/%d sf(%.0f,%.0f,%.0f,%.0f) at(%.0f,%.0f)",
+                         scrollEventsSeen, stageFrame.origin.x, stageFrame.origin.y,
+                         stageFrame.width, stageFrame.height,
+                         lastScrollLocation.x, lastScrollLocation.y)
+        #endif
+        lastDiagnostic = String(
+            format: "rot %.0f° d %.2f %@ | drag %d Δ(%.1f,%.1f) mag %d ",
+            angle, camera.distance, camera.isOrbiting ? "orbiting" : "held",
+            dragEvents, lastDragDelta.x, lastDragDelta.y, magnifyEvents)
+            + scroll + " | " + meshInfo
+    }
+
+    #if os(macOS)
+    /// PLAN.md: "Mac adds scroll-wheel zoom". A local monitor rather than a SwiftUI
+    /// gesture, because SwiftUI has no scroll gesture on macOS: a trackpad's two-finger
+    /// swipe and a mouse wheel both arrive only as `.scrollWheel` events.
+    func installScrollMonitor() {
+        guard scrollMonitor == nil else { return }
+        scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) {
+            [weak self] event in
+            let delta = Float(event.scrollingDeltaY)
+            let precise = event.hasPreciseScrollingDeltas
+            // The event's location, in the window's SwiftUI space: AppKit measures from
+            // the bottom-left, SwiftUI's hosting view from the top-left.
+            guard let contentView = event.window?.contentView else { return event }
+            let inView = contentView.convert(event.locationInWindow, from: nil)
+            let location = contentView.isFlipped
+                ? inView
+                : CGPoint(x: inView.x, y: contentView.bounds.height - inView.y)
+            // Local monitors are delivered on the main thread with the event loop; the
+            // event itself is not Sendable, so only plain values cross into the actor.
+            let consumed = MainActor.assumeIsolated { () -> Bool in
+                guard let self else { return false }
+                self.scrollEventsSeen += 1
+                self.lastScrollLocation = location
+                guard self.stageFrame.contains(location),
+                      delta.isFinite, delta != 0 else {
+                    self.refreshDiagnostic()
+                    return false
+                }
+                // Precise deltas arrive in points (trackpad, Magic Mouse); line-based
+                // wheels arrive in notches, each worth far more.
+                self.camera.zoom(steps: delta * (precise ? 0.003 : 0.05))
+                self.scrollEvents += 1
+                self.applyCamera()
+                return true
+            }
+            return consumed ? nil : event
+        }
+    }
+
+    func removeScrollMonitor() {
+        if let scrollMonitor { NSEvent.removeMonitor(scrollMonitor) }
+        scrollMonitor = nil
+    }
+    #endif
 
     private let protein = ModelEntity()
     private let cameraEntity = Entity()
@@ -238,6 +366,7 @@ final class StageContent {
             rotation: simd_quatf(angle: 0, axis: SIMD3<Float>(0, 1, 0)),
             translation: SIMD3<Float>(0, 0, camera.distance))
         applyProteinTransform()
+        refreshDiagnostic()
     }
 
     /// The camera's position in the mesh's own space.
@@ -308,12 +437,10 @@ final class StageContent {
             }
         }
         if Diagnostics.isEnabled {
-            lastDiagnostic = String(format: "yaw %.2f pitch %.2f %@ | ",
-                                    camera.yaw, camera.pitch,
-                                    camera.isOrbiting ? "orbiting" : "held")
-                + "tri=\(mesh.indices.count / 3) "
+            meshInfo = "tri=\(mesh.indices.count / 3) "
                 + "idx=\(mesh.indices.count)/\(tubeMesh?.indexCapacity ?? 0) "
                 + "v=\(packed.count)/\(vertexCapacity)"
+            refreshDiagnostic()
         }
         do {
             try tubeMesh?.update(vertices: packed)

@@ -414,3 +414,27 @@ second to read one value out of it.
 
 Not verified end to end: the gesture itself. The arithmetic is tested and the app builds and
 runs on both platforms, but whether the drag feels right is Marc's to judge.
+
+## The ends were open, and the clamp was the stuck (2026-08-29)
+
+Two long-standing reports, both settled by measuring instead of guessing.
+
+The hollow ribbon ends were not shading and not depth precision: the swept tube simply had
+no end caps, and since this renderer culls nothing, each open terminus showed the inside of
+the tube. Forty boundary edges per build - two rings of twenty - and zero after capping.
+The caps' winding copies the sweep's own measured convention (geometric normals inward,
+0 of 4,400 triangles agreeing with their vertex normals), so the halo's self-calibrating
+back-face selection treats them like everything else.
+
+The drag: the pitch clamp protected a pole that no longer exists - the app rotates the
+protein, not the camera - and it silently killed vertical drag 223 points into an ordinary
+gesture while horizontal kept working, which is precisely a drag that feels stuck. The
+camera now carries an attitude quaternion; the protein tumbles freely, and drag directions
+hold in every orientation because increments premultiply about the screen axes. Whether
+this is Marc's exact "stuck" is not claimed: it is the one mechanism that measures like it.
+And the overlay built last round to catch the next occurrence could never have appeared -
+it was `#if DEBUG` and Marc runs Release. It is env-gated only now, and counts every drag,
+magnify and scroll event, so one screenshot ends the next argument.
+
+Scroll-wheel zoom landed for the Mac while the monitor was open on the table: hover gating
+measurably never armed, geometry hit-testing does, and the gallery keeps its own scroll.
