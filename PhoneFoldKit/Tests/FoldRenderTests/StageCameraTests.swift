@@ -103,12 +103,14 @@ struct StageCameraTests {
     func pinchIsAnchored() {
         var camera = StageCamera()
         let start = camera.distance
-        camera.magnify(scale: 2)
-        let halfway = camera.distance
-        #expect(abs(halfway - start / 2) < 1e-4)
+        // Pinching *out*, so the result stays clear of the near limit: this test is about
+        // anchoring, and letting it land on the clamp would make it assert the clamp instead.
+        camera.magnify(scale: 0.5)
+        let doubled = camera.distance
+        #expect(abs(doubled - start * 2) < 1e-4)
         // The same cumulative scale reported again must not compound.
-        camera.magnify(scale: 2)
-        #expect(abs(camera.distance - halfway) < 1e-4, "the pinch compounded")
+        camera.magnify(scale: 0.5)
+        #expect(abs(camera.distance - doubled) < 1e-4, "the pinch compounded")
         camera.endInteraction()
     }
 
@@ -303,5 +305,45 @@ struct StalledInteractionTests {
         camera.endInteraction()
         for _ in 0..<Int(camera.resumeDelay * 120) { camera.advance(deltaTime: 1.0 / 60) }
         #expect(camera.isOrbiting)
+    }
+}
+
+/// The camera must not be able to get inside the protein.
+///
+/// The stage normalises every protein to a bounding box of 1.15 units - radius about 0.575 -
+/// and the minimum distance used to be 0.35. Zooming all the way in put the camera inside the
+/// mesh, and since nothing culls a face here that shows as an empty stage with no explanation.
+/// Pinch could reach it; scroll-to-zoom made it easy.
+@Suite("Zoom limits")
+struct ZoomLimitTests {
+
+    /// What `applyProteinTransform` normalises to, and half of it.
+    static let normalisedExtent: Float = 1.15
+    static let proteinRadius = normalisedExtent / 2
+
+    @Test("Zooming all the way in leaves the camera outside the protein")
+    func closestApproachClearsTheProtein() {
+        var camera = StageCamera()
+        for _ in 0..<200 { camera.zoom(steps: 1) }        // hard against the stop
+        #expect(camera.distance > Self.proteinRadius,
+                "the camera reached \(camera.distance), inside a protein of radius \(Self.proteinRadius)")
+        // And clear of the near plane too, or the front of the protein clips away.
+        #expect(camera.distance > Self.proteinRadius + 0.05)
+    }
+
+    @Test("Zooming all the way out keeps the protein on screen")
+    func furthestStillShowsSomething() {
+        var camera = StageCamera()
+        for _ in 0..<200 { camera.zoom(steps: -1) }
+        // At a 42 degree field of view the protein must still subtend a usable angle.
+        let subtended = 2 * atan(Self.proteinRadius / camera.distance) * 180 / Float.pi
+        #expect(subtended > 5, "the protein subtends only \(subtended) degrees when zoomed out")
+    }
+
+    @Test("A pinch cannot get inside either")
+    func pinchRespectsTheSameFloor() {
+        var camera = StageCamera()
+        camera.magnify(scale: 100)
+        #expect(camera.distance > Self.proteinRadius)
     }
 }

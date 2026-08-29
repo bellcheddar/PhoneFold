@@ -1241,3 +1241,28 @@ indexed the tapered one, so it did exactly that - 15 of 86 snapshot colours move
 vertices carry the wrong colour attributes on a 20-residue test chain. Renaming the levelled
 array to `paintTrack` fixes it; with the fix the colour snapshots are **unchanged**, which is
 the proof the colour path is independent of the taper. Negative-tested both ways.
+
+### An empty stage: the camera could get inside the protein (2026-08-29)
+
+Marc reported no structure in the app. The mesh was not at fault - bounds measured sane
+(trp-cage: mesh extent 24.99 A against a CA extent of 24.01 A, zero stray vertices, zero
+non-finite) and the protein rendered on three consecutive launches.
+
+The camera was. The stage normalises every protein so its bounding box measures **1.15 units**
+across - a radius of about **0.575** - and `StageCamera.minimumDistance` was **0.35**. The
+camera could therefore sit *inside* the protein, and since nothing culls a face here, from in
+there you see the tube's interior or nothing at all: an empty stage with no explanation.
+
+Pinch could always reach that in principle. Scroll-to-zoom, added the same day, made it a flick
+of a finger. The floor is now 0.8, which clears the protein's own radius and the 0.05 near
+plane. Pinned by `ZoomLimitTests`; negative-tested, the old 0.35 fails it at exactly the radius
+comparison.
+
+One test had to change with it: `pinchIsAnchored` pinched *in* to half of 1.5, which is 0.75 and
+now below the floor, so it was asserting the clamp rather than the anchoring it is named for.
+It pinches out instead.
+
+**A hypothesis measured and rejected on the way.** The taper added earlier looked like a
+candidate - short helices might have been all taper and no ribbon. Measured: at every fade
+setting from 0 to 1.5 residues, a 3, 5, 7 and 12-residue helix all still reach a half-width of
+1.29 of a possible 1.35. The taper does not thin short elements.

@@ -46,7 +46,15 @@ public struct StageCamera: Sendable, Equatable {
     /// something quite different from "cinematic". Long enough to read as deliberate.
     public var resumeDelay: Float = 8.0
 
-    public var minimumDistance: Float = 0.35
+    /// How close the camera may come.
+    ///
+    /// **0.8, not 0.35.** The stage normalises every protein so its bounding box measures
+    /// 1.15 units across, which is a radius of about 0.575 - so a minimum of 0.35 let the
+    /// camera sit *inside* the protein. Nothing culls a face here, so from in there you see
+    /// the tube's interior or nothing at all, and the stage looks empty with no way to tell
+    /// why. Pinch could always reach it in principle; scroll-to-zoom made it a flick of a
+    /// finger. 0.8 clears the protein's own radius and the 0.05 near plane with room to spare.
+    public var minimumDistance: Float = 0.8
     public var maximumDistance: Float = 6.0
 
     private var idleTime: Float = 0
