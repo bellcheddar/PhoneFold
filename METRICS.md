@@ -1145,3 +1145,72 @@ enclosed by magenta gave 32,254 before and 37,316 after - apparently worse. It i
 comparison: the ribbon got wider in the same change, so there is more magenta and more enclosed
 area, and the auto-orbit means the two captures are not the same pose. Two changes in one pass
 with a metric sensitive to both. This one was judged by eye, and said so.
+
+### The grey disc was the cord bursting through the arrow, and the pale band was the texture blending rows (2026-08-29)
+
+**Defect A - the round grey disc on the arrowhead face.** The arrowhead's width multiplier
+was applied to the already-confidence-blended width. At a strand's C-terminal boundary the
+fade has taken that width down to the coil radius already, so multiplying by the tip fraction
+collapsed the tip ring to a sliver - and the full-radius cord drawn at the very next sample
+burst straight out of it. Measured on protein G B1's first strand (final frame, levelled
+confidence 0.907):
+
+| u along the chain | halfWidth before | halfWidth after |
+|---|---|---|
+| 7.40 (last sheet sample) | 0.0732 | 0.2082 |
+| 7.50 (tip) | **0.0229** | **0.2000** |
+| 7.60 (first cord sample) | 0.2000 | 0.2000 |
+
+An 8.7-fold width step between adjacent rings, 0.1 residue apart; the step's rearward-facing
+annulus is painted by the coil residue (nearest-residue colour at u = 7.5 rounds to residue
+8, coil), and this renderer culls nothing, so end-on it is a perfectly round grey disc in the
+middle of the cyan face, radius exactly the cord's 0.20. The fix scales the **un-blended**
+target width (`grow(sheetHalfWidth * scale)` rather than `grow(sheetHalfWidth) * scale`), so
+the taper now ends exactly on the cord: max adjacent-ring step 1.04x, and the tip ring is the
+cord's own circle - the junction is seamless by construction. Pinned by
+`JunctionTests.arrowTipMeetsTheCord` on the thinnest-extent ratio of adjacent rings
+(threshold 1.5); negative-tested: reverting the one line brings back a 2.59-fold step and the
+test fails.
+
+**Defect B - the pale washed-out band across every ribbon end.** Not geometry at all: the
+final frame has **zero** inverted triangles and zero bands whose geometric and vertex normals
+disagree by more than 30 degrees (measured across all 550 protein G and 720 alpha-3D bands),
+and the mesh is watertight. The band is the ramp texture. Colour is looked up in a 1024 x 3
+texture with one row per structure, addressed by uv0; a quad whose two rings straddle a
+structure boundary interpolates that coordinate **across rows**, and the sampler blends the
+rows on the way through. Helix to coil blends magenta into slate - the pale dusty band Marc
+photographed four times; sheet to coil passes through the helix row and flashed magenta on
+the cord at every strand junction (visible in the same screenshots). Measured on screen at a
+helix end before the fix: a band of junction pixels at G/R 0.28 against 0.19 on the pure
+face, i.e. partway to slate's 1.24.
+
+The fix duplicates the ring wherever the nearest residue changes: coincident positions and
+normals, only the paint attributes differ, so the quads between the pair are zero-area and
+never rasterise, and the colour changes in a hard edge at the boundary the way a cartoon's
+does. The layout depends only on chain length and profile - never on the frame's assignments -
+so the vertex count stays constant across a trajectory and `LowLevelTubeMesh`'s one-off
+allocation still holds. Cost on protein G B1: 551 to 606 rings (+10% vertices, all of them in
+degenerate quads the GPU drops at assembly). Pinned by
+`JunctionTests.mixedTrianglesAreDegenerate` (any triangle whose vertices disagree about
+structure must have zero area - with the duplication removed, 80 visible mixed triangles
+appear on a 24-residue chain and the test fails) and by
+`JunctionTests.layoutIsFrameInvariant`. The colour snapshot fixture was re-recorded for the
+new vertex count (58 to 86 digest entries), via `PHONEFOLD_RECORD_SNAPSHOTS=1` as designed.
+
+Verified in the app (iOS Simulator, Release, secondary-structure mode): protein G B1 before
+at /tmp/pf_before_g_01.png (rust bands on the cord at every strand junction, fat cord
+protruding from both arrow tips, pale wash at the helix ends) against after at
+/tmp/pf_after_g_01.png and zooms /tmp/pf_after_arrowtip_zoom.png,
+/tmp/pf_after_helixend_zoom.png: taper meets the cord at the cord's own width, junction
+edges are crisp, and a pixel grid across the helix end shows pure magenta to the edge with
+no intermediate-colour band (before-fix grid had a 4-6 pixel gradient at the same feature).
+alpha-3D checked too: /tmp/pf_after_a3d_02.png. macOS Release verified running with the
+same build: /tmp/pf_after_mac.png.
+
+**A measurement that did not work, recorded so it is not repeated.** Two attempts to count
+"junction blend pixels" across whole screenshots (dusty-pink classifiers, with and without a
+slate-neighbourhood gate) could not tell before from after: shaded magenta faces and genuine
+cord-in-front-of-ribbon occlusion boundaries dominate any colour-range count, and the
+auto-orbit means the poses differ. What worked was pose-independent: the mesh invariant
+(zero visible mixed-structure triangles), plus a pixel transect across one identified
+junction in each image.

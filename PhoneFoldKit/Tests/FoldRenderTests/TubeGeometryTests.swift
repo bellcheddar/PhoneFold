@@ -30,9 +30,13 @@ struct TubeGeometryTests {
                                       secondaryStructure: Self.assignments(20, .helix),
                                       profile: profile)
         let samples = (20 - 1) * 4 + 1
-        // The sweep, plus two end caps: a centre and a duplicated rim ring each.
-        #expect(mesh.vertices.count == samples * 8 + 2 * (8 + 1))
-        #expect(mesh.triangleCount == (samples - 1) * 8 * 2 + 2 * 8)
+        // The sweep - one ring per sample plus one coincident junction ring per residue
+        // boundary, which is where the paint changes in a hard edge - plus two end caps:
+        // a centre and a duplicated rim ring each.
+        let rings = samples + (20 - 1)
+        #expect(rings == TubeGeometry.ringLayout(residues: 20, profile: profile).count)
+        #expect(mesh.vertices.count == rings * 8 + 2 * (8 + 1))
+        #expect(mesh.triangleCount == (rings - 1) * 8 * 2 + 2 * 8)
         #expect(mesh.isWellFormed)
     }
 
@@ -233,7 +237,7 @@ struct TubeGeometryTests {
         // Only the sweep's rings: the cap vertices appended after them are not rings.
         var worst: Float = 0
         let ring = profile.radialSegments
-        let rings = (ca.count - 1) * profile.samplesPerResidue + 1
+        let rings = TubeGeometry.ringLayout(residues: ca.count, profile: profile).count
         for s in 1..<rings {
             let a = mesh.vertices[(s - 1) * ring].position
             let b = mesh.vertices[s * ring].position
@@ -252,9 +256,10 @@ struct TubeGeometryTests {
                                       secondaryStructure: Self.assignments(16, .coil),
                                       profile: profile)
         // The ring at each whole-residue parameter should be centred on that alpha carbon.
+        let rings = TubeGeometry.ringLayout(residues: 16, profile: profile).count
         for residue in 0..<16 {
             // Only the sweep: the end caps duplicate the terminal rings' vertices.
-            let sweep = mesh.vertices.prefix((16 - 1) * profile.samplesPerResidue * 12 + 12)
+            let sweep = mesh.vertices.prefix(rings * 12)
             let ringVertices = sweep.filter {
                 abs($0.residueParameter - Float(residue)) < 1e-4
             }
@@ -275,7 +280,7 @@ struct TubeGeometryTests {
         var checked = 0
         // Only the sweep: cap normals point along the tangent, not outward from the axis.
         let profile = TubeGeometry.Profile()
-        let sweepCount = ((ca.count - 1) * profile.samplesPerResidue + 1)
+        let sweepCount = TubeGeometry.ringLayout(residues: ca.count, profile: profile).count
             * profile.radialSegments
         for (index, vertex) in mesh.vertices.prefix(sweepCount).enumerated()
         where index % 7 == 0 {

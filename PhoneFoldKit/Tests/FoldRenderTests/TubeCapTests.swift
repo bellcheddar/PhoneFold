@@ -86,9 +86,10 @@ struct TubeCapTests {
         let mesh = TubeGeometry.build(caPositions: ca,
                                       secondaryStructure: Self.assignments(12, .helix),
                                       profile: profile)
-        let samples = (ca.count - 1) * profile.samplesPerResidue + 1
-        // The sweep's vertices come first; the caps are appended after them.
-        let sweepCount = samples * ring
+        // The sweep's vertices come first (one ring per layout entry, junction duplicates
+        // included); the caps are appended after them.
+        let rings = TubeGeometry.ringLayout(residues: ca.count, profile: profile).count
+        let sweepCount = rings * ring
         #expect(mesh.vertices.count > sweepCount, "no cap vertices were appended")
 
         func centroid(ringAt s: Int) -> SIMD3<Float> {
@@ -98,8 +99,8 @@ struct TubeCapTests {
         }
         // The chain direction at each terminus, from the sweep itself.
         let startOut = simd_normalize(centroid(ringAt: 0) - centroid(ringAt: 1))
-        let endOut = simd_normalize(centroid(ringAt: samples - 1)
-                                    - centroid(ringAt: samples - 2))
+        let endOut = simd_normalize(centroid(ringAt: rings - 1)
+                                    - centroid(ringAt: rings - 2))
 
         // Cap vertex normals: flat, along the outward tangent.
         let capVertices = mesh.vertices[sweepCount...]
@@ -120,7 +121,7 @@ struct TubeCapTests {
             #expect(simd_distance(v.position, centroid(ringAt: 0)) < extent)
         }
         for v in endCap {
-            #expect(simd_distance(v.position, centroid(ringAt: samples - 1)) < extent)
+            #expect(simd_distance(v.position, centroid(ringAt: rings - 1)) < extent)
         }
     }
 

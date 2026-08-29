@@ -438,3 +438,34 @@ magnify and scroll event, so one screenshot ends the next argument.
 
 Scroll-wheel zoom landed for the Mac while the monitor was open on the table: hover gating
 measurably never armed, geometry hit-testing does, and the gallery keeps its own scroll.
+
+## The disc was arithmetic order, and the band was the sampler (2026-08-29)
+
+Two photographed defects, both diagnosed to a measurement before anything was changed.
+
+The grey disc in the arrowhead was the coil cord bursting through the arrow's point. The
+arrow multiplier and the boundary confidence fade each worked alone; composed in the wrong
+order they collapsed the tip ring to 0.023 while the cord behind it stayed at 0.20, and the
+8.7-fold step's rear face - painted coil by the nearest-residue rule, undrawn by no one
+because this renderer culls nothing - is a round grey disc, dead centre on the cyan face.
+One line moves the multiplier inside the fade and the taper now lands exactly on the cord.
+The lesson generalises: two correct scalings of the same quantity are not commutative once
+one of them is a blend toward a floor.
+
+The washed-out band at the ribbon ends survived five previous hypotheses because it is not
+in the geometry: the mesh at a helix end measures clean - no inversions, no normal
+disagreements, watertight. It is the colour ramp's rows being linearly interpolated across a
+structure boundary by the texture unit itself: helix into coil blends toward slate, and
+sheet into coil sweeps through the helix row - the same screenshots show magenta flashes on
+the cord at strand junctions, one artefact with two costumes. No vertex is wrong; the
+*interpolation between* two right vertices is. The fix gives the boundary two coincident
+rings, one in each colour, so the transition lives in triangles with zero area, and the
+sampler is never asked to walk from one row to another. The ring layout is a function of the
+chain, not the frame, so the fixed-capacity mesh contract survives.
+
+The diagnostics that earned their keep: an offline ray-cast of the real mesh (which cleared
+geometry for defect B in one run), a printed width profile along the arrow (which convicted
+defect A in one table), and a pixel transect across the band (G/R 0.28 where the face reads
+0.19). The one that did not: whole-image colour counts, defeated twice by the auto-orbit and
+by honest occlusion boundaries that share the band's colours. Negative-tested both fixes;
+248 pre-existing tests still pass, plus three new junction tests that fail on either revert.

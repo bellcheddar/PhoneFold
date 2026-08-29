@@ -417,23 +417,37 @@ public enum TubeGeometry {
                                 aspect: 1 + (ribbonAspect - 1) * t)
         }
 
+        // One ring per sample, plus a coincident **junction ring** wherever the nearest
+        // residue changes between samples. Colour comes from the nearest residue
+        // (`colouredStructure`), so between the two rings that straddle a boundary the GPU
+        // used to interpolate the ramp coordinate from one structure's texture row to
+        // another's. Between rows the sampler blends them, and on a sheet-to-coil boundary
+        // the path passes through the helix row as well, so every helix end wore a pale
+        // washed-out band and every strand junction a magenta one, exactly one sample wide
+        // (measured on screen: junction pixels at G/R 0.28 against 0.19 on the pure face).
+        // The duplicate ring sits at the same positions with the same normals and differs
+        // only in its paint attributes: the quads between the pair are zero-area and never
+        // rasterise, so the colour changes in a hard edge at the boundary, which is what a
+        // cartoon does. The duplication is keyed to the sample grid, not to this frame's
+        // assignments, so the vertex count never changes mid-trajectory - `LowLevelTubeMesh`
+        // is allocated once at a fixed capacity.
+        let ringSamples = ringLayout(residues: ca.count, profile: profile)
+        let ringCount = ringSamples.count
         var vertices: [TubeVertex] = []
-        vertices.reserveCapacity(sampleCount * profile.radialSegments)
+        vertices.reserveCapacity(ringCount * profile.radialSegments)
         var indices: [UInt32] = []
-        indices.reserveCapacity((sampleCount - 1) * profile.radialSegments * 6)
+        indices.reserveCapacity((ringCount - 1) * profile.radialSegments * 6)
 
-        for s in 0..<sampleCount {
+        for (s, paintResidue) in ringSamples {
             let tangent = tangents[s]
             let normal = normals[s]
             let binormal = simd_normalize(simd_cross(tangent, normal))
             let (structure, confidence) = interpolatedStructure(ss, at: parameters[s])
             // The shape morphs across a boundary; the colour does not. See `colouredStructure`.
-            let (paintStructure, paintConfidence) = colouredStructure(ss, at: parameters[s])
-            var (halfWidth, halfThickness) = section(for: structure, confidence: confidence,
-                                                     profile: profile)
-            // Scales the section rather than replacing it, so the arrow can only shape a
-            // strand and never widen the coil either side of one.
-            halfWidth *= arrowScale[s]
+            let paint = ss[paintResidue]
+            let (halfWidth, halfThickness) = section(for: structure, confidence: confidence,
+                                                     profile: profile,
+                                                     widthScale: arrowScale[s])
 
             // Superellipse |x/w|^k + |y/h|^k = 1, read from the precomputed table: k = 2 is
             // the ellipse this used to sweep, higher is a slab with crisp edges.
@@ -457,13 +471,13 @@ public enum TubeGeometry {
                 vertices.append(TubeVertex(position: centres[s] + offset,
                                            normal: unit,
                                            residueParameter: parameters[s],
-                                           structureConfidence: paintConfidence,
-                                           structure: paintStructure))
+                                           structureConfidence: paint.confidence,
+                                           structure: paint.structure))
             }
         }
 
         let ring = UInt32(profile.radialSegments)
-        for s in 0..<(sampleCount - 1) {
+        for s in 0..<(ringCount - 1) {
             let base = UInt32(s) * ring
             for r in 0..<profile.radialSegments {
                 let next = UInt32((r + 1) % profile.radialSegments)
@@ -493,7 +507,9 @@ public enum TubeGeometry {
         // caps exactly like the wall they close.
         for end in [0, sampleCount - 1] {
             let outward = end == 0 ? -tangents[0] : tangents[sampleCount - 1]
-            let ringBase = end * profile.radialSegments
+            // Junction rings are interior only, so the first ring is still ring 0, but the
+            // last ring's base is counted from the full ring list, not from the sample count.
+            let ringBase = (end == 0 ? 0 : ringCount - 1) * profile.radialSegments
             let capBase = UInt32(vertices.count)
             let sample = vertices[ringBase]
             vertices.append(TubeVertex(position: centres[end], normal: outward,
@@ -515,6 +531,30 @@ public enum TubeGeometry {
             }
         }
         return TubeMesh(vertices: vertices, indices: indices)
+    }
+
+    /// Which sample each ring sits on, and which residue paints it.
+    ///
+    /// One ring per spline sample, plus a coincident duplicate wherever the nearest residue
+    /// changes between consecutive samples, painted by the outgoing residue. The layout is a
+    /// function of the chain length and the profile alone - never of a frame's assignments -
+    /// so the vertex count is constant across a trajectory, which `LowLevelTubeMesh`'s fixed
+    /// allocation depends on.
+    static func ringLayout(residues: Int, profile: Profile) -> [(sample: Int, paintResidue: Int)] {
+        let sampleCount = (residues - 1) * profile.samplesPerResidue + 1
+        func nearestResidue(_ s: Int) -> Int {
+            let u = Float(s) / Float(profile.samplesPerResidue)
+            return Swift.min(Swift.max(Int(u.rounded()), 0), residues - 1)
+        }
+        var rings: [(sample: Int, paintResidue: Int)] = []
+        rings.reserveCapacity(sampleCount + residues)
+        for s in 0..<sampleCount {
+            if s > 0, nearestResidue(s - 1) != nearestResidue(s) {
+                rings.append((s, nearestResidue(s - 1)))
+            }
+            rings.append((s, nearestResidue(s)))
+        }
+        return rings
     }
 
     // MARK: - Cross section
@@ -592,8 +632,20 @@ public enum TubeGeometry {
         return 2 + (profile.ribbonSharpness - 2) * t
     }
 
+    /// `widthScale` shapes the arrowhead and is applied to the sheet's **target** width, not
+    /// to the blended result. The distinction is the difference between an arrow that closes
+    /// onto the coil cord and one that bursts open. `interpolatedStructure` fades confidence
+    /// to zero across the strand's end, so the blended width is already down at `coilRadius`
+    /// there; multiplying *that* by the arrow's tip fraction collapsed the tip to
+    /// 0.023 - an order of magnitude thinner than the 0.20 cord drawn at the very next
+    /// sample, whose rearward-facing step showed end-on as a round grey disc in the middle
+    /// of the arrowhead (measured: halfWidth 0.0229 at u = tip, 0.2000 one sample later).
+    /// Scaling the target instead makes the taper end exactly on the cord: at the tip the
+    /// confidence fade takes the width to `coilRadius` and the sharpness to a circle, which
+    /// is the coil's own cross section, so the cord continues the surface seamlessly.
+    /// Coil ignores the scale entirely - the cord either side of a strand has its own radius.
     static func section(for structure: SecondaryStructure, confidence: Float,
-                        profile: Profile) -> (Float, Float) {
+                        profile: Profile, widthScale: Float = 1) -> (Float, Float) {
         let t = Swift.min(Swift.max(confidence, 0), 1)
         func grow(_ target: Float) -> Float {
             profile.coilRadius + (target - profile.coilRadius) * t
@@ -604,7 +656,8 @@ public enum TubeGeometry {
         case .helix:
             return (grow(profile.helixHalfWidth), grow(profile.helixHalfThickness))
         case .sheet:
-            return (grow(profile.sheetHalfWidth), grow(profile.sheetHalfThickness))
+            return (grow(profile.sheetHalfWidth * widthScale),
+                    grow(profile.sheetHalfThickness))
         }
     }
 
