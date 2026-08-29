@@ -1087,3 +1087,31 @@ the stage consumed, distance 1.50 → 0.67, held; the same scroll over the galle
 camera untouched and the gallery scrolling. One earlier run before the counters existed
 consumed nothing and has not reproduced since; the seen/used counters stay in the overlay so
 a recurrence is one screenshot rather than another guessing round.
+
+### The see-through slits were the outline, and it is now off (2026-08-29)
+
+Not transparency: nothing in the 3D materials is transparent any more. The dark slits are the
+**outline shell drawn in front of the surface it is meant to sit behind**.
+
+An inverted-hull outline needs the renderer to cull front faces, and this one culls nothing -
+measured twice, in P2-05 and again since: `faceCulling = .front` is ignored, and so is a
+reversed triangle winding. The stand-in has been to select the far-facing triangles on the CPU.
+That holds over most of a surface and breaks down exactly where a ribbon turns edge-on or
+twists.
+
+Measured on the alpha-3D bundle by counting thin dark runs enclosed by lit pixels on both
+sides - a slit, as distinct from the genuine gaps between helix turns, which are also dark:
+
+| | Enclosed dark runs | Pixels |
+|---|---|---|
+| Outline on | **2,122** | 7,913 |
+| Outline off | 628 | 5,645 |
+
+Three times as many, all artefacts. The outline defaults to off. Its machinery stays and stays
+tested: it is the right technique the day this renderer will cull a face, and a cartoon without
+an outline is what PyMOL draws by default.
+
+A note on measuring this. The first attempt counted dark pixels inside the protein's silhouette
+and returned 46.8% against 46.2% - no signal at all - because a protein is not convex and the
+gap between two helices dominates the count. The measurement had to distinguish an *enclosed*
+dark run from an open one before it could see a difference of three times.

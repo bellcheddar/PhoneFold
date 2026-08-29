@@ -31,13 +31,25 @@ struct AuroraGrade: Equatable {
 
     /// How dark the corners of the stage go.
     var vignette: Double = 0.55
-    /// How far the outline stands off the cartoon, in angstroms.
+    /// How far the outline stands off the cartoon, in angstroms. **Zero: the outline is off.**
     ///
-    /// Derived from the thinnest cross section the cartoon draws, not chosen. At a fixed
-    /// 0.16 A it stood further out than an arrowhead's tip is wide, so the shell crossed
-    /// through the ribbon and the crossing showed as dark slivers at the tip of every arrow
-    /// and on the tightest turns. Half the thinnest half-extent cannot cross anything.
-    var outlineWidth: Double = Double(TubeGeometry.Profile().thinnestHalfExtent) * 0.5
+    /// An inverted-hull outline needs the renderer to cull front faces, and this one culls
+    /// nothing - measured, twice: `faceCulling = .front` is ignored and so is a reversed
+    /// triangle winding. The stand-in is to choose the far-facing triangles on the CPU, which
+    /// works over most of a surface and breaks down exactly where a ribbon turns edge-on or
+    /// twists, leaving shell triangles in front of the surface they are meant to sit behind.
+    /// On screen those are thin dark slits across the ribbon, which read as see-through holes.
+    ///
+    /// Measured on the alpha-3D bundle, counting thin dark runs enclosed by lit pixels on both
+    /// sides - which is what a slit is, as distinct from the genuine gaps between helix turns:
+    ///
+    ///     outline on   2,122 runs, 7,913 pixels
+    ///     outline off    628 runs, 5,645 pixels
+    ///
+    /// More than three times as many, all of them artefacts. The machinery stays - it is
+    /// tested, and it is right the day this renderer will cull a face - but a cartoon with no
+    /// outline is what PyMOL draws by default anyway, and it is clean.
+    var outlineWidth: Double = 0
     /// How solid the outline is.
     var outlineOpacity: Double = 0.85
 
