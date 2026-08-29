@@ -38,7 +38,7 @@ struct StageView: View {
         }
         .preferredColorScheme(.dark)
         .task {
-            if selection == nil, let first = library.entries.first { start(first) }
+            if selection == nil, let opening = openingEntry { start(opening) }
         }
     }
 
@@ -105,6 +105,23 @@ struct StageView: View {
         }
         .frame(height: 62)
         .padding(.bottom, 8)
+    }
+
+    /// Which trajectory to open with.
+    ///
+    /// `PHONEFOLD_TRAJECTORY` names one by its file stem, so a particular protein can be put
+    /// on screen without tapping the gallery. That matters more than it sounds: the app can be
+    /// looked at on a Simulator while the Mac is locked, and a screenshot of a specific
+    /// protein is often the only way to judge whether a change to the geometry worked - a
+    /// twenty-residue trp-cage with one sheet residue says nothing about how strands look.
+    private var openingEntry: TrajectoryLibrary.Entry? {
+        if let wanted = ProcessInfo.processInfo.environment["PHONEFOLD_TRAJECTORY"],
+           let match = library.entries.first(where: {
+               $0.url.deletingPathExtension().lastPathComponent == wanted
+           }) {
+            return match
+        }
+        return library.entries.first
     }
 
     private func start(_ entry: TrajectoryLibrary.Entry) {

@@ -422,8 +422,17 @@ final class StageContent {
         var material = UnlitMaterial()
         material.color = .init(tint: .init(red: encode(tint.x), green: encode(tint.y),
                                            blue: encode(tint.z), alpha: 1))
-        material.blending = .transparent(
-            opacity: .init(floatLiteral: Float(grade.outlineOpacity)))
+        // Opaque, not transparent.
+        //
+        // A transparent material in RealityKit is drawn in a later pass without writing
+        // depth, so the outline shell - which sits *behind* the protein, being the far-facing
+        // half - was composited over whatever had already been drawn there. On screen that
+        // reads exactly as Marc described it: a see-through patch at the bottom of each helix
+        // turn, where the far wall of the shell showed through the ribbon in front of it.
+        //
+        // It was transparent for a reason that no longer holds: before the far-facing
+        // triangles were selected on the CPU, an opaque shell covered the whole protein. Now
+        // that only the far half is drawn, depth testing puts it behind the tube by itself.
         return material
     }
 

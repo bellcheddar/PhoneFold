@@ -934,3 +934,28 @@ Measured on the drag itself, under synthesised events: a 500 px sweep rotates th
 it stays put on release, and a slow drag in five bursts with 0.45 s pauses tracked through
 every burst (3.80, 4.00, 4.17, 4.20, 4.12 mean pixel change). So the mechanism works; what
 remains, if anything, is about how the input arrives.
+
+### Why the strands looked lumpy (2026-08-29)
+
+Not the pleat, and not the frame. Measured on protein G's second strand, the half-width along
+its six residues ran **0.72, 0.92, 1.05, 0.95, 0.83, 0.72** - a 1.46-fold swing along a single
+strand, because the cross section grows with confidence and confidence is assigned per residue.
+On screen that is a ribbon pinching in and out like a squeezed tube. No cartoon draws that: an
+element has one width and tapers only where it ends. Confidence is now averaged over each
+secondary-structure element, which keeps the growth as a fold settles and removes the wobble.
+
+Two other things measured on the way, both of which turned out not to be the fault:
+
+| Hypothesis | Measurement | Verdict |
+|---|---|---|
+| The beta pleat survives in the guide path | Deviation from a straight strand: 2.82 A raw, and only 1.45 A at maximum smoothing | Protein G's sheet is genuinely curved; smoothing it further would flatten real structure |
+| The ribbon frame corkscrews | Roll per residue on sheet: mean 22.5, worst 64.3 degrees unsmoothed | Real, and worth fixing - a [1,2,1] frame average takes the worst to 35 degrees - but ~16 degrees is real beta-sheet twist and the reference shows it too |
+
+The frame smoothing stays: it removes the per-residue alternation of the pleat and leaves a
+steady roll alone, which is the distinction that matters, since a helix's 44 degrees per
+residue is the helix and must survive.
+
+Also this round: the cross section is a superellipse rather than an ellipse, so a ribbon is a
+slab with crisp edges instead of a flattened sausage; the outline is opaque, because a
+transparent material is drawn without writing depth and the shell was compositing over the
+ribbon in front of it - the see-through patches at the bottom of each helix turn.

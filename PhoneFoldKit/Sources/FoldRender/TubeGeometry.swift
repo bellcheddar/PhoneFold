@@ -73,10 +73,10 @@ public enum TubeGeometry {
         public var coilRadius: Float = 0.22
         /// The helix ribbon: wide and flat, so a helix reads as a coiled band.
         public var helixHalfWidth: Float = 1.05
-        public var helixHalfThickness: Float = 0.25
+        public var helixHalfThickness: Float = 0.30
         /// The strand ribbon.
         public var sheetHalfWidth: Float = 1.10
-        public var sheetHalfThickness: Float = 0.20
+        public var sheetHalfThickness: Float = 0.26
         /// Half-width at the base of a strand's arrowhead.
         public var arrowHalfWidth: Float = 1.95
         /// Half-width at its point. Not zero: a true point degenerates the ring into a line
@@ -84,6 +84,20 @@ public enum TubeGeometry {
         public var arrowTipHalfWidth: Float = 0.16
         /// How many residues at the C-terminal end of a strand the arrowhead spans.
         public var arrowResidues: Float = 1.6
+        /// How many times to average the ribbon's roll along the chain.
+        ///
+        /// Removes the per-residue alternation of a beta pleat, which otherwise corkscrews a
+        /// strand that should lie flat. A steady roll, like a helix's, survives it.
+        public var frameSmoothingPasses: Int = 3
+        /// How square the ribbon's cross section is.
+        ///
+        /// The cross section is a superellipse, |x/w|^k + |y/h|^k = 1. At k = 2 that is an
+        /// ellipse, which is what a tube renderer sweeps and what made the strands look like
+        /// flattened sausages rather than the flat slabs a ribbon diagram draws. Raising k
+        /// squares the section off: at 6 the faces are flat and the edges crisp, with just
+        /// enough rounding left on the corners to catch a highlight. Coil keeps k = 2,
+        /// because a cord is round.
+        public var ribbonSharpness: Float = 6
         /// Spline samples per residue. Higher is smoother and costs vertices.
         public var samplesPerResidue: Int = 10
         /// How hard to pull the guide path toward the axis of a helix or strand.
@@ -108,6 +122,38 @@ public enum TubeGeometry {
             Swift.min(coilRadius, Swift.min(helixHalfThickness,
                                             Swift.min(sheetHalfThickness, arrowTipHalfWidth)))
         }
+    }
+
+    /// One confidence per secondary-structure element, not per residue.
+    ///
+    /// The cross section grows with confidence so that structure appears rather than snaps,
+    /// and confidence is assigned per residue, so a ribbon's width followed every wobble in
+    /// the assigner's certainty. Measured on protein G's second strand, the half-width ran
+    /// 0.72, 0.92, 1.05, 0.95, 0.83, 0.72 - a 1.46-fold swing along a single strand, which on
+    /// screen is a ribbon pinching in and out like a squeezed tube. No cartoon draws that: an
+    /// element has one width, and tapers only where it ends.
+    ///
+    /// Averaging over the run keeps the growth - the mean rises as the fold settles - and
+    /// takes away the lumpiness. The taper at each end is unaffected, because that comes from
+    /// `interpolatedStructure` fading across the boundary rather than from these values.
+    static func levelledConfidence(_ ss: [SSAssignment]) -> [SSAssignment] {
+        guard !ss.isEmpty else { return ss }
+        var levelled = ss
+        var start = 0
+        while start < ss.count {
+            var end = start
+            while end + 1 < ss.count, ss[end + 1].structure == ss[start].structure { end += 1 }
+            if ss[start].structure != .coil {
+                var total: Float = 0
+                for i in start...end { total += ss[i].confidence }
+                let mean = total / Float(end - start + 1)
+                for i in start...end {
+                    levelled[i] = SSAssignment(structure: ss[i].structure, confidence: mean)
+                }
+            }
+            start = end + 1
+        }
+        return levelled
     }
 
     /// Guide points for the spline: the alpha-carbon path, smoothed inside helices and
@@ -160,6 +206,8 @@ public enum TubeGeometry {
               profile.radialSegments >= 3, profile.samplesPerResidue >= 1
         else { return TubeMesh(vertices: [], indices: []) }
 
+        // One confidence per element, so a ribbon has one width. See `levelledConfidence`.
+        let ss = levelledConfidence(ss)
         // Smoothed guide points, not the raw alpha carbons. See `guidePoints`.
         let ca = guidePoints(ca, secondaryStructure: ss, profile: profile)
 
@@ -233,6 +281,27 @@ public enum TubeGeometry {
             sideByResidue.append(side)
         }
 
+        // Smooth the frame along the chain.
+        //
+        // Making the sign continuous stops a strand's ribbon flipping edge over edge, but it
+        // does not stop it *twisting*: a beta strand pleats side to side, so the bisector -
+        // and with it the ribbon's roll - alternates every residue. Measured on protein G's
+        // sheet, consecutive residues were rolling by tens of degrees, and a strand drawn on
+        // that frame corkscrews instead of lying flat.
+        //
+        // A symmetric [1, 2, 1] average removes the alternation and leaves a steady rotation
+        // alone, which is exactly the distinction wanted here: the pleat is noise, while a
+        // helix's roll is the helix, and averaging a vector that turns at a constant rate
+        // returns the same direction with a slightly shorter length, which normalising undoes.
+        for _ in 0..<profile.frameSmoothingPasses {
+            var smoothed = sideByResidue
+            for i in 1..<(sideByResidue.count - 1) {
+                let sum = sideByResidue[i - 1] + sideByResidue[i] * 2 + sideByResidue[i + 1]
+                if simd_length(sum) > 1e-6 { smoothed[i] = simd_normalize(sum) }
+            }
+            sideByResidue = smoothed
+        }
+
         // Per-sample frame, interpolated between residues and squared up against the tangent.
         var normals: [SIMD3<Float>] = []
         normals.reserveCapacity(sampleCount)
@@ -266,15 +335,24 @@ public enum TubeGeometry {
             // strand and never widen the coil either side of one.
             halfWidth *= arrowScale[s]
 
+            let k = sharpness(for: structure, confidence: confidence, profile: profile)
             for r in 0..<profile.radialSegments {
                 let angle = 2 * Float.pi * Float(r) / Float(profile.radialSegments)
-                let offset = normal * (cos(angle) * halfWidth)
-                    + binormal * (sin(angle) * halfThickness)
-                // Surface normal of an ellipse is not the radial direction; scale each axis
-                // by the reciprocal of its half-extent. Getting this wrong makes a flattened
-                // strand light as though it were still round.
-                let rawNormal = normal * (cos(angle) / Swift.max(halfWidth, 1e-4))
-                    + binormal * (sin(angle) / Swift.max(halfThickness, 1e-4))
+                let cosine = cos(angle), sine = sin(angle)
+                // Superellipse |x/w|^k + |y/h|^k = 1, parameterised so k = 2 is the ellipse
+                // this used to sweep.
+                let cx = copysign(pow(abs(cosine), 2 / k), cosine)
+                let sy = copysign(pow(abs(sine), 2 / k), sine)
+                let offset = normal * (cx * halfWidth) + binormal * (sy * halfThickness)
+                // The surface normal is the gradient of that implicit form, not the radial
+                // direction: n proportional to (sign(x)|x/w|^(k-1)/w, sign(y)|y/h|^(k-1)/h).
+                // Getting this wrong lights a flat slab as though it were still round, which
+                // is most of what made the old sections read as sausages.
+                let gx = copysign(pow(abs(cosine), 2 * (k - 1) / k), cosine)
+                    / Swift.max(halfWidth, 1e-4)
+                let gy = copysign(pow(abs(sine), 2 * (k - 1) / k), sine)
+                    / Swift.max(halfThickness, 1e-4)
+                let rawNormal = normal * gx + binormal * gy
                 let unit = simd_length(rawNormal) > 1e-6
                     ? simd_normalize(rawNormal) : normal
                 vertices.append(TubeVertex(position: centres[s] + offset,
@@ -362,6 +440,17 @@ public enum TubeGeometry {
             }
         }
         return scales
+    }
+
+    /// How square this sample's cross section should be, 2 being a true ellipse.
+    ///
+    /// Blended in with confidence like the widths, so a ribbon squares off as it forms
+    /// instead of snapping from cord to slab.
+    static func sharpness(for structure: SecondaryStructure, confidence: Float,
+                          profile: Profile) -> Float {
+        guard structure != .coil else { return 2 }
+        let t = Swift.min(Swift.max(confidence, 0), 1)
+        return 2 + (profile.ribbonSharpness - 2) * t
     }
 
     static func section(for structure: SecondaryStructure, confidence: Float,
