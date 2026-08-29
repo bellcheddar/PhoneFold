@@ -105,8 +105,8 @@ public enum TubeGeometry {
         /// 0 draws the raw alpha-carbon path and 1 is fully smoothed. Applied `smoothingPasses`
         /// times and scaled by each residue's structure confidence, so structure still grows in
         /// rather than snapping.
-        public var smoothing: Float = 0.40
-        public var smoothingPasses: Int = 1
+        public var smoothing: Float = 1.0
+        public var smoothingPasses: Int = 3
         /// Vertices around the cross section.
         public var radialSegments: Int = 20
 
@@ -173,8 +173,24 @@ public enum TubeGeometry {
     /// polygon they were drawn as, and that was treating a symptom: the polygon came from the
     /// spline cutting corners, which `splinePoint` now fixes properly with circular arcs.
     /// Smoothing a helix shrinks it - one full [1, 2, 1] pass multiplies the radius by
-    /// (2 + 2 cos 100 degrees) / 4, which is 0.41, and even at 0.40 strength it took away
-    /// nearly a quarter of it. A helix should be drawn at the radius it has.
+    /// (2 + 2 cos 100 degrees) / 4, which is 0.41. A helix should be drawn at the radius it
+    /// has, so nothing here touches one.
+    ///
+    /// **A strand may curve; it may not zigzag.** Those are separable, and separating them is
+    /// what set the strength. The alternating component - how far each alpha carbon sits off
+    /// the midpoint of its neighbours - is the pleat, and a [1, 2, 1] pass attacks it
+    /// directly while barely touching a smooth bend. Measured on protein G's sheet:
+    ///
+    ///     strength x passes   zigzag mean/worst   curvature kept
+    ///     none                1.743 / 2.157 A     2.82 A
+    ///     0.4 x 1             1.141 / 1.636 A     2.47 A     <- what shipped, and visibly wrong
+    ///     1.0 x 3             0.169 / 0.498 A     1.75 A     <- here
+    ///     1.0 x 6             0.132 / 0.333 A     1.45 A
+    ///
+    /// At the old setting the zigzag was 1.14 A, about the ribbon's own half-width, which is
+    /// why the edges looked serrated. Three full passes take it down by a factor of nearly
+    /// seven and keep the curve; going further buys little and starts straightening the sheet
+    /// itself, which is real structure.
     ///
     /// Scaled by structure confidence, so a residue that is not yet confidently helical keeps
     /// its true position and the smoothing eases in with the ribbon.

@@ -959,3 +959,28 @@ Also this round: the cross section is a superellipse rather than an ellipse, so 
 slab with crisp edges instead of a flattened sausage; the outline is opaque, because a
 transparent material is drawn without writing depth and the shell was compositing over the
 ribbon in front of it - the see-through patches at the bottom of each helix turn.
+
+### Curvature and zigzag are separable, and only one of them was the problem
+
+Marc's correction: a beta strand is allowed to curve and twist, but its surface and edges must
+be flat. That splits the earlier measurement in two, and measured separately the answer is
+plain. The alternating component - how far each alpha carbon sits off the midpoint of its
+neighbours, which is the pleat - against the smooth bend:
+
+| Smoothing | Zigzag, mean / worst | Curvature kept |
+|---|---|---|
+| none | 1.743 / 2.157 A | 2.82 A |
+| **0.4 x 1 (what shipped)** | **1.141 / 1.636 A** | 2.47 A |
+| 0.6 x 2 | 0.422 / 1.050 A | 2.00 A |
+| **1.0 x 3 (now)** | **0.169 / 0.498 A** | 1.75 A |
+| 1.0 x 6 | 0.132 / 0.333 A | 1.45 A |
+
+At the shipped setting the alternation was 1.14 A - about the ribbon's own half-width - which
+is exactly why the edges looked serrated. Three full passes cut it by nearly seven times and
+keep the curve. Going further buys little and starts straightening the sheet itself, which is
+real structure.
+
+The earlier measurement missed this because it measured total deviation from a straight line,
+which is dominated by genuine curvature: it moved only 2.82 to 1.45 A across the whole range
+and made the smoothing look ineffective. It was measuring the wrong quantity, not reporting a
+wrong answer.

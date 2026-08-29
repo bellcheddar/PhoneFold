@@ -592,3 +592,51 @@ extension HaloShellTests {
         }
     }
 }
+
+extension CircularInterpolationTests {
+
+    /// A strand may curve and twist. Its surface and edges may not zigzag.
+    ///
+    /// The two are separable: curvature is a smooth bend, and the pleat is an alternation -
+    /// each alpha carbon sitting off the midpoint of its neighbours. Measuring the second
+    /// without the first is what showed the shipped smoothing was far too weak: the
+    /// alternation was 1.14 A, about the width of the ribbon's own half-section, and the
+    /// edges came out serrated.
+    @Test("A strand's pleat is smoothed away while its curve is kept")
+    func strandsAreFlatButMayCurve() {
+        // A curved strand with a pleat on top of it: a gentle arc, plus a 0.9 A alternation.
+        let residues = 12
+        let ca = (0..<residues).map { i -> SIMD3<Float> in
+            let t = Float(i)
+            let arc = SIMD3<Float>(t * 3.3, t * t * 0.04, 0)          // smooth curvature
+            let pleat = SIMD3<Float>(0, 0, i % 2 == 0 ? 0.9 : -0.9)   // the alternation
+            return arc + pleat
+        }
+        let ss = (0..<residues).map { _ in SSAssignment(structure: .sheet, confidence: 1) }
+        let profile = TubeGeometry.Profile()
+        let guide = TubeGeometry.guidePoints(ca, secondaryStructure: ss, profile: profile)
+
+        func alternation(_ g: [SIMD3<Float>]) -> Float {
+            var worst: Float = 0
+            for i in 1..<(g.count - 1) {
+                worst = Swift.max(worst, simd_length(g[i] - (g[i - 1] + g[i + 1]) * 0.5))
+            }
+            return worst
+        }
+        func bend(_ g: [SIMD3<Float>]) -> Float {
+            let axis = simd_normalize(g[g.count - 1] - g[0])
+            var worst: Float = 0
+            for p in g {
+                let v = p - g[0]
+                worst = Swift.max(worst, simd_length(v - axis * simd_dot(v, axis)))
+            }
+            return worst
+        }
+        let before = (alternation(ca), bend(ca))
+        let after = (alternation(guide), bend(guide))
+        #expect(after.0 < before.0 * 0.35,
+                "the pleat survived: \(before.0) to \(after.0)")
+        #expect(after.1 > before.1 * 0.6,
+                "the curve was flattened away: \(before.1) to \(after.1)")
+    }
+}
