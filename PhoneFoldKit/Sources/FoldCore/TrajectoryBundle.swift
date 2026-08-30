@@ -111,7 +111,9 @@ public enum ConfidenceSource: String, Codable, Sendable, Hashable, CaseIterable 
         switch self {
         case .pLDDT: "pLDDT"
         case .denoisingProgress: "Resolution"
-        case .nativeContacts: "Contacts"
+        // Not "Contacts": the panel already has a contact counter, and two columns headed
+        // CONTACTS side by side showing different numbers is worse than either alone.
+        case .nativeContacts: "Native"
         case .morphProgress: "Progress"
         }
     }

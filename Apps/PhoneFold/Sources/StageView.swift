@@ -2,13 +2,21 @@ import SwiftUI
 import simd
 import FoldCore
 import FoldRender
+import FoldEngine
 
 /// The Aurora Stage: a deep indigo ground, the protein, and the readouts beneath it.
 struct StageView: View {
     @StateObject private var library = TrajectoryLibrary()
     @StateObject private var player = FoldPlayer()
+    @StateObject private var runner = FoldRunner()
     @State private var selection: TrajectoryLibrary.Entry?
     @State private var meshDiagnostic = ""
+
+    /// Genie 2 generates rather than folds toward a reference, and its Core ML path is not
+    /// wired to run live yet. Saying so is better than offering a control that does nothing.
+    private var unavailableEngines: [FoldingEngine: String] {
+        [.generative: "Genie 2 runs through Core ML and is not wired to run live yet"]
+    }
 
     var body: some View {
         ZStack {
@@ -20,8 +28,19 @@ struct StageView: View {
 
             VStack(spacing: 0) {
                 header
+                // Its own row. Sharing the header with the title and the colour control left
+                // the buttons a few points wide on a phone, and SwiftUI rendered their labels
+                // one letter per line.
+                EnginePicker(engine: $runner.engine, unavailable: unavailableEngines)
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 6)
                 FoldCanvas(player: player, diagnostic: $meshDiagnostic)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .overlay {
+                        if case .folding(let fraction) = runner.state {
+                            FoldingProgressView(progress: fraction, engine: runner.engine)
+                        }
+                    }
                 FoldHUD(history: player.history, meter: player.meter,
                         confidenceSource: player.confidenceSource,
                         progress: player.progress,
@@ -40,11 +59,14 @@ struct StageView: View {
         .task {
             if selection == nil, let opening = openingEntry { start(opening) }
         }
+        .onChange(of: runner.engine) { _, _ in
+            if let selection { start(selection) }
+        }
     }
 
     private var header: some View {
-        HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 2) {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(player.title)
                     .font(.system(.title2, design: .default).weight(.semibold))
                     .foregroundStyle(.white)
@@ -61,10 +83,12 @@ struct StageView: View {
                         .font(.system(size: 10, design: .monospaced))
                         .foregroundStyle(Color(hex: 0xFCB900))
                 }
-                if player.isGenerated {
-                    // A generated protein has never existed. The app says so rather than
-                    // letting it be mistaken for a prediction.
-                    Text("Generated — this protein has never existed")
+                // Whatever this trajectory's claim is, stated. A generated protein has never
+                // existed; a simulation toward a known structure did not predict it. Both are
+                // things a viewer would otherwise assume wrongly, so the disclosure comes from
+                // the provenance rather than from a flag this view decides.
+                if let disclosure = player.disclosure {
+                    Text(disclosure)
                         .font(.caption)
                         .foregroundStyle(Color(hex: 0xFCB900))
                 }
@@ -126,10 +150,32 @@ struct StageView: View {
         return library.entries.first
     }
 
+    /// Fold the chosen protein with the chosen engine, on this device.
+    ///
+    /// The reference structure is the bundled trajectory's **final frame**, which for the
+    /// gallery is ESMFold's own prediction of that protein - so the simulation runs toward a
+    /// known structure without needing the network. An accession typed by the user is fetched
+    /// from AlphaFold instead; either way the engine is folding toward an answer it was given,
+    /// which is what its disclosure says.
     private func start(_ entry: TrajectoryLibrary.Entry) {
         selection = entry
         do {
-            player.play(try library.provider(for: entry))
+            let provider = try library.provider(for: entry)
+            guard runner.engine.needsReferenceStructure,
+                  let final = provider.readouts.last else {
+                // Nothing live to run: play the bundled trajectory as it stands.
+                player.play(provider)
+                return
+            }
+            let reference = ReferenceStructure(
+                accession: provider.metadata.accession ?? entry.id,
+                name: provider.metadata.name,
+                sequence: provider.metadata.sequence,
+                caPositions: final.caPositions.map {
+                    SIMD3<Double>(Double($0.x), Double($0.y), Double($0.z))
+                },
+                pLDDT: final.confidence)
+            runner.run(reference: reference, engine: runner.engine, into: player)
         } catch {
             print("could not load \(entry.displayName): \(error)")
         }

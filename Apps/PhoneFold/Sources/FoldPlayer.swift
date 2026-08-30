@@ -113,6 +113,8 @@ final class FoldPlayer: ObservableObject {
 
     var confidenceSource: ConfidenceSource { provider?.confidenceSource ?? .pLDDT }
     var isGenerated: Bool { provider?.isGenerated ?? false }
+    /// The claim this trajectory makes, in one line, or nil when it needs no qualification.
+    var disclosure: String? { provider?.metadata.provenance.disclosure }
     var title: String { provider?.metadata.name ?? "PhoneFold" }
 
     /// How long to dwell on each raw readout, for a fold of about `targetSeconds`.

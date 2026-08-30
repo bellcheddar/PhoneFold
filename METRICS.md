@@ -1640,3 +1640,23 @@ would be worse still: it drops every `ATOM` line while `HETATM` happens to line 
 The sequence comes from the coordinates rather than from the API's sequence field, because a
 prediction can cover a fragment of a longer entry and a sequence longer than the coordinates
 misaligns every residue type in the app.
+
+### The engine picker, live in the app (2026-08-30)
+
+Trp-cage folded on the iPhone 17 Simulator by the structure-based engine, with nothing
+precomputed: Rg 7.1 A, 29 contacts, 87% of native contacts formed, its helix present, and a
+radius-of-gyration trace that is visibly *noisy* - thermal fluctuation in a real Langevin
+trajectory, which looks nothing like the smooth monotone curves the ESMFold readouts gave.
+
+Two bugs found by looking at the screen rather than the tests:
+
+**Two columns headed CONTACTS.** `ConfidenceSource.nativeContacts` took the display name
+"Contacts", which the panel already used for the contact counter - so the HUD showed CONTACTS
+17 beside CONTACTS 56, two different quantities under one label. Renamed to "Native".
+
+**The picker rendered one letter per line.** Sharing the header row with the title and the
+colour control left each button a few points wide, and SwiftUI wrapped the labels vertically.
+The picker has its own row now.
+
+Neither was visible to a test: both are layout and labelling, and the suite was green
+throughout.
