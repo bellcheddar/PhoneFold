@@ -1856,3 +1856,19 @@ inside a compiled model that behaves identically whichever way the surrounding S
 optimised, so running them in both builds doubles the gate to learn nothing. The multi-array
 round trip - the part that is actually Swift, and the one that would catch a stride mistake -
 runs in both.
+
+### All three engines, live (2026-08-30)
+
+| Engine | What it does | Verified |
+|---|---|---|
+| Simulate | Folds a named protein toward its known structure | Haemoglobin alpha, 142 residues, 99% native contacts |
+| Morph | Interpolates into the known structure | Lands on the reference to 0.05 A |
+| Generate | Genie 2 invents a backbone from noise | 64 residues, Rg 10.0 A, 163 contacts, mean CA-CA 3.94 A |
+
+Genie 2's default seed is **3, not 1**. Seeds 1 and 2 are measured to diverge, and although the
+sampler retries, each wasted attempt is a thousand denoising steps - half a minute on a Mac and
+several minutes on a phone. Starting from a draw known to complete costs nothing.
+
+Note the radius-of-gyration trace for a generated protein runs the *other way* from a fold: it
+climbs from 1.7 A as the noise ball opens out, where the structure-based engine's descends. The
+two engines are doing genuinely different things and the trace shows it without being told.

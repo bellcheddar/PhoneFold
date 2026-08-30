@@ -69,7 +69,11 @@ final class FoldRunner: ObservableObject {
     /// backbone that has never existed. The protein has no name, no sequence and no reference,
     /// which is why it takes a different path from the other two engines rather than sharing
     /// theirs with a nil target.
-    func generate(seed: UInt64 = 1, into player: FoldPlayer) {
+    /// - Parameter seed: **3, not 1.** Seeds 1 and 2 are measured to diverge, and although the
+    ///   sampler retries with the next seed, each wasted attempt is a thousand denoising steps
+    ///   - half a minute on a Mac and several minutes on a phone. Starting from a draw that is
+    ///   known to complete costs nothing and saves the user two of those.
+    func generate(seed: UInt64 = 3, into player: FoldPlayer) {
         cancel()
         state = .folding(progress: 0)
         let report: @Sendable (Double) -> Void = { [weak self] fraction in
