@@ -2281,3 +2281,20 @@ point is the next unwritten moment, which is by construction the next beat.
 Writing the test found a trap in the test rather than the code: Fantasy's progression both
 begins and ends on the tonic, so at index 5 the *degree* is back to the opening one and "has it
 modulated" cannot be asked of the degree alone.
+
+### P3-12, swing (2026-08-30)
+
+The `swing` field was declared in every style file and stored, and did nothing. It now warps
+note placement.
+
+**A warp of the whole beat, not a delay applied to the offbeat.** Simply moving notes at 0.5
+would swing the eighths and leave the semiquavers between them straight - so a contact flurry
+would run in even sixteenths across a swung bar and sound like two pieces at once. Each beat is
+instead warped piecewise-linearly: the first half stretched, the second compressed, pivot moved
+late. Every subdivision then moves consistently, the warp is monotonic so nothing overtakes
+anything, and a downbeat never moves at all.
+
+At swing 1/3 the offbeat eighth lands on exactly 2/3 of the beat, which is the triplet feel
+Jazz asks for. At swing 0 it is the identity - measured, not approximated: Rock re-rendered to
+the same peak of 0.861 and the same -14.5 LUFS. Jazz moved from -17.2 to -17.8 LUFS and Surf
+from -18.7 to -19.4.

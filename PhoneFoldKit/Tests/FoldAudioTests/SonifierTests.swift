@@ -593,3 +593,58 @@ extension SonifierTests {
         #expect(before?.degree == after?.degree)
     }
 }
+
+extension SonifierTests {
+
+    @Test("swing moves the offbeat late and leaves the downbeat alone")
+    func swingWarpsTheBeat() {
+        // Straight is the identity, exactly - not nearly.
+        for beat in [0.0, 0.25, 0.5, 0.75, 1.0, 2.5] {
+            #expect(Sonifier.swung(beat, swing: 0) == beat)
+        }
+        // A downbeat never moves, whatever the swing.
+        for beat in [0.0, 1.0, 2.0, 7.0] {
+            #expect(abs(Sonifier.swung(beat, swing: 0.33) - beat) < 1e-12)
+        }
+        // Triplet feel: the offbeat eighth lands on two thirds of the beat.
+        #expect(abs(Sonifier.swung(0.5, swing: 1.0 / 3) - 2.0 / 3) < 1e-12)
+        #expect(abs(Sonifier.swung(1.5, swing: 1.0 / 3) - (1 + 2.0 / 3)) < 1e-12)
+
+        // Every subdivision moves, not just the eighths - otherwise a semiquaver flurry would
+        // run straight across a swung bar and sound like two pieces at once.
+        #expect(Sonifier.swung(0.25, swing: 0.33) > 0.25)
+        #expect(Sonifier.swung(0.75, swing: 0.33) > 0.75)
+        // And the warp is monotonic, so nothing overtakes anything.
+        let warped = stride(from: 0.0, through: 2.0, by: 0.05)
+            .map { Sonifier.swung($0, swing: 0.33) }
+        #expect(zip(warped, warped.dropFirst()).allSatisfy { $0 < $1 })
+    }
+
+    @Test("a swung style places its notes late and a straight one does not")
+    func swingReachesTheNotes() throws {
+        let styles = try StyleLibrary.profiles(in: StyleProfileTests.stylesDirectory)
+        let jazz = try #require(styles["jazz"])       // swing 0.33
+        let rock = try #require(styles["rock"])       // swing 0
+        #expect(jazz.swing > 0.2)
+        #expect(rock.swing == 0)
+
+        func offsets(_ style: StyleProfile) -> [Double] {
+            var sonifier = Sonifier(style: style, residues: Self.acids("MKTAYIAKQRQISFVKSHFS"))
+            var states = [SecondaryStructure](repeating: .coil, count: 20)
+            for i in 0..<8 { states[i] = .sheet }
+            _ = sonifier.moment(for: Self.frame(index: 0, residues: 20, structure: states))
+            let produced = sonifier.moment(for: Self.frame(
+                index: 1, residues: 20, structure: states,
+                contacts: (0..<4).map {
+                    ContactEvent(i: $0, j: $0 + 10, distance: 7, isHydrophobicPair: false)
+                }))
+            return (produced?.notes ?? []).map(\.beatOffset).filter { $0 > 0 }
+        }
+        let swung = offsets(jazz)
+        let straight = offsets(rock)
+        #expect(!swung.isEmpty && !straight.isEmpty)
+        // Off-beat notes are later under swing. Downbeats are excluded above, because they do
+        // not move and would dilute the comparison to nothing.
+        #expect(swung.min()! > straight.min()!)
+    }
+}

@@ -215,6 +215,17 @@ public struct Sonifier: Sendable {
         notes += rhythmNotes(frame: frame, chord: chordDegrees, register: register)
         notes += arpeggioNotes(frame: frame, chord: chordDegrees, register: register)
 
+        // The style's swing, applied to every voice at once so nothing is left straight
+        // against a swung bar.
+        if style.swing > 0 {
+            notes = notes.map {
+                NoteEvent(voice: $0.voice, note: $0.note, residue: $0.residue,
+                          partner: $0.partner,
+                          beatOffset: Self.swung($0.beatOffset, swing: style.swing),
+                          duration: $0.duration)
+            }
+        }
+
         // In beat order, which is the order they will be played in.
         //
         // The clock walks a bar's notes with a single watermark rather than searching, so a
@@ -338,6 +349,30 @@ public struct Sonifier: Sendable {
                              residue: residueIndex,
                              beatOffset: (Double(position) + 0.5) * step, duration: 0.25)
         }
+    }
+
+    /// Where a beat position lands once the style's swing is applied.
+    ///
+    /// A piecewise-linear warp of each beat: the first half is stretched and the second
+    /// compressed, so the pivot between them moves late. At swing 0 it is the identity; at
+    /// 1/3 the offbeat eighth lands on 2/3 of the beat, which is the triplet feel Jazz asks
+    /// for.
+    ///
+    /// **Warping the whole beat rather than moving the offbeat.** Simply delaying notes at 0.5
+    /// would swing the eighths and leave the semiquavers between them straight, so a contact
+    /// flurry would run in even sixteenths across a swung bar and sound like two pieces at
+    /// once. Every subdivision moves consistently because the beat itself is warped.
+    static func swung(_ beat: Double, swing: Double) -> Double {
+        guard swing > 0, beat.isFinite else { return beat }
+        let amount = Swift.min(Swift.max(swing, 0), 0.5)
+        let whole = beat.rounded(.down)
+        let within = beat - whole
+        let pivot = 0.5
+        let moved = 0.5 + amount * 0.5
+        let warped = within < pivot
+            ? within / pivot * moved
+            : moved + (within - pivot) / (1 - pivot) * (1 - moved)
+        return whole + warped
     }
 
     // MARK: - Helpers
