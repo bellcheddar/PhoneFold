@@ -219,3 +219,45 @@ extension StructureBasedModelTests {
                 "the cutoff changed the outcome: Q \(results[0]) against \(results[1])")
     }
 }
+
+extension StructureBasedModelTests {
+
+    /// Distance-matrix RMSD: superposition-free, so no Kabsch and no handedness question.
+    /// Two structures with the same distance matrix are the same up to rotation, translation
+    /// and reflection, which is all "did it arrive at the reference" needs.
+    static func dRMSD(_ a: [SIMD3<Double>], _ b: [SIMD3<Double>]) -> Double {
+        var sum = 0.0, count = 0.0
+        for i in 0..<a.count {
+            for j in (i + 1)..<a.count {
+                let d = simd_length(a[j] - a[i]) - simd_length(b[j] - b[i])
+                sum += d * d; count += 1
+            }
+        }
+        return (sum / Swift.max(count, 1)).squareRoot()
+    }
+
+    /// The engine's central claim: it finishes **on** the structure it was given.
+    ///
+    /// A million steps rather than the two million the app uses, to keep the suite quick; the
+    /// full convergence table is in METRICS.md. The unfolded coil starts 16.06 A away in
+    /// distance-matrix RMSD, so arriving under 3 A is a real journey and not a starting point
+    /// that happened to be close.
+    @Test("A fold finishes on the reference structure", .timeLimit(.minutes(10)))
+    func foldArrivesAtTheReference() throws {
+        let native = try Self.fixture("go_native.xyz")
+        let start = UnfoldedChain.build(residues: native.count, seed: 3)
+        var parameters = StructureBasedModel.Parameters()
+        parameters.steps = 1_000_000
+        parameters.frameCount = 40
+        parameters.seed = 11
+        let model = StructureBasedModel(native: native, parameters: parameters)
+
+        let frames = model.fold(from: start)
+        let began = Self.dRMSD(frames.first!, native)
+        let ended = Self.dRMSD(frames.last!, native)
+        #expect(began > 10, "the chain did not start unfolded: dRMSD \(began)")
+        #expect(ended < 3, "the chain did not arrive: dRMSD went \(began) to \(ended)")
+        #expect(model.fractionNative(frames.last!) > 0.85,
+                "only \(model.fractionNative(frames.last!)) of native contacts formed")
+    }
+}

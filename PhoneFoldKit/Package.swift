@@ -41,7 +41,7 @@ let package = Package(
                     resources: [.copy("Fixtures")]),
         .testTarget(name: "FoldGeometryTests", dependencies: ["FoldGeometry"],
                     resources: [.copy("Fixtures")]),
-        .testTarget(name: "FoldEngineTests", dependencies: ["FoldEngine"]),
+        .testTarget(name: "FoldEngineTests", dependencies: ["FoldEngine", "FoldGeometry"]),
         .testTarget(name: "FoldAudioTests", dependencies: ["FoldAudio"]),
         .testTarget(name: "FoldRenderTests", dependencies: ["FoldRender", "FoldGeometry"],
                     resources: [.copy("Fixtures")]),

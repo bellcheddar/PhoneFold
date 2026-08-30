@@ -48,7 +48,20 @@ public struct StructureBasedModel: Sendable {
         /// and genuine reversals and kinetic traps with it. Cooling across the run keeps the
         /// physics and removes the coin flip, at the cost of no longer measuring a folding
         /// rate. PhoneFold shows a fold; it does not measure one.
-        public var finalTemperature: Double = 0.55
+        ///
+        /// **0.10, and the number matters more than the run length.** Measured on ubiquitin
+        /// from a coil 16.06 A away in distance-matrix RMSD, at 2,000,000 steps throughout:
+        ///
+        ///     kT_final 0.55 -> Q 0.967, dRMSD 0.86 A
+        ///     kT_final 0.30 -> Q 1.000, dRMSD 0.49 A
+        ///     kT_final 0.10 -> Q 1.000, dRMSD 0.23 A
+        ///
+        /// Cooling further costs nothing - the wall clock is identical - while *running*
+        /// longer buys almost nothing: 4,000,000 steps at 0.10 measured 0.26 A, no better than
+        /// 2,000,000, and 8,000,000 at 0.05 reached 0.16 A for four times the time. The fold
+        /// arrives long before the run ends; what decides whether it settles onto the
+        /// reference is how cold it gets, not how long it wanders.
+        public var finalTemperature: Double = 0.10
 
         /// Beyond this separation the non-native repulsion is not computed, in angstroms.
         ///

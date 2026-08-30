@@ -1692,3 +1692,30 @@ rebuilt, and the smallest skin that stays correct is the right one. And the fide
 compare forces **absolutely**: at the native state the model sits in its own minimum, so the
 largest force present is 7.5e-04 and a ratio against it reads 1e-05 as a catastrophe while the
 same absolute change on a coil reads 6e-09. The denominator collapsed, not the accuracy.
+
+### Does a longer run finish on the reference structure? (2026-08-30)
+
+Marc asked for longer runs aimed at finishing on the target structure. Measured on ubiquitin,
+from a self-avoiding coil **16.06 A** away in distance-matrix RMSD:
+
+| Steps | kT final | Wall clock | Q | dRMSD to reference |
+|---|---|---|---|---|
+| 2,000,000 | 0.55 | 20.8 s | 0.967 | 0.86 A |
+| 2,000,000 | 0.30 | 21.1 s | 1.000 | 0.49 A |
+| **2,000,000** | **0.10** | **21.0 s** | **1.000** | **0.23 A** |
+| 4,000,000 | 0.10 | 41.4 s | 1.000 | 0.26 A |
+| 8,000,000 | 0.05 | 85.5 s | 1.000 | 0.16 A |
+
+**The answer is not "run longer", it is "cool further".** Dropping the final temperature from
+0.55 to 0.10 costs nothing at all - the wall clock is identical - and takes the fold from 0.86
+to 0.23 A with every native contact formed. Doubling the run at the same temperature measured
+0.26 A, no better than half the work, and quadrupling it reached 0.16 A for four times the
+time. The fold arrives long before the run ends; what decides whether it settles onto the
+reference is how cold it gets, not how long it wanders.
+
+The default is now 0.10, so the app's engine finishes on the structure it was given: 0.23 A of
+distance-matrix RMSD from a start 70 times further away.
+
+Distance-matrix RMSD is used rather than superposed RMSD because it needs no Kabsch fit and
+raises no handedness question: two structures with the same distance matrix are the same up to
+rotation, translation and reflection, which is all "did it arrive" requires.
