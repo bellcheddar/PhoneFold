@@ -11,6 +11,7 @@ struct StageView: View {
     @StateObject private var runner = FoldRunner()
     @State private var selection: TrajectoryLibrary.Entry?
     @State private var meshDiagnostic = ""
+    @State private var accession = ""
 
     /// Genie 2 generates rather than folds toward a reference, and its Core ML path is not
     /// wired to run live yet. Saying so is better than offering a control that does nothing.
@@ -33,12 +34,25 @@ struct StageView: View {
                 // one letter per line.
                 EnginePicker(engine: $runner.engine, unavailable: unavailableEngines)
                     .padding(.horizontal, 20)
-                    .padding(.bottom, 6)
+                AccessionField(accession: $accession, state: runner.state) {
+                    runner.fetchAndRun(accession: accession, engine: runner.engine,
+                                       into: player)
+                    selection = nil
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 6)
+                .padding(.bottom, 6)
                 FoldCanvas(player: player, diagnostic: $meshDiagnostic)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .overlay {
-                        if case .folding(let fraction) = runner.state {
+                        switch runner.state {
+                        case .folding(let fraction):
                             FoldingProgressView(progress: fraction, engine: runner.engine)
+                        case .fetching(let which):
+                            FoldingProgressView(progress: 0, engine: runner.engine,
+                                                caption: "Fetching \(which) from AlphaFold")
+                        case .idle, .failed:
+                            EmptyView()
                         }
                     }
                 FoldHUD(history: player.history, meter: player.meter,
@@ -57,7 +71,15 @@ struct StageView: View {
         }
         .preferredColorScheme(.dark)
         .task {
-            if selection == nil, let opening = openingEntry { start(opening) }
+            // `PHONEFOLD_ACCESSION` folds a downloaded structure straight from launch, which
+            // is the only way to exercise the fetch path without typing into a simulator.
+            if let wanted = ProcessInfo.processInfo.environment["PHONEFOLD_ACCESSION"],
+               !wanted.isEmpty {
+                accession = wanted
+                runner.fetchAndRun(accession: wanted, engine: runner.engine, into: player)
+            } else if selection == nil, let opening = openingEntry {
+                start(opening)
+            }
         }
         .onChange(of: runner.engine) { _, _ in
             if let selection { start(selection) }

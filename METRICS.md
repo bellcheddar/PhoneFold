@@ -1742,3 +1742,33 @@ still costs 36 seconds - asserts only that the chain is moving toward the refere
 
 Worth noting how it was caught: the release suite was green, and I committed on that before
 reading the gate. The gate runs both builds, and it was right to.
+
+### Type an accession, watch that protein fold (2026-08-30)
+
+P69905 typed into the app on the iPhone 17 Simulator: the structure is downloaded from
+AlphaFold, and the trajectory is computed on the device from an unfolded coil.
+
+| | |
+|---|---|
+| Protein | Haemoglobin subunit alpha, 142 residues |
+| Native contacts formed | **99%** |
+| Radius of gyration | 14.5 A |
+| Frame cost | 1.6 ms |
+| Fold complete within | 98 s of launch, fetch included (Simulator) |
+
+The result is the recognisable all-alpha globin fold, reached from a self-avoiding coil, with
+the disclosure "Simulated on device toward a known structure - not a prediction" on screen
+throughout.
+
+At 142 residues this sits at the practical ceiling the Phase 0d survey estimated (~150), and it
+holds: 99% of native contacts, not a partial collapse.
+
+**A downloaded reference is not a precomputed trajectory.** The structure is an answer fetched
+from a database; every frame of the fold toward it is arithmetic done here.
+
+### Still outstanding for macOS distribution
+
+The Mac app is not sandboxed, so the fetch works in development. An App Store build must be
+sandboxed and will need `com.apple.security.network.client`, which is not yet in the project.
+Recorded rather than added, because enabling the sandbox changes more than one thing and
+belongs with the distribution work rather than in the middle of the engine.

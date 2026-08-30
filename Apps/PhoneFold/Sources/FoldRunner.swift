@@ -15,6 +15,7 @@ final class FoldRunner: ObservableObject {
 
     enum State: Equatable {
         case idle
+        case fetching(accession: String)
         case folding(progress: Double)
         case failed(String)
     }
@@ -24,6 +25,7 @@ final class FoldRunner: ObservableObject {
     @Published var engine: FoldingEngine = .structureBased
 
     private var task: Task<Void, Never>?
+    private let alphaFold = AlphaFoldClient()
 
     /// How long a fold runs, in integration steps.
     ///
@@ -37,6 +39,28 @@ final class FoldRunner: ObservableObject {
         task?.cancel()
         task = nil
         state = .idle
+    }
+
+    /// Fetch a structure from AlphaFold by accession, then fold toward it.
+    ///
+    /// Two steps that can each fail for different reasons, reported separately: an accession
+    /// that has no prediction is a different problem from a network that is not there, and
+    /// telling a user "could not fold" for either would be useless.
+    func fetchAndRun(accession: String, engine: FoldingEngine, into player: FoldPlayer) {
+        cancel()
+        let trimmed = accession.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        state = .fetching(accession: trimmed.uppercased())
+        task = Task { [weak self] in
+            guard let self else { return }
+            do {
+                let reference = try await self.alphaFold.reference(for: trimmed)
+                guard !Task.isCancelled else { return }
+                self.run(reference: reference, engine: engine, into: player)
+            } catch {
+                self.state = .failed("\(error)")
+            }
+        }
     }
 
     /// Fold `reference` with the chosen engine and play the result.
@@ -141,10 +165,11 @@ struct EnginePicker: View {
 struct FoldingProgressView: View {
     let progress: Double
     let engine: FoldingEngine
+    var caption: String = "Folding on this device"
 
     var body: some View {
         VStack(spacing: 10) {
-            Text("Folding on this device")
+            Text(caption)
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(.white)
             GeometryReader { geometry in
@@ -163,5 +188,54 @@ struct FoldingProgressView: View {
         }
         .padding(20)
         .background(RoundedRectangle(cornerRadius: 14).fill(Color.black.opacity(0.35)))
+    }
+}
+
+
+/// Type a UniProt accession and fold that protein.
+///
+/// The structure is downloaded from AlphaFold and the trajectory is computed here, which is a
+/// distinction worth keeping straight: a downloaded reference is not a precomputed trajectory.
+/// Every frame of the fold is still arithmetic done on this device.
+struct AccessionField: View {
+    @Binding var accession: String
+    let state: FoldRunner.State
+    let onSubmit: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            TextField("UniProt accession, e.g. P69905", text: $accession)
+                .textFieldStyle(.plain)
+                .font(.system(size: 12, design: .monospaced))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Capsule().fill(Color.white.opacity(0.08)))
+                .frame(maxWidth: 260)
+                .onSubmit(onSubmit)
+                #if os(iOS)
+                .textInputAutocapitalization(.characters)
+                .autocorrectionDisabled()
+                #endif
+            Button("Fold", action: onSubmit)
+                .font(.system(size: 12, weight: .semibold))
+                .buttonStyle(.plain)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Capsule().fill(Color(hex: 0x2B5CE6)))
+                .foregroundStyle(.white)
+                .disabled(accession.trimmingCharacters(in: .whitespaces).isEmpty)
+            if case .fetching(let which) = state {
+                Text("fetching \(which)…")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color(hex: 0x6B7C93))
+            }
+            if case .failed(let message) = state {
+                Text(message)
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color(hex: 0xFF3D9A))
+                    .lineLimit(1)
+            }
+        }
     }
 }
