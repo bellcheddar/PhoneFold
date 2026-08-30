@@ -101,9 +101,10 @@ public struct MusicalClock: Sendable {
         return 60 / tempo
     }
 
-    /// How long one moment lasts at a given tempo.
-    public static func momentDuration(tempo: Double) -> Double {
-        beatDuration(tempo: tempo) * Sonifier.beatsPerMoment
+    /// How long one moment lasts at a given tempo, for a moment of a given length in beats.
+    public static func momentDuration(tempo: Double,
+                                      beats: Double = Sonifier.beatsPerMoment) -> Double {
+        beatDuration(tempo: tempo) * beats
     }
 
     /// Place a moment's notes on the timeline. Returns false if any had to be refused.
@@ -128,7 +129,7 @@ public struct MusicalClock: Sendable {
                 timbre: moment.timbre)
             pendingCount += 1
         }
-        nextMomentTime += Self.momentDuration(tempo: moment.tempo)
+        nextMomentTime += Self.momentDuration(tempo: moment.tempo, beats: moment.beats)
         last = moment
         return accepted
     }
@@ -159,7 +160,7 @@ public struct MusicalClock: Sendable {
                 starvedBeats += 1
                 isStarving = true
                 hold(held)
-                nextMomentTime += Self.momentDuration(tempo: held.tempo)
+                nextMomentTime += Self.momentDuration(tempo: held.tempo, beats: held.beats)
             }
         }
 

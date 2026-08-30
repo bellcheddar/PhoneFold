@@ -50,6 +50,22 @@ public struct Sonifier: Sendable {
     /// to find.
     public static let beatsPerMoment = 1.0
 
+    /// The fewest beats a whole piece should run to, whatever it was made from.
+    ///
+    /// Four bars. Below that a trajectory does not produce a phrase, it produces a gesture.
+    static let minimumBeats = 16.0
+
+    /// How much musical time one readout gets, for a trajectory of a given length.
+    ///
+    /// One beat each for anything long enough to fill four bars, which is every live fold at
+    /// 180 readouts. The gallery's eight-readout references would otherwise be six seconds
+    /// long, so they get two beats apiece and run to about twelve - which is what the renderer
+    /// already targets for them.
+    public static func beatsPerMoment(forReadouts count: Int) -> Double {
+        guard count > 0 else { return beatsPerMoment }
+        return Swift.max(beatsPerMoment, (minimumBeats / Double(count)).rounded())
+    }
+
     /// The gap between contacts in a flurry, in beats. Semiquavers.
     ///
     /// A beat's worth of contacts can run past its own beat and overlap the moments after it,
@@ -102,8 +118,13 @@ public struct Sonifier: Sendable {
     private var plateau: PlateauDetector
     private var hasCadenced = false
 
+    /// How much musical time each readout gets. See `beatsPerMoment(forReadouts:)`.
+    public let beatsPerMoment: Double
+
     public init(style: StyleProfile, residues: [AminoAcid], seed: SequenceSeed? = nil,
-                plateau: PlateauDetector = PlateauDetector()) {
+                plateau: PlateauDetector = PlateauDetector(),
+                beatsPerMoment: Double = Sonifier.beatsPerMoment) {
+        self.beatsPerMoment = Swift.max(beatsPerMoment, 0.05)
         self.style = style
         self.residues = residues
         self.seed = seed ?? SequenceSeed(sequence: String(residues.map(\.code)))
@@ -191,13 +212,15 @@ public struct Sonifier: Sendable {
                            timbre: Self.timbre(meanConfidence: frame.meanPLDDT),
                            degree: degree, isCadence: isCadence, isModulation: isModulation,
                            compaction: compaction, droppedContacts: dropped,
-                           establishedContacts: established)
+                           establishedContacts: established, beats: beatsPerMoment)
     }
 
     /// Every moment in a trajectory, for offline rendering and for the tests.
     public static func score(style: StyleProfile, residues: [AminoAcid],
                              frames: [FoldFrame]) -> [ScoreMoment] {
-        var sonifier = Sonifier(style: style, residues: residues)
+        let readouts = frames.count { !$0.isInterpolated }
+        var sonifier = Sonifier(style: style, residues: residues,
+                                beatsPerMoment: beatsPerMoment(forReadouts: readouts))
         return frames.compactMap { sonifier.moment(for: $0) }
     }
 
@@ -262,7 +285,7 @@ public struct Sonifier: Sendable {
         let count = Self.textureCount(fraction: frame.structureFractions.sheet)
         guard count > 0, !sheet.isEmpty else { return [] }
         let placed = Self.spread(sheet, count: count)
-        let step = Self.beatsPerMoment / Double(count)
+        let step = beatsPerMoment / Double(count)
         return placed.enumerated().map { position, residueIndex in
             NoteEvent(voice: .rhythm,
                       note: MIDINote(pitch: style.scale.pitch(degree: chord[position % chord.count],
@@ -281,7 +304,7 @@ public struct Sonifier: Sendable {
         let count = Self.textureCount(fraction: frame.structureFractions.coil)
         guard count > 0, !coil.isEmpty else { return [] }
         let placed = Self.spread(coil, count: count)
-        let step = Self.beatsPerMoment / Double(count)
+        let step = beatsPerMoment / Double(count)
         return placed.enumerated().map { position, residueIndex in
             // Climbing through the chord and on into the octave above, which is what makes it
             // figuration rather than a repeated arpeggio.

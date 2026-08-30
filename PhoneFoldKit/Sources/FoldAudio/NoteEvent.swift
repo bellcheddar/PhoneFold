@@ -67,6 +67,12 @@ public struct ScoreMoment: Sendable, Hashable {
     public let frameIndex: Int
     /// Beats per minute this moment plays at.
     public let tempo: Double
+    /// How much musical time this moment occupies.
+    ///
+    /// Usually one beat per raw readout. A very short trajectory gets more, so that eight
+    /// ESMFold readouts still amount to a phrase rather than two seconds - see
+    /// `Sonifier.beatsPerMoment(forReadouts:)`.
+    public let beats: Double
     public let notes: [NoteEvent]
     public let timbre: TimbreState
     /// The scale degree the harmony currently sits on.
@@ -89,9 +95,11 @@ public struct ScoreMoment: Sendable, Hashable {
 
     public init(frameIndex: Int, tempo: Double, notes: [NoteEvent], timbre: TimbreState,
                 degree: Int, isCadence: Bool, isModulation: Bool, compaction: Double,
-                droppedContacts: Int, establishedContacts: Int = 0) {
+                droppedContacts: Int, establishedContacts: Int = 0,
+                beats: Double = Sonifier.beatsPerMoment) {
         self.frameIndex = frameIndex
         self.tempo = tempo
+        self.beats = Swift.max(beats, 0.05)
         self.notes = notes
         self.timbre = timbre
         self.degree = degree

@@ -5,6 +5,7 @@ import FoldCore
 import FoldEngine
 import FoldGeometry
 import FoldRender
+import FoldAudio
 
 /// One frame, fully prepared and ready for the renderer.
 ///
@@ -80,6 +81,19 @@ final class FoldPlayer: ObservableObject {
     /// On-screen diagnostic. simctl's console capture returns nothing for this app, so
     /// `print` is not a usable channel here; the screen is.
     @Published private(set) var diagnostic = "idle"
+
+    /// Whether the fold is sonified. On by default: PhoneFold is a concert.
+    @Published var isSoundOn = true
+    /// What the music is doing, for the HUD.
+    @Published private(set) var audioDiagnostic = ""
+
+    /// The style profiles that shipped in the bundle, loaded once.
+    ///
+    /// An empty library is not a crash: the app still folds and still draws, it just cannot
+    /// sing, and the HUD says so rather than failing silently.
+    private(set) lazy var styles: [String: StyleProfile] =
+        (try? StyleLibrary.bundled()) ?? [:]
+    private var conductor: ScoreConductor?
 
     /// Frames between HUD publishes. Six at 60 fps is ten updates a second.
     private let hudUpdateInterval = 6
@@ -162,9 +176,31 @@ final class FoldPlayer: ObservableObject {
         // readouts for one ESMFold recycle to 201 for a Genie 2 denoising run, a factor of
         // twenty-five. At the old fixed eighth of a second the first would be over in under a
         // second - not a fold, a flinch - and this is meant to be watched.
+        // The score, if there is one, and the pace that lets the animation and the music
+        // finish together. Without sound the trajectory keeps the twelve-second pace it had.
+        let readouts = provider.readouts.count
+        var conductor: ScoreConductor?
+        var pace = Self.pace(forReadouts: readouts)
+        if isSoundOn, let style = styles["fantasy"] ?? styles.values.sorted(by: { $0.id < $1.id }).first {
+            let made = ScoreConductor(style: style, residues: residues, readouts: readouts)
+            do {
+                try made.start()
+                conductor = made
+                pace = ScoreConductor.secondsPerReadout(style: style, readouts: readouts)
+                audioDiagnostic = "\(style.name), \(readouts) bars"
+            } catch {
+                audioDiagnostic = "silent: \(error)"
+            }
+        } else if isSoundOn {
+            audioDiagnostic = "silent: no style profiles in the bundle"
+        } else {
+            audioDiagnostic = ""
+        }
+        self.conductor = conductor
+
         let engine = FoldEngine(configuration: .init(
             frameRate: 60,
-            secondsPerRawFrame: Self.pace(forReadouts: provider.readouts.count),
+            secondsPerRawFrame: pace,
             paced: true))
 
         // Detached, not a child of the main actor: a `Task {}` inside a @MainActor type
@@ -179,6 +215,9 @@ final class FoldPlayer: ObservableObject {
                 await self?.note("stream total=\(total)")
                 for await frame in sequence {
                     if Task.isCancelled { return }
+                    // Scored before the mesh is built, so a note is never late because the
+                    // geometry was slow.
+                    conductor?.receive(frame)
                     let started = Date()
                     let ca = frame.backbone.map(\.ca)
                     let mesh = TubeGeometry.build(caPositions: ca,
@@ -305,11 +344,30 @@ final class FoldPlayer: ObservableObject {
 
     private func note(_ text: String) { diagnostic = text }
 
-    private func finish() { isPlaying = false }
+    private func finish() {
+        isPlaying = false
+        // The music outlives the last frame: a two-minute piece has a jitter buffer and a
+        // release tail behind the playhead, and cutting it off at the last readout would end
+        // every fold on a chopped chord. It stops when the buffer has drained.
+        let ending = conductor
+        conductor = nil
+        guard let ending else { return }
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(6))
+            ending.stop()
+            await MainActor.run { if self?.conductor == nil { self?.audioDiagnostic = "" } }
+        }
+    }
 
     func stop() {
         task?.cancel()
         task = nil
+        // Stopped, not left to drain: `stop()` means a new fold is starting or the user has
+        // finished with this one, and either way the old music must not still be playing
+        // under the new one.
+        conductor?.stop()
+        conductor = nil
+        audioDiagnostic = ""
         isPlaying = false
     }
 

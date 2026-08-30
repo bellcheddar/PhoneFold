@@ -40,7 +40,7 @@ targets:
         type: folder
     dependencies:
       - package: PhoneFoldKit
-        products: [FoldCore, FoldGeometry, FoldEngine, FoldRender]
+        products: [FoldCore, FoldGeometry, FoldEngine, FoldRender, FoldAudio]
     info:
       path: Info.plist
       properties:

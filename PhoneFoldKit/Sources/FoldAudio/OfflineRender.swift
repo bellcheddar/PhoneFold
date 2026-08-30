@@ -60,7 +60,9 @@ public struct OfflineRender: Sendable {
 
         // How long the piece runs: every bar at its own tempo, plus the tail.
         var seconds = tail
-        for moment in score { seconds += MusicalClock.momentDuration(tempo: moment.tempo) }
+        for moment in score {
+            seconds += MusicalClock.momentDuration(tempo: moment.tempo, beats: moment.beats)
+        }
         let frames = Swift.max(Int(seconds * sampleRate), 1)
 
         var left = [Float](repeating: 0, count: frames)

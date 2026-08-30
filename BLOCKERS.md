@@ -643,3 +643,39 @@ carries *"Generated — this protein has never existed"*.
 
 **Not blocking anything.** All three engines work today; this is about what the app should
 claim, which is Marc's call and not a technical one.
+
+## Phase 3: how long is a fold? (2026-08-30)
+
+**Decided provisionally, and Marc may want to move it.**
+
+The app used to play every trajectory in about 12 seconds (`FoldPlayer.pace`, `targetSeconds:
+12`), which Marc asked for during Phase 2 when a trajectory was eight ESMFold readouts. A live
+fold is now 180 readouts, and a 180-readout piece of music at the Fantasy style's 66 to 132 BPM
+runs **82 to 164 seconds**. Both numbers are defensible and they cannot both stand: at 12
+seconds the music is cut off after about a tenth of itself, and the animation shows fifteen
+readouts a second.
+
+What is in the build now: **the animation follows the music.** With sound on, a readout stays on
+screen for one beat at the style's midpoint tempo, so a live fold takes about **two minutes**
+and a gallery reference about **ten seconds** (they get two beats a readout, because eight
+readouts at one beat each is six seconds and not a phrase). With sound off, the old 12-second
+pace is unchanged.
+
+Measured, Fantasy style: trp-cage under the structure-based model 91.1 s; villin HP36 morph
+121.9 s; lysozyme gallery 9.8 s.
+
+**The knob** is `ScoreConductor.secondsPerReadout` and `Sonifier.beatsPerMoment(forReadouts:)`.
+Faster means either a higher tempo range in the style file, which changes the character, or
+fewer musical events per readout, which throws contacts away. Slower is free.
+
+Marc: two minutes to watch a protein fold with its music, or something shorter?
+
+## Phase 3: what needs Marc's ears
+
+The machine gate covers determinism, clipping, loudness and audio-thread allocation. It cannot
+cover any of this:
+
+- [ ] The Fantasy style sounds like Fantasy, and like music, rather than like a sonification
+- [ ] The spatial mix reads as a protein collapsing around the listener, on headphones
+- [ ] An intrinsically disordered protein (alpha-synuclein) audibly never resolves
+- [ ] The two-minute duration above is right, or is not
