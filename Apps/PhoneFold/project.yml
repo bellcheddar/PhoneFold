@@ -31,6 +31,13 @@ targets:
       # which is what Genie2Sampler.bundled() looks for.
       - path: ../../Models/Genie2Step_L64.mlpackage
         buildPhase: resources
+      # The style profiles, referenced where PLAN.md puts them rather than copied into this
+      # target. A folder reference, so the bundle keeps the Styles/ directory and every app
+      # reads the same files - a copy here would be free to drift from the canonical one
+      # with nothing to notice it had.
+      - path: ../Shared/Resources/Styles
+        buildPhase: resources
+        type: folder
     dependencies:
       - package: PhoneFoldKit
         products: [FoldCore, FoldGeometry, FoldEngine, FoldRender]
