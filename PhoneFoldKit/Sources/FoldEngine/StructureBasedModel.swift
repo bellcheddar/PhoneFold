@@ -71,6 +71,13 @@ public struct StructureBasedModel: Sendable {
 
     public var residueCount: Int { native.count }
     public var nativeContactCount: Int { nativeI.count }
+    /// Alias used by the per-residue breakdown, which iterates the contact list.
+    public var contactCount: Int { nativeI.count }
+
+    /// One native contact: the two residues and the separation they sit at natively.
+    public func contact(at index: Int) -> (i: Int, j: Int, sigma: Double) {
+        (Int(nativeI[index]), Int(nativeJ[index]), nativeSigma[index])
+    }
 
     public init(native: [SIMD3<Double>], parameters: Parameters = .init()) {
         self.native = native

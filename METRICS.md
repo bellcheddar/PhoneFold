@@ -1591,3 +1591,28 @@ require the same chain - now pins it at under 1e-6 A.
 of positions, so they ignored the interpolated bond lengths: a straight line between two
 conformations is shorter than the arc the chain travels, and the first bonds fell below 3 A.
 They are now constructed from the interpolated internal coordinates like every other atom.
+
+### The engine abstraction (2026-08-30)
+
+Three engines, selectable, all computed on device with nothing precomputed:
+
+| Engine | Provenance | Confidence channel | Disclosure shown |
+|---|---|---|---|
+| Simulate | `structure-based-folding` | per-residue native contacts | "Simulated on device toward a known structure — not a prediction" |
+| Morph | `geometric-morph` | per-residue journey completed | "Interpolation toward a known structure — not a fold" |
+| Generate | `genie2-denoising` | denoising progress | "Generated — this protein has never existed" |
+
+The disclosure lives on the provenance rather than on a view, so an engine cannot be paired
+with the wrong claim: a structure-based fold arrives at a real protein's real structure without
+having predicted it, and a viewer told nothing will reasonably assume otherwise, because that
+is what folding software normally does.
+
+A live fold is assembled into an ordinary `TrajectoryBundle`, so it plays through exactly the
+path a bundled trajectory takes - same provider, same interpolation, same secondary-structure
+and contact enrichment. There is no second playback path to drift.
+
+**Per-residue native contact fraction** is what the colour ramp reads for a simulation: it
+measures how much of each residue's own native contact set has formed, so the core locking in
+first is visible while the termini are still loose. A residue with no native contacts of its
+own takes the chain's overall value, because 0/0 is not 0 - scoring those zero painted them as
+permanently unfolded even in the native structure, which a viewer would read as meaningful.

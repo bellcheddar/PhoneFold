@@ -23,6 +23,20 @@ public enum TrajectoryProvenance: String, Codable, Sendable, Hashable, CaseItera
     /// Real PathDiffusion sampling: an evolution-guided folding pathway for a named protein,
     /// precomputed offline because the MSA pipeline cannot run on device.
     case pathDiffusionPathway = "pathdiffusion-pathway"
+    /// A CA-level structure-based (Go) simulation, computed on the device, of a **named**
+    /// protein relaxing into a structure that is already known.
+    ///
+    /// This is the one provenance that is a real dynamical pathway and not a prediction: the
+    /// native coordinates define the energy landscape, so the model is handed the answer and
+    /// finds a route to it. The app must say so - see `disclosure`.
+    case structureBasedFolding = "structure-based-folding"
+    /// A geometric interpolation from an unfolded coil into a known structure.
+    ///
+    /// Not folding at all, and never to be presented as such. It has no energy and no
+    /// dynamics, and it passes through conformations that are sterically impossible
+    /// (measured: closest non-bonded approach 0.28 A). It exists as the baseline the
+    /// simulations are judged against.
+    case geometricMorph = "geometric-morph"
     /// A deterministic geometric construction used only as a test fixture. **Never shipped
     /// in an app bundle** and never presented to a user as a fold.
     case testFixture = "test-fixture"
@@ -38,11 +52,37 @@ public enum TrajectoryProvenance: String, Codable, Sendable, Hashable, CaseItera
         self == .foldingDiffDenoising || self == .genie2Denoising
     }
 
+    /// Whether this trajectory was computed toward a structure that was already known.
+    ///
+    /// True for the structure-based simulation and the morph, and the distinction the app has
+    /// to be careful about: those two produce a *named* protein arriving at its real fold, and
+    /// neither of them predicted it. A viewer who is not told will reasonably assume they are
+    /// watching a prediction, because that is what folding software normally does.
+    public var isTowardKnownStructure: Bool {
+        self == .structureBasedFolding || self == .geometricMorph
+    }
+
+    /// The one line the app must show alongside a fold, so its claim is never overstated.
+    public var disclosure: String? {
+        switch self {
+        case .structureBasedFolding:
+            "Simulated on device toward a known structure — not a prediction"
+        case .geometricMorph:
+            "Interpolation toward a known structure — not a fold"
+        case .foldingDiffDenoising, .genie2Denoising:
+            "Generated — this protein has never existed"
+        case .esmFoldReadout, .coreMLTrunkStep, .pathDiffusionPathway, .testFixture:
+            nil
+        }
+    }
+
     /// What the per-residue confidence in an accompanying frame actually means.
     public var confidenceSource: ConfidenceSource {
         switch self {
         case .esmFoldReadout, .coreMLTrunkStep, .pathDiffusionPathway: .pLDDT
         case .foldingDiffDenoising, .genie2Denoising: .denoisingProgress
+        case .structureBasedFolding: .nativeContacts
+        case .geometricMorph: .morphProgress
         case .testFixture: .pLDDT
         }
     }
@@ -57,12 +97,22 @@ public enum ConfidenceSource: String, Codable, Sendable, Hashable, CaseIterable 
     case pLDDT = "plddt"
     /// How far along the denoising path a generated frame is, rescaled to 0...100.
     case denoisingProgress = "denoising-progress"
+    /// The fraction of the native contacts a residue has formed, as a percentage.
+    ///
+    /// The reaction coordinate a structure-based model is actually read by, and a real
+    /// measurement of how folded a residue is - not a confidence, because the model has no
+    /// opinion about whether the answer is right. It was given the answer.
+    case nativeContacts = "native-contacts"
+    /// How far along a geometric interpolation a frame is. Carries no physical meaning at all.
+    case morphProgress = "morph-progress"
 
     /// The label to show a user. Never interchangeable.
     public var displayName: String {
         switch self {
         case .pLDDT: "pLDDT"
         case .denoisingProgress: "Resolution"
+        case .nativeContacts: "Contacts"
+        case .morphProgress: "Progress"
         }
     }
 }
