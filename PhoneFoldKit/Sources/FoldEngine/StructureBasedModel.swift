@@ -50,6 +50,18 @@ public struct StructureBasedModel: Sendable {
         /// rate. PhoneFold shows a fold; it does not measure one.
         public var finalTemperature: Double = 0.55
 
+        /// Beyond this separation the non-native repulsion is not computed, in angstroms.
+        ///
+        /// The term is `(sigma/r)^12` with sigma 4 A, so at 10 A it is **0.000017** - seventeen
+        /// parts in a million of the well depth, on a pair that is already only repulsive.
+        /// Ignoring it costs nothing measurable and skips most of the work: on ubiquitin only
+        /// **6% of non-native pairs unfolded and 9% folded** are within 10 A, out of 2,517.
+        /// Zero disables the cutoff and computes every pair, which is what the force test
+        /// against the C reference uses.
+        public var repulsionCutoff: Double = 10
+        /// Extra margin on the neighbour list, so it survives a few hundred steps of motion.
+        public var neighbourSkin: Double = 2
+
         public var steps: Int = 3_000_000
         /// How many frames the run emits, start and end included.
         public var frameCount: Int = 180
@@ -133,7 +145,11 @@ public struct StructureBasedModel: Sendable {
     /// Written as one function over flat arrays rather than composed out of per-term helpers:
     /// this runs several million times in a fold and every allocation in it would be paid for
     /// n squared times.
-    public func forces(_ x: [SIMD3<Double>]) -> [SIMD3<Double>] {
+    /// - Parameter nonNativePairs: a flat `[i, j, i, j, ...]` neighbour list to use for the
+    ///   repulsion instead of every non-native pair. `nil` computes them all, which is what
+    ///   the comparison against the C reference needs.
+    public func forces(_ x: [SIMD3<Double>],
+                       nonNativePairs: [Int32]? = nil) -> [SIMD3<Double>] {
         let n = x.count
         var f = [SIMD3<Double>](repeating: .zero, count: n)
         let p = parameters
@@ -202,8 +218,7 @@ public struct StructureBasedModel: Sendable {
         }
 
         // Everything else: repulsion only, which is what makes the funnel a funnel.
-        for index in 0..<otherI.count {
-            let i = Int(otherI[index]), j = Int(otherJ[index])
+        func repel(_ i: Int, _ j: Int) {
             let dv = x[j] - x[i]
             let r2 = simd_dot(dv, dv)
             let s2 = p.nonNativeSigma * p.nonNativeSigma / r2
@@ -212,7 +227,35 @@ public struct StructureBasedModel: Sendable {
             f[i] -= g
             f[j] += g
         }
+        if let pairs = nonNativePairs {
+            var index = 0
+            while index + 1 < pairs.count {
+                repel(Int(pairs[index]), Int(pairs[index + 1]))
+                index += 2
+            }
+        } else {
+            for index in 0..<otherI.count { repel(Int(otherI[index]), Int(otherJ[index])) }
+        }
         return f
+    }
+
+    /// Non-native pairs currently within the cutoff plus the skin.
+    ///
+    /// A Verlet list: built with a margin so it stays valid while the chain moves, and rebuilt
+    /// only when some atom has travelled far enough that a pair could have entered the cutoff
+    /// unseen. Rebuilding every step would cost the O(n^2) sweep this exists to avoid.
+    func neighbourList(_ x: [SIMD3<Double>]) -> [Int32] {
+        let reach = parameters.repulsionCutoff + parameters.neighbourSkin
+        guard parameters.repulsionCutoff > 0 else { return [] }
+        var pairs: [Int32] = []
+        pairs.reserveCapacity(otherI.count / 4)
+        for index in 0..<otherI.count {
+            let i = Int(otherI[index]), j = Int(otherJ[index])
+            if simd_length(x[j] - x[i]) < reach {
+                pairs.append(otherI[index]); pairs.append(otherJ[index])
+            }
+        }
+        return pairs
     }
 
     /// Fraction of native contacts formed, the reaction coordinate this model is read by.
@@ -247,7 +290,15 @@ public struct StructureBasedModel: Sendable {
             let s = p.temperature.squareRoot()
             v[i] = SIMD3<Double>(rng.gaussian() * s, rng.gaussian() * s, rng.gaussian() * s)
         }
-        var f = forces(x)
+        // The neighbour list and the reference positions it was built from.
+        let useList = p.repulsionCutoff > 0
+        var neighbours = useList ? neighbourList(x) : []
+        var listReference = x
+        // Rebuild when any atom has moved half the skin: two atoms approaching from opposite
+        // directions can then close the skin between them and no closer.
+        let rebuildThreshold = p.neighbourSkin / 2
+
+        var f = forces(x, nonNativePairs: useList ? neighbours : nil)
 
         let stride = Swift.max(p.steps / Swift.max(p.frameCount - 1, 1), 1)
         var frames: [[SIMD3<Double>]] = [x]
@@ -269,7 +320,18 @@ public struct StructureBasedModel: Sendable {
                                      a * v[i].z + b * rng.gaussian())
             }
             for i in 0..<n { x[i] += v[i] * halfStep }
-            f = forces(x)
+            if useList {
+                var worst = 0.0
+                for i in 0..<n {
+                    worst = Swift.max(worst, simd_length(x[i] - listReference[i]))
+                    if worst > rebuildThreshold { break }
+                }
+                if worst > rebuildThreshold {
+                    neighbours = neighbourList(x)
+                    listReference = x
+                }
+            }
+            f = forces(x, nonNativePairs: useList ? neighbours : nil)
             for i in 0..<n { v[i] += f[i] * halfStep }
 
             if (step + 1) % stride == 0, frames.count < p.frameCount {

@@ -1660,3 +1660,35 @@ The picker has its own row now.
 
 Neither was visible to a test: both are layout and labelling, and the suite was green
 throughout.
+
+### Halving the cost of a fold with a neighbour list (2026-08-30)
+
+The non-native repulsion is `(sigma/r)^12` with sigma 4 A, evaluated over every pair that is
+not a native contact. Measured on ubiquitin:
+
+| Separation | Value of the term |
+|---|---|
+| 8 A | 0.000244 |
+| 10 A | **0.000017** |
+| 12 A | 0.000002 |
+
+And almost every pair is beyond it: of 2,517 non-native pairs, **153 (6%) are within 10 A when
+unfolded and 237 (9%) when folded**.
+
+A Verlet list of the pairs within 10 A plus a 2 A skin, rebuilt when any atom has moved half
+the skin, on a complete 2,000,000-step fold:
+
+| | Wall clock | Per step | Q | Rg |
+|---|---|---|---|---|
+| Every pair | 45.3 s | 22.67 us | 0.09 -> 0.96 | 20.0 -> 11.7 A |
+| **Cutoff 10 A, skin 2 A** | **20.9 s** | **10.46 us** | 0.09 -> 0.97 | 20.0 -> 11.7 A |
+
+**2.2 times faster, arriving at the same place.** The force change is 8.3e-06 absolute on a
+coil whose largest force is 1.4e+03, and 1.1e-05 at the native state.
+
+Two things worth recording. A **larger skin is slower, not faster** - 24.1 s at 4 A and 28.3 s
+at 6 A - so the cost is dominated by the size of the list rather than by how often it is
+rebuilt, and the smallest skin that stays correct is the right one. And the fidelity test must
+compare forces **absolutely**: at the native state the model sits in its own minimum, so the
+largest force present is 7.5e-04 and a ratio against it reads 1e-05 as a catastrophe while the
+same absolute change on a coil reads 6e-09. The denominator collapsed, not the accuracy.

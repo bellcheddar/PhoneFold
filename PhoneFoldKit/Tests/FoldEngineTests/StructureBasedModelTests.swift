@@ -158,3 +158,64 @@ struct StructureBasedModelTests {
                 "the chain did not collapse: Rg went \(rg(frames.first!)) to \(rg(frames.last!))")
     }
 }
+
+extension StructureBasedModelTests {
+
+    /// The neighbour list must be an optimisation, not a change to the model.
+    ///
+    /// It halves the cost of a fold, and the only reason that is acceptable is that the term it
+    /// skips is negligible: `(sigma/r)^12` with sigma 4 A is 0.000017 at 10 A. Measured, the
+    /// forces move by six parts in a billion. If that ever stops being true this fails.
+    @Test("The repulsion cutoff does not change the forces")
+    func cutoffDoesNotChangeTheForces() throws {
+        let native = try Self.fixture("go_native.xyz")
+        let exact = StructureBasedModel(native: native)
+        var parameters = StructureBasedModel.Parameters()
+        parameters.repulsionCutoff = 10
+        let cut = StructureBasedModel(native: native, parameters: parameters)
+
+        // Both an unfolded coil and the native state: the pair distribution is very different.
+        for (label, probe) in [("coil", UnfoldedChain.build(residues: native.count, seed: 3)),
+                               ("native", native)] {
+            let a = exact.forces(probe)
+            let b = cut.forces(probe, nonNativePairs: cut.neighbourList(probe))
+            var worst = 0.0, scale = 0.0
+            for (x, y) in zip(a, b) {
+                worst = Swift.max(worst, simd_length(x - y))
+                scale = Swift.max(scale, simd_length(x))
+            }
+            print(String(format: "cutoff force change, %@: %.3e absolute against a largest force of %.3e",
+                         label, worst, scale))
+            // **Absolute**, not relative to the largest force present. At the native state the
+            // model sits in its own minimum, so the largest force is itself nearly zero and a
+            // ratio against it says nothing: the same 1e-5 absolute change reads as 6e-9 on a
+            // coil and 1e-5 at the native state purely because the denominator collapsed.
+            // A bond stiffness of 100 makes an angstrom of strain worth ~200 force units, so
+            // 1e-3 is four orders below anything the dynamics responds to.
+            #expect(worst < 1e-3,
+                    "the cutoff moved a force by \(worst) at the \(label) state")
+        }
+    }
+
+    /// And it must not change where the fold ends up.
+    @Test("A fold with the cutoff reaches the same state", .timeLimit(.minutes(10)))
+    func cutoffDoesNotChangeTheFold() throws {
+        let native = try Self.fixture("go_native.xyz")
+        let start = UnfoldedChain.build(residues: native.count, seed: 3)
+        var results: [Double] = []
+        for cutoff in [0.0, 10.0] {
+            var parameters = StructureBasedModel.Parameters()
+            parameters.repulsionCutoff = cutoff
+            parameters.steps = 200_000
+            parameters.frameCount = 20
+            parameters.seed = 11
+            let model = StructureBasedModel(native: native, parameters: parameters)
+            results.append(model.fractionNative(model.fold(from: start).last!))
+        }
+        // Langevin dynamics is chaotic, so two runs are not expected to be identical - the
+        // random stream is consumed at the same rate but the trajectories diverge. What must
+        // hold is that both reach a comparable state.
+        #expect(abs(results[0] - results[1]) < 0.25,
+                "the cutoff changed the outcome: Q \(results[0]) against \(results[1])")
+    }
+}
