@@ -607,3 +607,39 @@ with a name, at 912 bytes and 1.3 ms of a 16.7 ms frame.
 
 **Not blocking anything.** Phase 2's human sign-off is still the open item, and Phase 3 can
 start on the current trajectories whatever is decided here.
+
+## OPEN — 2026-08-30 — Genie 2 cannot fold toward a reference, and was asked to
+
+Marc's instruction was three selectable engines — Genie 2, Gō and Morph — and, for **all** of
+them, to "aim to finish on the target reference structure from the AlphaFold DB". Two of the
+three do exactly that. Genie 2 cannot, and this is a property of the model rather than a
+configuration:
+
+- It is **unconditional**: it samples a backbone from Gaussian noise. There is no target to
+  fold toward and no place to put one. Genie 2 *does* support motif scaffolding upstream, but
+  that conditions on a fragment to build around, not on a whole structure to converge to, and
+  it is not in the exported model.
+- The export is **fixed at 64 residues**. A different length needs a new export from the
+  checkpoint, and no length would make it target a structure.
+- Its trajectory runs the other way from a fold: measured, the radius of gyration **climbs**
+  from 1.7 A as the noise ball opens out, where the structure-based engine's descends.
+
+So the app currently presents it as a third act rather than a third fold: "Generate", labelled
+*"Genie 2 invents a backbone from noise. Not a named protein"*, and the finished trajectory
+carries *"Generated — this protein has never existed"*.
+
+**The options, in the order I would rank them:**
+
+1. **Keep it as it is.** Two engines fold toward a reference, one generates. The distinction is
+   visible in the picker, in the disclosure and in the radius-of-gyration trace itself. This is
+   what is built and it is coherent.
+2. **Drop Genie 2.** If the app's claim is strictly "watch a named protein fold", a generative
+   engine muddies it, and the 64-residue ceiling makes it a curiosity rather than a feature.
+   The code would stay in the repository and out of the picker.
+3. **Replace it with something conditionable.** PathDiffusion claims genuine folding pathways
+   for named proteins and would be the scientifically strongest answer — but it needs an MSA
+   pipeline that cannot run on device, which is why Phase 0d rejected it. Nothing else surveyed
+   both targets a structure and runs on a phone.
+
+**Not blocking anything.** All three engines work today; this is about what the app should
+claim, which is Marc's call and not a technical one.
