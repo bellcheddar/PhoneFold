@@ -32,8 +32,11 @@ struct FoldHUD: View {
             counters
             if samples.count > 2 {
                 HStack(spacing: 12) {
-                    structureChart
-                    radiusChart
+                    // The label above the plot, not over it. Overlaid at the top-left it sat
+                    // directly on the radius-of-gyration line, and a trace with a word
+                    // printed through it is harder to read than either alone.
+                    labelled("Structure") { structureChart }
+                    labelled("Radius of gyration") { radiusChart }
                 }
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: 54, maxHeight: 58)
@@ -82,16 +85,25 @@ struct FoldHUD: View {
 
     // MARK: - Counters
 
+    /// The counter strip, laid out for whatever width it is given.
+    ///
+    /// It used to be a horizontal `ScrollView` with the compute meter beside it, which on a
+    /// phone clipped the last counter mid-value - "H/E/C 45/1" - and left it touching the
+    /// meter's "0.7 ms". A reading cut in half is worse than no reading: it looks like a
+    /// layout fault and it cannot be trusted. `ViewThatFits` takes the one-row form when the
+    /// width allows and drops the meter onto its own line when it does not, so nothing is ever
+    /// truncated and nothing has to be scrolled to be seen.
     private var counters: some View {
-        HStack(alignment: .top, spacing: 0) {
-            // Scrolls rather than stretching. `fixedSize` on the row keeps every value on
-            // one line but makes the row wider than the screen, which pushes the whole
-            // layout sideways and takes the charts off-view with it.
-            ScrollView(.horizontal, showsIndicators: false) {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: 0) {
                 countersRow
+                Spacer(minLength: 12)
+                computeMeter
             }
-            Spacer(minLength: 10)
-            computeMeter
+            VStack(alignment: .leading, spacing: 6) {
+                countersRow
+                computeMeter
+            }
         }
     }
 
@@ -134,7 +146,9 @@ struct FoldHUD: View {
     /// public GPU or ANE utilisation API, and inventing a percentage would be worse than
     /// showing the real number the app can measure.
     private var computeMeter: some View {
-        VStack(alignment: .trailing, spacing: 3) {
+        // Leading, not trailing: in the stacked layout a right-aligned label floated away
+        // from the number it belongs to.
+        VStack(alignment: .leading, spacing: 3) {
             Text(meter.label.uppercased())
                 .font(.system(size: 8, weight: .semibold, design: .monospaced))
                 .foregroundStyle(Color(hex: 0x6B7C93))
@@ -185,7 +199,6 @@ struct FoldHUD: View {
         .chartXAxis(.hidden)
         .chartYAxis(.hidden)
         .overlay { scrubSurface }
-        .overlay(alignment: .topLeading) { traceLabel("Structure") }
     }
 
     /// Radius of gyration: compaction is the fold happening.
@@ -222,7 +235,15 @@ struct FoldHUD: View {
         .chartXAxis(.hidden)
         .chartYAxis(.hidden)
         .overlay { scrubSurface }
-        .overlay(alignment: .topLeading) { traceLabel("Radius of gyration") }
+    }
+
+    /// A trace with its name above it.
+    private func labelled<Content: View>(_ text: String,
+                                         @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            traceLabel(text)
+            content()
+        }
     }
 
     private func traceLabel(_ text: String) -> some View {

@@ -12,6 +12,8 @@ struct StageView: View {
     @State private var selection: TrajectoryLibrary.Entry?
     @State private var meshDiagnostic = ""
     @State private var accession = ""
+    /// Genie 2's seed. Starts at 3 because 1 and 2 are measured to diverge; see FoldRunner.
+    @State private var generationSeed: UInt64 = 3
 
     /// All three engines run. Kept as a hook because an engine can still become unavailable -
     /// a missing model in the bundle, say - and a disabled control with a reason beats one
@@ -33,10 +35,22 @@ struct StageView: View {
                 // one letter per line.
                 EnginePicker(engine: $runner.engine, unavailable: unavailableEngines)
                     .padding(.horizontal, 20)
-                AccessionField(accession: $accession, state: runner.state) {
-                    runner.fetchAndRun(accession: accession, engine: runner.engine,
-                                       into: player)
-                    selection = nil
+                // The accession field is meaningless for Genie 2 - it invents a protein and
+                // has nothing to look up - so that row becomes a re-roll instead. Showing a
+                // disabled text field there would be asking for an input the engine cannot use.
+                Group {
+                    if runner.engine.needsReferenceStructure {
+                        AccessionField(accession: $accession, state: runner.state) {
+                            runner.fetchAndRun(accession: accession, engine: runner.engine,
+                                               into: player)
+                            selection = nil
+                        }
+                    } else {
+                        GenerateControls(seed: $generationSeed, state: runner.state) {
+                            generationSeed &+= 1
+                            runner.generate(seed: generationSeed, into: player)
+                        }
+                    }
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 6)
@@ -72,10 +86,9 @@ struct StageView: View {
         .task {
             // `PHONEFOLD_ENGINE` picks the engine at launch, which is the only way to reach
             // the picker's other options without tapping a simulator.
-            if let wanted = ProcessInfo.processInfo.environment["PHONEFOLD_ENGINE"],
-               let engine = FoldingEngine(rawValue: wanted) {
-                runner.engine = engine
-            }
+            let override = ProcessInfo.processInfo.environment["PHONEFOLD_ENGINE"]
+                .flatMap(FoldingEngine.init(rawValue:))
+            if let override { runner.engine = override }
             // `PHONEFOLD_ACCESSION` folds a downloaded structure straight from launch, which
             // is the only way to exercise the fetch path without typing into a simulator.
             if let wanted = ProcessInfo.processInfo.environment["PHONEFOLD_ACCESSION"],
@@ -86,8 +99,17 @@ struct StageView: View {
                 start(opening)
             }
         }
-        .onChange(of: runner.engine) { _, _ in
-            if let selection { start(selection) }
+        .onChange(of: runner.engine) { previous, current in
+            // Only when the engine actually changes, and never for the launch override, which
+            // sets the engine and then starts a run itself. Without the guard the override
+            // started two runs, the first was cancelled by the second, and the cancelled one's
+            // error replaced the healthy state with "cancelled".
+            guard previous != current else { return }
+            if runner.engine.needsReferenceStructure {
+                if let selection { start(selection) }
+            } else {
+                runner.generate(seed: generationSeed, into: player)
+            }
         }
     }
 
@@ -190,7 +212,7 @@ struct StageView: View {
             let provider = try library.provider(for: entry)
             guard runner.engine.needsReferenceStructure else {
                 // Genie 2 invents a protein; the gallery selection is irrelevant to it.
-                runner.generate(into: player)
+                runner.generate(seed: generationSeed, into: player)
                 return
             }
             guard let final = provider.readouts.last else {

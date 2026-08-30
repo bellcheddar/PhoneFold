@@ -118,6 +118,11 @@ final class FoldRunner: ObservableObject {
                     player.play(provider)
                 }
             } catch {
+                // A cancelled run must stay silent. Cancelling starts a *replacement* run, and
+                // the old task's error handler lands after the new one has set `.folding` -
+                // so reporting it overwrites a healthy state with "cancelled" and the user
+                // sees an error for the run that was superseded.
+                if Task.isCancelled { return }
                 await MainActor.run { [weak self] in self?.state = .failed("\(error)") }
             }
         }
@@ -172,6 +177,7 @@ final class FoldRunner: ObservableObject {
                     player.play(provider)
                 }
             } catch {
+                if Task.isCancelled { return }
                 await MainActor.run { [weak self] in
                     self?.state = .failed("\(error)")
                 }
@@ -300,6 +306,41 @@ struct AccessionField: View {
                     .lineLimit(3)
                     .fixedSize(horizontal: false, vertical: true)
             }
+        }
+    }
+}
+
+
+/// What the accession row becomes when Genie 2 is the engine.
+///
+/// Genie 2 has nothing to look up, so offering a text field for an accession would be asking
+/// for an input it cannot use. What it can do is produce a different protein, so the row
+/// becomes a re-roll and shows which draw is on screen.
+struct GenerateControls: View {
+    @Binding var seed: UInt64
+    let state: FoldRunner.State
+    let onGenerate: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Button("New backbone", action: onGenerate)
+                .font(.system(size: 12, weight: .semibold))
+                .buttonStyle(.plain)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Capsule().fill(Color(hex: 0x2B5CE6)))
+                .foregroundStyle(.white)
+            Text("seed \(seed)")
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(Color(hex: 0x6B7C93))
+            if case .failed(let message) = state {
+                Text(message)
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color(hex: 0xFF3D9A))
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
         }
     }
 }

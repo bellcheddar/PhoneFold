@@ -1908,3 +1908,29 @@ honesty than the caption:
   trajectory.
 - **Morph** descends perfectly smoothly. There is no physics in it and the trace shows it.
 - **Generate** *climbs*, because the noise ball opens outward rather than collapsing.
+
+### Polish pass (2026-08-30)
+
+**The counter strip clipped on a phone.** It was a horizontal `ScrollView` with the compute
+meter beside it, which truncated the last counter mid-value - "H/E/C 45/1" - against the
+meter's "0.7 ms". A reading cut in half is worse than no reading: it looks like a layout fault
+and cannot be trusted. `ViewThatFits` now takes the one-row form where the width allows and
+drops the meter onto its own line where it does not, so nothing is truncated and nothing has to
+be scrolled to be read.
+
+**Trace labels sat on the traces.** "RADIUS OF GYRATION" was overlaid at the top-left of its
+own plot and the line ran straight through the words. The labels are above the plots now.
+
+**Genie 2 had no way to produce a second protein.** The accession row is meaningless for an
+engine that invents rather than looks up, so with Generate selected it becomes a "New backbone"
+button and a seed readout instead of a text field the engine cannot use.
+
+**And a bug that pass exposed:** setting the engine started two runs - the launch override set
+it and started one, and `onChange` started another - and the first task's cancellation error
+then overwrote the healthy state, so the app showed "Genie 2 could not run: cancelled" over a
+run that was proceeding normally. A cancelled run is now silent, because cancelling always
+means a replacement is already under way.
+
+One polish item was raised and **rejected on inspection**: the gallery leading with trp-cage
+looked like an oversight and is not. At 20 residues it folds in a few seconds where ubiquitin
+takes twenty, so with Simulate as the default engine it is the right first impression.
