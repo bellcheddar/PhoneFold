@@ -1,8 +1,8 @@
 # PhoneFold — STATE
 
-**Current phase:** 2 (Aurora Stage, the renderer). Machine gate GREEN. Marc asked for playback and the grade to be fixed **before** the human sign-off, so the halt is lifted and P2-14 and P2-05 are in progress.
-**Current task:** none. P2-14 and P2-05 are done and the machine gate is GREEN; waiting on Marc's Phase 2 sign-off.
-**Last updated:** 2026-08-28
+**Current phase:** 0 reopened, on Marc's instruction, to build three selectable folding engines. Phase 2's machine gate stays GREEN throughout.
+**Current task:** none. All three engines run on the device. Two open questions for Marc, both in `BLOCKERS.md`: whether Genie 2 belongs given it cannot fold toward a reference, and the Phase 2 human sign-off.
+**Last updated:** 2026-08-30
 
 Status vocabulary: `todo` / `doing` / `blocked` / `done`.
 A task must be small enough that one loop iteration can finish it, build, test and commit.
@@ -60,7 +60,19 @@ measurements are in `METRICS.md` under Phase 0d and the literature in `MODEL_SUR
 | P0-29 | Re-examine foldingDiff on trajectory shape rather than sample quality | P0-28 | done: it expands, and its ordered structure appears only in the last tenth |
 | P0-30 | Prototype a CA structure-based (Go) model, numpy + C, with force controls | P0-28 | done: 9 of 9 named proteins fold, 0.6-3.3 A RMSD |
 | P0-31 | Measure the interpolation morph baseline so it is compared, not argued | P0-28 | done: 0.20 A closest approach, clashes in 190 frames of 200 |
-| P0-32 | Ranked recommendation in `BLOCKERS.md` | P0-27..31 | done — **waiting on Marc** |
+| P0-32 | Ranked recommendation in `BLOCKERS.md` | P0-27..31 | done — Marc chose all three engines |
+| P0-33 | Port the structure-based model to Swift, validated against the C by forces | P0-30 | done: worst relative force disagreement below 1e-9, 18.93 us/step against the C's 19.15 |
+| P0-34 | The morph engine, in torsion space | P0-31 | done: bonds hold 3.68-3.89 A where Cartesian collapses them to 0.55 |
+| P0-35 | `FoldingEngine`: three engines, each owning its provenance and disclosure | P0-33, P0-34 | done |
+| P0-36 | Fetch a reference structure from AlphaFold by accession | P0-35 | done: URL asked for, not built — `model_v4` is 404 today |
+| P0-37 | The engine picker, and a fold computed on the device | P0-35 | done: trp-cage folds live, 87% native contacts |
+| P0-38 | Neighbour list for the non-native repulsion | P0-33 | done: 45.3 s to 20.9 s for a complete fold, same destination |
+| P0-39 | Investigate longer runs against arrival at the reference | P0-38 | done: **cooling beats running longer** — 0.86 A to 0.23 A for free |
+| P0-40 | Accession field: type one, watch that protein fold | P0-36, P0-37 | done: haemoglobin alpha, 142 residues, 99% native contacts |
+| P0-41 | Genie 2's cosine schedule and Frenet frames in Swift | P0-35 | done: matched to float32's own precision |
+| P0-42 | Genie 2's reverse process driving Core ML on the device | P0-41 | done: mean CA-CA 3.94 A; some seeds diverge, retried, **workaround not a fix** |
+| P0-43 | All three engines live in the app | P0-37, P0-42 | done |
+| P0-44 | macOS sandbox entitlement for network access, needed for an App Store build | P0-36 | todo |
 
 ### Phase 0c — the PathDiffusion named gallery
 
