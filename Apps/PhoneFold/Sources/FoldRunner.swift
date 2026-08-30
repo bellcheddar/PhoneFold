@@ -63,6 +63,62 @@ final class FoldRunner: ObservableObject {
         }
     }
 
+    /// Generate a backbone with Genie 2, on the device.
+    ///
+    /// Nothing is folded toward here: the model starts from Gaussian noise and arrives at a
+    /// backbone that has never existed. The protein has no name, no sequence and no reference,
+    /// which is why it takes a different path from the other two engines rather than sharing
+    /// theirs with a nil target.
+    func generate(seed: UInt64 = 1, into player: FoldPlayer) {
+        cancel()
+        state = .folding(progress: 0)
+        let report: @Sendable (Double) -> Void = { [weak self] fraction in
+            Task { @MainActor in
+                guard let self, case .folding = self.state else { return }
+                self.state = .folding(progress: fraction)
+            }
+        }
+        task = Task.detached(priority: .userInitiated) { [weak self] in
+            do {
+                let sampler = try Genie2Sampler.bundled()
+                let frames = try sampler.sample(seed: seed, frameCount: 180,
+                                                progress: report,
+                                                shouldContinue: { !Task.isCancelled })
+                if Task.isCancelled { return }
+                let n = Genie2Sampler.residues
+                let metadata = TrajectoryMetadata(
+                    name: "Generated \(n) residues, seed \(seed)",
+                    sequence: String(repeating: "A", count: n),
+                    provenance: FoldingEngine.generative.provenance,
+                    sourceModel: "genie2/base epoch 40, Core ML",
+                    blocksPerReadout: 1, recycles: 1,
+                    generated: ISO8601DateFormatter().string(from: Date()),
+                    notes: FoldingEngine.generative.provenance.disclosure)
+                var readouts: [TrajectoryReadout] = []
+                for (index, frame) in frames.enumerated() {
+                    // Denoising progress, which is what this engine's confidence channel is:
+                    // how far along the reverse process a frame is, and nothing more.
+                    let progress = Float(index) / Float(Swift.max(frames.count - 1, 1)) * 100
+                    readouts.append(TrajectoryReadout(
+                        recycle: 0, blockIndex: index,
+                        caPositions: frame.map {
+                            SIMD3<Float>(Float($0.x), Float($0.y), Float($0.z))
+                        },
+                        confidence: [Float](repeating: progress, count: n)))
+                }
+                let provider = try SampleTrajectoryProvider(
+                    bundle: TrajectoryBundle(metadata: metadata, readouts: readouts),
+                    recycles: .all)
+                await MainActor.run { [weak self] in
+                    self?.state = .idle
+                    player.play(provider)
+                }
+            } catch {
+                await MainActor.run { [weak self] in self?.state = .failed("\(error)") }
+            }
+        }
+    }
+
     /// Fold `reference` with the chosen engine and play the result.
     func run(reference: ReferenceStructure, engine: FoldingEngine,
              seed: UInt64 = 1, into player: FoldPlayer) {
@@ -231,10 +287,14 @@ struct AccessionField: View {
                     .foregroundStyle(Color(hex: 0x6B7C93))
             }
             if case .failed(let message) = state {
+                // Wrapped, not truncated. An error clipped to "Genie 2 produced no usable..."
+                // hides the half of the sentence that says which of several causes it was,
+                // which is the only part worth showing.
                 Text(message)
                     .font(.system(size: 10))
                     .foregroundStyle(Color(hex: 0xFF3D9A))
-                    .lineLimit(1)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }

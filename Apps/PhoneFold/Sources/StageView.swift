@@ -13,11 +13,10 @@ struct StageView: View {
     @State private var meshDiagnostic = ""
     @State private var accession = ""
 
-    /// Genie 2 generates rather than folds toward a reference, and its Core ML path is not
-    /// wired to run live yet. Saying so is better than offering a control that does nothing.
-    private var unavailableEngines: [FoldingEngine: String] {
-        [.generative: "Genie 2 runs through Core ML and is not wired to run live yet"]
-    }
+    /// All three engines run. Kept as a hook because an engine can still become unavailable -
+    /// a missing model in the bundle, say - and a disabled control with a reason beats one
+    /// that silently does nothing.
+    private var unavailableEngines: [FoldingEngine: String] { [:] }
 
     var body: some View {
         ZStack {
@@ -71,6 +70,12 @@ struct StageView: View {
         }
         .preferredColorScheme(.dark)
         .task {
+            // `PHONEFOLD_ENGINE` picks the engine at launch, which is the only way to reach
+            // the picker's other options without tapping a simulator.
+            if let wanted = ProcessInfo.processInfo.environment["PHONEFOLD_ENGINE"],
+               let engine = FoldingEngine(rawValue: wanted) {
+                runner.engine = engine
+            }
             // `PHONEFOLD_ACCESSION` folds a downloaded structure straight from launch, which
             // is the only way to exercise the fetch path without typing into a simulator.
             if let wanted = ProcessInfo.processInfo.environment["PHONEFOLD_ACCESSION"],
@@ -183,9 +188,12 @@ struct StageView: View {
         selection = entry
         do {
             let provider = try library.provider(for: entry)
-            guard runner.engine.needsReferenceStructure,
-                  let final = provider.readouts.last else {
-                // Nothing live to run: play the bundled trajectory as it stands.
+            guard runner.engine.needsReferenceStructure else {
+                // Genie 2 invents a protein; the gallery selection is irrelevant to it.
+                runner.generate(into: player)
+                return
+            }
+            guard let final = provider.readouts.last else {
                 player.play(provider)
                 return
             }

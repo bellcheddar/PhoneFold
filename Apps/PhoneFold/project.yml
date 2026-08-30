@@ -27,6 +27,10 @@ targets:
       - path: Sources
       - path: Resources
         buildPhase: resources
+      # The Genie 2 step model. Xcode compiles the .mlpackage to a .mlmodelc in the bundle,
+      # which is what Genie2Sampler.bundled() looks for.
+      - path: ../../Models/Genie2Step_L64.mlpackage
+        buildPhase: resources
     dependencies:
       - package: PhoneFoldKit
         products: [FoldCore, FoldGeometry, FoldEngine, FoldRender]

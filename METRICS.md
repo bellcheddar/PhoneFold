@@ -1802,3 +1802,57 @@ They are orthonormal but improper, the network was trained on frames built this 
 Also noted, not fixed because it is upstream's and harmless here: `compute_frenet_frames` calls
 `torch.cross` without `dim`, which picks the first axis of size 3. With a batch of one that is
 the intended last axis; with a batch of three it would silently cross the wrong dimension.
+
+### Genie 2 running live on the device (2026-08-30)
+
+The reverse process drives the exported Core ML step model from Swift: 1000 denoising steps,
+Frenet frames rebuilt from the translations each step, **37 s on an M1 Max** and several minutes
+on the Simulator, which has no GPU for Core ML.
+
+The result is a real backbone, and the geometry is what proves it: **mean CA-CA spacing 3.94 A**
+against the 3.8 A of a real peptide. A wrong schedule, a wrong frame layout or a mis-strided
+multi-array could not produce that. Rg runs 1.74 (noise) to 12.07 A.
+
+**Validated against the reference implementation step by step.** Fed the identical starting
+coordinates, at timesteps 1000, 999 and 998:
+
+| | Swift | Python | Worst difference |
+|---|---|---|---|
+| `w_z` at t=1000 | 0.750007 | 0.750026 | 1.9e-05 |
+| scale at t=1000 | 2.000025 | 2.000101 | 7.6e-05 |
+| predicted noise, max magnitude | 3.245 | 3.243 | **0.010** per residue |
+| updated translations | - | - | **0.015** per residue |
+
+#### Some seeds diverge, and I could not attribute it to a defect in the port
+
+Seeds 1 and 2 reach NaN part way through the reverse process - at frames 116 and 77 of 180 -
+while seeds 3 and 4 complete cleanly at 3.86 and 3.91 A mean spacing. Ruled out by measurement,
+not by argument:
+
+| Hypothesis | Measurement | Verdict |
+|---|---|---|
+| Compute units - the ANE will not compile this graph | `.all` and `.cpuAndGPU` both give 3.94 A | Not it |
+| Degenerate Frenet frames near collinear triples | `min\|cross\|` stays 0.17-0.53 all the way to the blow-up | Not it |
+| A biased random generator | mean -0.0001, sd 1.0033, lag-1 correlation 0.0004 | Not it |
+| The schedule | matches upstream to float32's own precision | Not it |
+| The single-step update | matches Python to 0.01 in z and 0.015 in trans | Not it |
+| Xcode's compiled `.mlmodelc` differing from the `.mlpackage` | identical size, identical results | Not it |
+
+What is left is the one thing that cannot be matched: torch's random stream. The noise sequence
+therefore differs, and the process is marginally stable - at t = 1000 the posterior mean is
+multiplied by `1/sqrt(alpha_t)` = 2.0, so noise added early is amplified by every step after
+it. Instrumented, a diverging seed grows `max|trans|` linearly - 3.4, 24.7, 49, 72, 92, 111,
+NaN - while a good one decelerates to about 59 and settles.
+
+**The sampler therefore retries with the next seed, and that is a workaround rather than a
+fix.** It is labelled as one in the source. A test pins that seed 1 recovers to 3.86 A through
+the retry, and a second pins that the same seed still fails honestly with `attempts: 1`, so the
+first test cannot pass for the wrong reason.
+
+#### The gate is now nine minutes
+
+Almost all of it Core ML. The two full sampler runs are release-only: they spend their time
+inside a compiled model that behaves identically whichever way the surrounding Swift was
+optimised, so running them in both builds doubles the gate to learn nothing. The multi-array
+round trip - the part that is actually Swift, and the one that would catch a stride mistake -
+runs in both.
