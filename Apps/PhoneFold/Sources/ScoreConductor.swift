@@ -36,6 +36,10 @@ final class ScoreConductor: @unchecked Sendable {
     private var baseline: Double?
     /// Frames scored but not yet handed over, because the engine is far enough ahead.
     private var waiting: [(moment: ScoreMoment, positions: [SIMD3<Float>])] = []
+    /// Every moment written, in order, for the MIDI export. PLAN.md asks for a parallel event
+    /// log written as the music plays, and this is it: what was heard, not a second scoring of
+    /// the same frames.
+    private var played: [ScoreMoment] = []
     private let lock = NSLock()
 
     private(set) var style: StyleProfile
@@ -84,6 +88,8 @@ final class ScoreConductor: @unchecked Sendable {
         scheduler?.cancel()
         scheduler = nil
         engine.stop()
+        // `played` is kept: the export is of the piece that was heard, and stopping playback
+        // is not a reason to forget it.
         lock.withLock { waiting.removeAll(keepingCapacity: true) }
     }
 
@@ -103,8 +109,14 @@ final class ScoreConductor: @unchecked Sendable {
     func receive(_ frame: FoldFrame) {
         guard let moment = lock.withLock({ sonifier.moment(for: frame) }) else { return }
         let positions = frame.backbone.map(\.ca)
-        lock.withLock { waiting.append((moment, positions)) }
+        lock.withLock {
+            waiting.append((moment, positions))
+            played.append(moment)
+        }
     }
+
+    /// The score as it was written, for export.
+    var playedMoments: [ScoreMoment] { lock.withLock { played } }
 
     /// Hand over whatever the engine has room for.
     private func drain(upTo now: Double) {

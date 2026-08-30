@@ -2298,3 +2298,23 @@ At swing 1/3 the offbeat eighth lands on exactly 2/3 of the beat, which is the t
 Jazz asks for. At swing 0 it is the identity - measured, not approximated: Rock re-rendered to
 the same peak of 0.861 and the same -14.5 LUFS. Jazz moved from -17.2 to -17.8 LUFS and Surf
 from -18.7 to -19.4.
+
+### P3-11, the score's controls in the app (2026-08-30)
+
+A row of its own under the engine picker: sound on or off, the five styles, and MIDI export.
+Its own row because the engine and the style are separate choices - what computes the fold, and
+what the fold sounds like - and on one line they read as a single control with eight options.
+
+**One export path for both platforms.** The first version used `NSSavePanel` on the Mac and
+wrote into the temporary directory on iOS, which is somewhere the user cannot reach: the button
+would have appeared to work and delivered nothing. `fileExporter` with a `FileDocument` is a
+save panel on the Mac and a document picker on iOS, and there is nothing to keep in step.
+
+The exported MIDI is **the moments that were played**, logged as the music went, rather than a
+second scoring of the same frames. A re-score would give the same notes - the mapping is
+deterministic and that is tested - but exporting what was heard needs no such argument.
+
+An About sheet now exists, because PLAN.md asks for the Tay et al. citation to appear in one
+and there was nowhere to put it. It carries the citation, the trajectory's own provenance
+disclosure, the style's description, the note that a disordered region never resolves, and that
+every voice is synthesised rather than sampled.

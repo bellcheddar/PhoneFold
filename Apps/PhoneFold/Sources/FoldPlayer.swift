@@ -84,6 +84,13 @@ final class FoldPlayer: ObservableObject {
 
     /// Whether the fold is sonified. On by default: PhoneFold is a concert.
     @Published var isSoundOn = true
+    /// Which style the score is written in. Changing it mid-fold switches on the next beat.
+    @Published var styleID = "fantasy" {
+        didSet {
+            guard styleID != oldValue, let style = styles[styleID] else { return }
+            conductor?.setStyle(style)
+        }
+    }
     /// What the music is doing, for the HUD.
     @Published private(set) var audioDiagnostic = ""
 
@@ -181,7 +188,8 @@ final class FoldPlayer: ObservableObject {
         let readouts = provider.readouts.count
         var conductor: ScoreConductor?
         var pace = Self.pace(forReadouts: readouts)
-        if isSoundOn, let style = styles["fantasy"] ?? styles.values.sorted(by: { $0.id < $1.id }).first {
+        if isSoundOn, let style = styles[styleID] ?? styles["fantasy"]
+            ?? styles.values.sorted(by: { $0.id < $1.id }).first {
             let made = ScoreConductor(style: style, residues: residues, readouts: readouts)
             do {
                 try made.start()
@@ -343,6 +351,25 @@ final class FoldPlayer: ObservableObject {
     }
 
     private func note(_ text: String) { diagnostic = text }
+
+    /// Styles in a stable order, for a picker that does not reshuffle itself.
+    var orderedStyles: [StyleProfile] {
+        // Fantasy first, because it is the default and PLAN.md's own first style; the rest
+        // alphabetically, so adding one does not move the others.
+        styles.values.sorted {
+            $0.id == "fantasy" ? true : ($1.id == "fantasy" ? false : $0.id < $1.id)
+        }
+    }
+
+    /// The score as a standard MIDI file, or nil if there is nothing to export.
+    ///
+    /// Built from the moments that were actually played rather than re-scored: a second pass
+    /// over the same frames would give the same notes, but only because the mapping is
+    /// deterministic, and exporting the thing that was heard needs no such argument.
+    func midiExport() -> Data? {
+        guard let conductor, !conductor.playedMoments.isEmpty else { return nil }
+        return MIDIFile.encode(conductor.playedMoments, style: conductor.style)
+    }
 
     private func finish() {
         isPlaying = false

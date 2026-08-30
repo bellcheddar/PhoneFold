@@ -3,6 +3,8 @@ import simd
 import FoldCore
 import FoldRender
 import FoldEngine
+import FoldAudio
+import UniformTypeIdentifiers
 
 /// The Aurora Stage: a deep indigo ground, the protein, and the readouts beneath it.
 struct StageView: View {
@@ -14,6 +16,12 @@ struct StageView: View {
     @State private var accession = ""
     /// Genie 2's seed. Starts at 3 because 1 and 2 are measured to diverge; see FoldRunner.
     @State private var generationSeed: UInt64 = 3
+    /// What the last export did, shown under the controls rather than in an alert: a
+    /// modal for "saved it" interrupts a fold that is still playing.
+    @State private var midiMessage = ""
+    @State private var midiDocument = MIDIDocument(data: Data())
+    @State private var isExportingMIDI = false
+    @State private var isShowingAbout = false
 
     /// All three engines run. Kept as a hook because an engine can still become unavailable -
     /// a missing model in the bundle, say - and a disabled control with a reason beats one
@@ -27,6 +35,16 @@ struct StageView: View {
             LinearGradient(colors: [Color(hex: 0x181432), Color(hex: 0x0B0A1F)],
                            startPoint: .top, endPoint: .bottom)
                 .ignoresSafeArea()
+                .fileExporter(isPresented: $isExportingMIDI, document: midiDocument,
+                              contentType: .midi,
+                              defaultFilename: (selection?.id ?? "phonefold")
+                                  + "-" + player.styleID) { result in
+                    switch result {
+                    case .success(let url): midiMessage = "Saved \(url.lastPathComponent)"
+                    case .failure(let error):
+                        midiMessage = "Could not save: \(error.localizedDescription)"
+                    }
+                }
 
             VStack(spacing: 0) {
                 header
@@ -35,6 +53,17 @@ struct StageView: View {
                 // one letter per line.
                 EnginePicker(engine: $runner.engine, unavailable: unavailableEngines)
                     .padding(.horizontal, 20)
+                // Its own row again, below the engine: the two are separate choices - what
+                // computes the fold, and what the fold sounds like - and putting them on one
+                // line read as one control with eight options.
+                ScoreControls(isSoundOn: $player.isSoundOn,
+                              styles: player.orderedStyles,
+                              styleID: $player.styleID,
+                              diagnostic: midiMessage.isEmpty ? player.audioDiagnostic
+                                                              : midiMessage,
+                              onExportMIDI: exportMIDI)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 6)
                 // The accession field is meaningless for Genie 2 - it invents a protein and
                 // has nothing to look up - so that row becomes a re-roll instead. Showing a
                 // disabled text field there would be asking for an input the engine cannot use.
@@ -150,6 +179,13 @@ struct StageView: View {
             }
             .pickerStyle(.segmented)
             .frame(maxWidth: 380)
+            Button { isShowingAbout = true } label: {
+                Image(systemName: "info.circle")
+                    .font(.system(size: 16))
+                    .foregroundStyle(Color(hex: 0x6B7C93))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("About PhoneFold")
         }
         .padding(.horizontal, 20)
         .padding(.top, 14)
@@ -206,6 +242,22 @@ struct StageView: View {
     /// known structure without needing the network. An accession typed by the user is fetched
     /// from AlphaFold instead; either way the engine is folding toward an answer it was given,
     /// which is what its disclosure says.
+    /// Offer the piece that was played as a standard MIDI file.
+    ///
+    /// **One code path for every platform.** The first version used `NSSavePanel` on the Mac
+    /// and wrote into the temporary directory on iOS - which on iOS is a place the user cannot
+    /// reach, so the button would have appeared to work and delivered nothing. `fileExporter`
+    /// is a save panel on the Mac and a document picker on iOS, and there is nothing to keep
+    /// in step.
+    private func exportMIDI() {
+        guard let data = player.midiExport() else {
+            midiMessage = "Nothing to export yet - play a fold first."
+            return
+        }
+        midiDocument = MIDIDocument(data: data)
+        isExportingMIDI = true
+    }
+
     private func start(_ entry: TrajectoryLibrary.Entry) {
         selection = entry
         do {
