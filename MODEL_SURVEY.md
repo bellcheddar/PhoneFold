@@ -176,3 +176,89 @@ METRICS.md.
 It costs 142 s per sample on CPU against foldingDiff's 18 s. That is the only open question,
 and it is a Core ML question rather than a modelling one: 15.73 M parameters is small enough
 that the ANE should close much of the gap.
+
+---
+
+## 2026-08-29 — the survey redone against the right question
+
+The earlier survey asked "which model can fold a named sequence on a phone". Marc's brief
+asks something narrower and harder: **which engine shows a chain going from fully unfolded to
+fully folded, with secondary structure forming, computed on the device**. Measurements are in
+METRICS.md (Phase 0d); this section is the literature, with licences.
+
+### The finding that reframes the choice
+
+**No published diffusion or flow model produces a physically meaningful folding pathway for a
+named sequence.** Sorted by what the reverse process actually does:
+
+| Model | State at the first frame | What the trajectory does | Folding claim in the paper |
+|---|---|---|---|
+| foldingDiff | connected full-length chain, disordered | disorder to order at roughly constant size | claimed in the preprint, **removed in peer review**: *"this angular denoising procedure does not directly capture any biophysical folding processes"* |
+| Genie / Genie 2 | ~1 A Gaussian ball of disconnected points | **expands** outward | none made |
+| FrameDiff / FrameFlow | zero-CoM Gaussian ball, Rg ~17 A | reorganises at roughly constant radius | none made |
+| RFdiffusion | all CA at the origin, then noised | **expands** 2.5-3.5x | explicitly disclaimed |
+| Chroma | chain-connected collapsed polymer at the right Rg | reorganises at roughly constant Rg | polymer physics, not folding |
+| ProtPardelle | isotropic Gaussian, sigma 80 A | a diffuse cloud contracts | none |
+| EigenFold | harmonic chain, softest modes only | coarse-to-fine resolution cascade | none |
+| Proteina | Gaussian ball | coarse-to-fine; no trajectory output in the code | none |
+| DiG | 35 A cloud | contracts; can dump a movie | its "pathways" interpolate between two **known** structures |
+| Str2Str | a real folded structure, partly melted | perturb then anneal | none |
+| AlphaFlow / ESMFlow | harmonic prior | an unordered ensemble | never claims order |
+| BioEmu | noise | an unordered ensemble | *"it does not model protein dynamics"* |
+| MDGen | — | genuinely time-ordered | but folded-state MD, never a folding event |
+| PathDiffusion | Gaussian noise | ordered, 300 + 100 steps | the one that does claim it - *"explicitly models the temporal evolution of folding"* - while noting the steps are *"abstract progression rather than physical time"* |
+
+### Licences, since three of these would be blockers
+
+| Model | Code | Weights | Note |
+|---|---|---|---|
+| foldingDiff | MIT | MIT (`wukevin/foldingdiff_cath`, 57.9 MB, 14.5 M) | CPU supported, no CUDA kernels |
+| Genie 2 | Apache-2.0 | Apache-2.0 (189 MB, 15.7 M) | already exported here |
+| FrameDiff | MIT | MIT (69.9 MB, 17.4 M) | — |
+| FrameFlow | MIT | **CC-BY-4.0** (differs from the code) | attribution obligation |
+| RFdiffusion | BSD-3-Clause, free for commercial use | same | **blocked on Apple Silicon**: DGL + NVIDIA SE3-Transformer, CUDA-pinned |
+| **Chroma** | Apache-2.0 | **NON-COMMERCIAL, and the restriction covers the model's outputs** | blocker for an App Store app |
+| **Proteina** | **NVIDIA non-commercial** | non-commercial | blocker |
+| ProtPardelle | MIT | MIT | repo deprecated Aug 2025 |
+| EigenFold | MIT | MIT (6.6 MB, 1.72 M) | the only MSA-free named-sequence folder here, but needs **OmegaFold, 3.18 GB** |
+| DiG | MIT | MIT on HF (312 MB, ~82 M) | needs AlphaFold Evoformer embeddings |
+| AlphaFlow / ESMFlow | MIT | MIT (AF2 params CC-BY-4.0 upstream) | ESMFlow 2.65 GB |
+| BioEmu | MIT | MIT (119 MB, 31 M) | Linux-only package, phones an MMseqs2 server |
+| PathDiffusion | MIT | **licence unstated** on the lab server | plus MSA + MSTA + ESMFold embeddings |
+
+### Small, MSA-free, pathway-producing models
+
+There are none in the deep-learning category as of August 2026. The near misses:
+LightRoseTTA is 1.4 M parameters but MSA-dependent and has no LICENSE file; DynaFold (MIT)
+produces real ordered trajectories MSA-free but is ~865 M parameters once its ESM2-650M is
+counted; Apple's SimpleFold has an MLX backend but its smallest configuration is 100 M with a
+hard-coded ESM2-3B and **research-only weights**.
+
+The category that does deliver is **machine-learned coarse-grained force fields**: CGSchNet
+(Nat Chem 17:1284, 2025) is 324,608 parameters, MIT throughout, MSA-free, and its own figures
+show *"a folding trajectory starting from a completely elongated structure"*. Two caveats: its
+physics prior is hundreds of megabytes of tabulated dihedral lookups, and no Core ML or ONNX
+export of it exists.
+
+### The classical route, which is what this project ended up measuring
+
+Clementi, Nymeyer & Onuchic (J Mol Biol 298:937, 2000; cond-mat/0003460) give the CA
+structure-based model in closed form, verified against the primary source: `Kr = 100 eps`,
+`Kt = 20 eps`, `Kd(1) = eps`, `Kd(3) = 0.5 eps`, native `sigma_ij` = the native CA-CA
+distance, non-native `sigma = 4 A`, contacts from CSU heavy-atom analysis discarding
+`j <= i+3`. Independently cross-checked against SMOG 2's shipped CI2 CA topology, whose
+`C12 = 1.67772e-05` is exactly `(0.4 nm)^12`.
+
+Implementations and their licences: **SMOG 2 is GPL-2.0** (do not port from it), OpenSMOG is
+MIT, `sbm-openmm` is MIT. PhoneFold's implementation is written from the published equations,
+so nothing GPL is involved.
+
+Two things about the Karanicolas-Brooks variant are **unverified** and should not be built on
+without the papers: its exact 12-10-6 contact form and its force constants. Both papers are
+paywalled.
+
+Literature step counts for an isothermal run at the folding temperature are 10^7 to 10^8
+integration steps for a 64-residue protein (Kaya & Chan, cond-mat/0212105: MFPT
+0.69e5 tau at dt = 0.005 tau). PhoneFold's own runs need far fewer because they anneal rather
+than sit at Tf - measured in METRICS.md - which is the difference between measuring a folding
+rate and showing a fold.

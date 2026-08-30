@@ -469,3 +469,42 @@ defect A in one table), and a pixel transect across the band (G/R 0.28 where the
 0.19). The one that did not: whole-image colour counts, defeated twice by the auto-orbit and
 by honest occlusion boundaries that share the band's colours. Negative-tested both fixes;
 248 pre-existing tests still pass, plus three new junction tests that fail on either revert.
+
+## 2026-08-30 — phase 0 — what would actually show a fold
+
+Marc asked for a gradation from fully unfolded to fully folded with ordered secondary
+structure, computed on the device. Nothing in the app was changed: this was a survey, a
+prototype and a decision written up for him in BLOCKERS.md.
+
+The survey answer is blunter than expected. Fourteen generative models were checked against
+their papers and repositories and **none produces a folding pathway for a named protein**.
+They divide into ones that expand out of a noise ball (Genie 2, RFdiffusion, ProtPardelle),
+ones that reorganise at roughly constant size (FrameDiff, Chroma, AlphaFlow), and ones that
+sharpen coarse to fine (EigenFold, Proteina). foldingDiff's peer-reviewed paper deletes the
+folding claim its preprint made. The single model that does claim pathways, PathDiffusion,
+needs an MSA. Chroma's and Proteina's weights are non-commercial, which would have been a
+blocker anyway.
+
+So the question stopped being "which diffusion model" and became "generated protein, or named
+protein". The other tradition answers the second: a CA structure-based (Go) model, Clementi,
+Nymeyer and Onuchic 2000, written here from the published equations rather than ported from
+GPL SMOG2. Nine of the bundled proteins fold from a self-avoiding random coil to 0.6-3.3 A of
+their native state, secondary structure rising from **zero** to within a few points of the
+native content, every frame a valid polypeptide, in 2.3 s of one CPU core for ubiquitin. The
+whole model is 912 bytes - the native CA trace - against 33.8 MB for the exported Genie 2.
+
+Three measurement traps on the way, all recorded in METRICS.md. The dihedral gradient was
+wrong by a factor of two in places and the trajectory still looked plausible, which is why
+every force term is now checked against finite differences (1.4e-09) and the C against the
+numpy (1.7e-13). The obvious "fully extended chain" start is assigned **96% sheet** by P-SEA -
+an extended chain is in the beta conformation, residue by residue - so ordered structure went
+*down* over the trajectory until the start became a self-avoiding random coil. And a single
+temperature near Tf is a coin flip: villin reached Q = 1.000 and had fallen back to 0.77 by
+the end of the run. Annealing kT 1.0 to 0.5 is what makes it 9 of 9.
+
+The interpolation baseline was measured rather than argued about: a coil morphed into the
+native has a minimum non-bonded CA-CA distance of **0.20 A** and a clash in 190 frames of 200.
+Chains pass through each other. It is not an engine.
+
+**Test result:** `swift test -c release` 257 tests pass; `Tools/verify_phase.sh 2` GREEN.
+Nothing Swift was touched.

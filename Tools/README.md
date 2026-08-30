@@ -62,6 +62,25 @@ Free disk was 37 GB at the time of writing. `facebook/esmfold_v1` is roughly 5 G
 | `setup_env.sh` | Create the venv and install the pinned stack |
 | `verify_phase.sh <0-5> [--invariants-only]` | Machine-verifiable gate checks. `--invariants-only` is what each loop task must satisfy; the unflagged form is the phase exit gate |
 
+### The Phase 0d engine investigation (2026-08-30)
+
+Prototypes and measurement tools for the question *"which engine actually shows a protein
+folding"*. Nothing here is wired into the app; the decision is in `BLOCKERS.md` and the
+numbers are in `METRICS.md` under Phase 0d.
+
+| Script | Purpose |
+|---|---|
+| `fold_metrics.py` | Shared measurements: Rg and the compact expectation, CA-only P-SEA secondary-structure content, Kabsch RMSD, TM-score, CA-CA bonds, fraction of native contacts, monotonicity |
+| `fold_gradient_report.py` | Judges any trajectory (`.pftraj` or `.npz`) on whether it goes from unfolded to folded: direction, monotonicity, secondary structure formed, frames that are actually polypeptides |
+| `go_model_fold.py` | Reference CA structure-based (Go) model in numpy: topology, energy, analytic forces, Langevin, and `--selftest`, which checks every force term against central finite differences |
+| `go_model_fold.c` | The same potential in scalar C, ~7x faster than numpy and the honest proxy for what Swift would run on device. `--forces` prints forces for cross-checking, `--bench` times the force evaluation |
+| `go_model_run.py` | Driver: builds a self-avoiding random coil, runs the C engine, reports Q, Rg, RMSD, TM and secondary-structure content, writes `.npz` |
+| `go_model_budget.py` | Turns a run into the on-device question: steps to fold, compute seconds, and milliseconds per frame at a given playback length |
+| `morph_baseline.py` | The interpolation baseline (Cartesian and torsion space) and its failure modes, so the comparison in BLOCKERS.md is measured rather than argued |
+
+`go_model_fold.c` is compiled on demand by `go_model_run.py` into `go_model_fold_bin`
+(`clang -O2 ... -lm`). The binary is a build artefact and is not committed.
+
 ## The `.pftraj` trajectory container
 
 A bundled sample trajectory. Little-endian throughout; every Apple platform PhoneFold

@@ -46,6 +46,22 @@ never blocked, and the trunk-patching harness, which is reused by PathDiffusion.
 | P0-18 | Export ProteinMPNN to Core ML: split the encoder (one shot) from the per-residue decoder step (autoregressive), loop in Swift | P0-16 | **deferred** |
 | P0-19 | `Tools/bench_ane.py` + on-device XCTest harness; results to `METRICS.md` | P0-17, P0-18 | part done (Mac measured; on-device is a human gate) |
 
+### Phase 0d — which engine actually shows a fold (investigation, 2026-08-30)
+
+Marc asked for a real unfolded-to-folded gradation computed on the device. This was a survey
+and a prototype, not an engine change: **nothing in the app was modified and no bundled
+trajectory was touched.** The decision is written up for Marc in `BLOCKERS.md`; the
+measurements are in `METRICS.md` under Phase 0d and the literature in `MODEL_SURVEY.md`.
+
+| ID | Task | Deps | Status |
+|---|---|---|---|
+| P0-27 | Survey fourteen generative candidates against the trajectory question, with licences | — | done: none produces a folding pathway for a named protein |
+| P0-28 | `Tools/fold_gradient_report.py` + `fold_metrics.py`: judge any trajectory on direction, monotonicity, secondary structure formed and CA-CA sanity | — | done |
+| P0-29 | Re-examine foldingDiff on trajectory shape rather than sample quality | P0-28 | done: it expands, and its ordered structure appears only in the last tenth |
+| P0-30 | Prototype a CA structure-based (Go) model, numpy + C, with force controls | P0-28 | done: 9 of 9 named proteins fold, 0.6-3.3 A RMSD |
+| P0-31 | Measure the interpolation morph baseline so it is compared, not argued | P0-28 | done: 0.20 A closest approach, clashes in 190 frames of 200 |
+| P0-32 | Ranked recommendation in `BLOCKERS.md` | P0-27..31 | done — **waiting on Marc** |
+
 ### Phase 0c — the PathDiffusion named gallery
 
 | ID | Task | Deps | Status |

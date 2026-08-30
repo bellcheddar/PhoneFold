@@ -1297,3 +1297,200 @@ tested, the old winding fails it at 9,200 of 9,200 triangles.
 outline shell's CPU far-facing selection was built to stand in for culling that was assumed
 absent, and the missing end caps were described as showing the interior wall when they were in
 fact showing straight through. The caps are still right - an open end is a hole either way.
+
+## Phase 0d — which engine actually shows a protein folding (2026-08-29)
+
+Marc's brief: *"a gradation from fully unfolded to fully folded with ordered secondary
+structure, all compute on device, no precompute"*. Motion is not enough - Genie 2 moves
+10.7 A and does it by expanding out of a blob - so every candidate here is measured on the
+same four quantities by `Tools/fold_gradient_report.py`:
+
+- radius of gyration per frame, against the compact expectation `2.2 * N^0.38`
+- helix / sheet / coil content per frame, by **CA-only P-SEA** (biotite's implementation,
+  the same method the Swift `PSEA` was validated against in Phase 1)
+- CA-CA virtual bond length: a frame outside 3.8 +- 0.3 A is not a polypeptide and cannot
+  carry a backbone tube
+- contacts at the app's own 8 A, |i-j| >= 3 threshold
+
+### The comparison, on identical measurements, all at 76 residues except where noted
+
+| Engine | direction | Rg first -> last (A) | ordered SS first -> last | polypeptide frames | folds a **named** protein |
+|---|---|---|---|---|---|
+| ESMFold readouts (ubiquitin) | collapse of 0.87 A | 12.05 -> 11.36 | **0.49 -> 0.49** | 4 / 8 | yes |
+| Genie 2 denoising | **expansion** | 1.22 -> 10.83 | 0.00 -> 0.75 | **3 / 11** | no |
+| foldingDiff denoising, seed 11 | **expansion** | 10.14 -> 22.08 | 0.00 -> 0.71 | **3 / 11** | no |
+| foldingDiff, seed 12 | expansion | 8.38 -> 14.27 | 0.00 -> 0.49 | 2 / 6 | no |
+| foldingDiff, seed 13 | expansion | 5.48 -> 17.32 | 0.00 -> 0.62 | 2 / 6 | no |
+| Coil-to-native morph, Cartesian | collapse | 21.3 -> 11.4 | 0.00 -> 0.43 | **30 / 200** | n/a - not folding |
+| Coil-to-native morph, torsion space | collapse | 21.3 -> 11.4 | 0.00 -> 0.41 | 200 / 200 | n/a - not folding |
+| **CA structure-based (Go) model, ubiquitin** | **collapse** | **21.35 -> 11.66** | **0.00 -> 0.38** (native 0.43) | **11 / 11** | **yes** |
+
+Frames are sampled every 20th of 201 unless the row says otherwise, so the polypeptide-frame
+counts are directly comparable.
+
+Three things this settles.
+
+**ESMFold's ordered-structure content does not change at all.** 0.49 at the first readout and
+0.49 at the last. The secondary structure is already there before the first frame exists; the
+headline visual has no subject on this engine.
+
+**foldingDiff was re-examined and the earlier rejection stands, now on the trajectory's shape
+rather than only on sample quality.** Its final backbones measure Rg/expected of 1.25, 1.52
+and 1.94 across three seeds - extended, matching the 1.55 median recorded earlier - and the
+ordered structure appears only in the last tenth of the run: 0.00 at frame 180 of 201, 0.71 at
+frame 200. It denoises torsions, so its *bond lengths* are ideal by construction, but its
+CA-CA distances are 2.4-3.6 A for most of the trajectory because the chain is coiled through
+itself; only 2 or 3 frames in ten are polypeptides by the same test applied to every other
+engine here.
+
+**The interpolation baseline passes chains through themselves.** Minimum non-bonded CA-CA
+distance over the trajectory, |i-j| >= 3:
+
+| | minimum CA-CA (A) | frames containing a clash under 4 A |
+|---|---|---|
+| Cartesian morph | **0.20** | 190 / 200 |
+| Torsion-space morph | **0.20** | 193 / 200 |
+| Go model, same protein | 3.59 | 32 / 201 (all marginal, none below 3.59) |
+
+A morph gives a perfect gradient and physically impossible intermediates. It is only usable
+if it is labelled as a morph, and even then the visual has atoms passing through each other.
+
+### The structure-based model: what it is, and the controls
+
+`Tools/go_model_fold.py` (reference, numpy) and `Tools/go_model_fold.c` (the fast path)
+implement the CA-level structure-based model of Clementi, Nymeyer & Onuchic (J Mol Biol
+298:937, 2000; preprint cond-mat/0003460), written from the published equations - not ported
+from SMOG2, which is GPL-2.0. Constants are the paper's own: `Kr = 100 eps`,
+`Kt = 20 eps`, `Kd(1) = eps`, `Kd(3) = 0.5 eps`, non-native `sigma = 4.0 A`, native `sigma_ij`
+the native CA-CA distance.
+
+Two deliberate deviations, recorded because they are deviations:
+
+1. The paper derives its native contact map from **CSU heavy-atom** analysis. This
+   implementation uses a **CA-CA cutoff of 8 A with |i-j| >= 3**, because the app has a CA
+   trace and nothing else. It gives 184 contacts on ubiquitin.
+2. The dihedral term is written `1 - cos(dphi) + 0.5(1 - cos 3 dphi)`, minimal at the native
+   torsion. The paper prints `1 + cos`; the phase convention there is unresolved and this
+   form is the one that makes the native state the minimum, which is the whole point of the
+   potential.
+
+| Control | Result |
+|---|---|
+| Analytic forces vs central finite differences of the energy, per term (bond, angle, dihedral, contacts, all) | worst relative error **1.4e-09** |
+| C implementation vs the numpy one, same configuration | max abs difference **4.7e-11** on forces of magnitude up to 274, i.e. **1.7e-13** relative |
+| Dihedral gradient before the fix | 1.9 relative error - i.e. wrong, and the trajectory still looked like something. It is checked because of that, not despite it |
+
+The unfolded starting state is a **self-avoiding random coil** (`random_coil`), not an
+extended chain. Measured: a near-extended chain is assigned **96% sheet** by P-SEA, because an
+extended chain *is* in the beta conformation residue by residue, so starting there makes
+ordered structure go *down* over the trajectory. The random coil starts at 0.00 ordered
+content at every length tested (20 to 314 residues) and its Rg is 1.6-2.0x the compact
+expectation, near the Kohn scaling for denatured proteins.
+
+### Nine named proteins, folded from a random coil on this Mac
+
+Single temperature ramp `kT 1.0 -> 0.5`, `dt 0.015`, `gamma 0.1`, seed 1, steps scaled with
+chain length. Timings are **serial, one run at a time**, single-core scalar C (double
+precision, no SIMD, no neighbour list) on the M1 Max.
+
+| Protein | aa | steps | us/step | compute (s) | Q final | RMSD to native (A) | TM | Rg first -> last (A) | ordered SS -> (native) |
+|---|---|---|---|---|---|---|---|---|---|
+| Trp-cage TC5b | 20 | 150,000 | 2.7 | 0.4 | 0.973 | **0.6** | 0.462 | 9.5 -> 6.9 | 0.00 -> 0.40 (0.40) |
+| Pin1 WW domain | 34 | 150,000 | 5.6 | 0.8 | 0.971 | **0.7** | 0.862 | 12.8 -> 9.4 | 0.00 -> 0.18 (0.35) |
+| Villin HP36 | 36 | 150,000 | 6.0 | 0.9 | 0.928 | 1.5 | 0.636 | 13.9 -> 9.6 | 0.00 -> 0.64 (0.67) |
+| Protein G B1 | 56 | 224,000 | 11.7 | 2.6 | 0.978 | 1.6 | 0.825 | 22.0 -> 10.4 | 0.00 -> 0.64 (0.66) |
+| Alpha-3D | 73 | 292,000 | 17.7 | 5.2 | 0.973 | **0.9** | 0.924 | 21.4 -> 12.9 | 0.00 -> 0.77 (0.82) |
+| Ubiquitin | 76 | 304,000 | 19.3 | 5.9 | **0.995** | **1.0** | 0.915 | 21.3 -> 11.7 | 0.00 -> 0.38 (0.43) |
+| Proinsulin | 86 | 344,000 | 23.5 | 8.1 | 0.994 | 3.3 | 0.629 | 21.2 -> 14.0 | 0.00 -> 0.26 (0.40) |
+| Lysozyme | 129 | 516,000 | 46.4 | 23.9 | 0.987 | 1.1 | **0.956** | 24.9 -> 13.9 | 0.00 -> 0.33 (0.33) |
+| Myoglobin | 153 | 612,000 | 62.3 | 38.1 | 0.985 | **1.0** | **0.956** | 26.7 -> 15.5 | 0.00 -> 0.67 (0.74) |
+
+Nine of nine reach the native state. The reference is each trajectory's own bundled final
+frame, which for ubiquitin is ESMFold's prediction at 0.83 A from experimental 1UBQ.
+
+TM-score here is of the **Kabsch superposition on all residues**, not TM-align's optimised
+alignment, so it is a lower bound; on 20- and 34-residue chains its `d0` is severe and RMSD is
+the more informative column.
+
+### Reliability: it is not one lucky seed
+
+Ubiquitin, `gamma 0.1`, 300,000 steps, five different random coils and five different noise
+streams: **5 of 5** reached Q >= 0.984, final RMSD 0.7, 1.0, 1.0, 1.2, 1.5 A. Villin at
+`gamma 1.0` and 1.5 M steps: **5 of 5**, RMSD 1.1 to 3.1 A.
+
+Shortening the run finds the floor: 3/3 fold at 150,000 and 200,000 steps, **2/3** at 100,000.
+
+### What it costs, and whether it fits a 60 fps frame
+
+`Tools/go_model_budget.py`. "Steps to fold" is the first frame at Q >= 0.9, so the settled
+equilibrium afterwards is not charged to the fold. The renderer costs 1.65 ms of the 16.7 ms
+frame at 314 residues, so the engine's share must stay under about 15 ms to be produced live.
+
+| Protein | aa | steps to fold | compute (s) | ms/frame, 30 s playback | ms/frame, 60 s playback |
+|---|---|---|---|---|---|
+| Trp-cage | 20 | 24,000 | 0.1 | 0.0 | 0.0 |
+| Pin1 WW | 34 | 48,000 | 0.3 | 0.1 | 0.1 |
+| Villin | 36 | 30,000 | 0.2 | 0.1 | 0.0 |
+| Protein G B1 | 56 | 142,240 | 1.7 | 0.9 | 0.5 |
+| Alpha-3D | 73 | 167,900 | 3.0 | 1.6 | 0.8 |
+| Ubiquitin | 76 | 118,560 | 2.3 | **1.3** | 0.6 |
+| Proinsulin | 86 | 292,400 | 6.9 | 3.8 | 1.9 |
+| Lysozyme | 129 | 286,380 | 13.3 | 7.4 | 3.7 |
+| Myoglobin | 153 | 452,880 | 28.2 | **15.7** | 7.8 |
+
+Peak resident set size, measured with `/usr/bin/time -l`: **1.5 MB** at 76 residues, **1.9 MB**
+at 314. There are no weights: the entire model is the native CA trace, **912 bytes** for
+ubiquitin as float32 and 3,768 bytes at 314 residues, against Genie 2's 33.8 MB `.mlpackage`.
+
+### Where it fails, measured
+
+**314 residues has not been made to fold, in three attempts.** The beta-2 adrenergic
+receptor's 7TM core, 821 native contacts:
+
+| Attempt | Result |
+|---|---|
+| `gamma 1.0`, `dt 0.015`, kT 1.0 -> 0.5, 3,000,000 steps (689 s) | stable, did **not** fold: helices formed (ordered 0.03 -> 0.61 against a native 0.78) and the chain *expanded*, Rg 39.4 -> 102.1 A, TM 0.034 |
+| `gamma 0.1`, `dt 0.015`, kT 0.8 -> 0.4, 4,000,000 steps (935 s) | **the integrator diverged.** Q 0.000; a probe run shows CA-CA already at 2,819 +- 1,905 A by step 30,000 and Rg at 8e11 A by step 300,000 |
+| `gamma 0.1`, `dt 0.005`, kT 0.8 -> 0.4, 100,000 steps (23 s) | **stable** - CA-CA 3.83 +- 0.07 A, Rg holding near 39 A, Q already 0.769 |
+| `gamma 0.3`, `dt 0.005`, kT 0.9 -> 0.4, 3,000,000 steps (705 s) | stable and **it forms the secondary structure**: ordered content 0.03 -> **0.75** against a native 0.78, CA-CA 3.83 +- 0.07. It does not collapse: Rg 39.4 -> 46.0 A against a native 23.7, RMSD 42.4 A, TM 0.050, Q 0.943 |
+
+So the divergence is the **timestep**, not the length: `dt 0.015` is fine to 153 residues and
+unstable here, and `dt 0.005` is stable at 314. The last two rows also show why Q alone is not
+enough at this size - **Q 0.943 at TM 0.050** is seven helices formed and none of them packed,
+because most of a 7TM bundle's native contacts are local ones inside its own helices.
+
+Four attempts, none reaching the native state, and the stable configuration costs three times
+the steps at **235 us each**: 705 s for one run that still did not fold. **The practical
+ceiling measured here is about 150 residues**, which is where a fold still costs tens of
+seconds rather than tens of minutes.
+
+**Cost grows with length faster than playback tolerates.** 2.7 us/step at 20 residues,
+19.3 at 76, 62.3 at 153, **239.5 at 314** - and the number of steps needed grows too. This is
+the O(N^2) pair loop with no neighbour list and no SIMD; both are available and neither has
+been tried.
+
+**A single temperature near the folding temperature is a coin flip.** Isothermal
+`kT 0.7`, 2 M steps, ubiquitin: folded to 1.3 A. At `kT 0.6` the same run trapped at Q 0.75
+and 9.4 A; at `kT 0.9` and 1.1 it never folded (Q 0.45, 0.28). Villin at `kT 0.7` reached
+Q = 1.000 and had fallen back to 0.768 by the end of the run. The `kT 1.0 -> 0.5` anneal is
+what makes 9 of 9 work, and it is the difference between a physics demo and something an app
+can play on demand.
+
+**Steps needed depend on friction, and low friction is much faster.** Ubiquitin, same anneal:
+772,500 steps to Q >= 0.9 at `gamma 1.0`, **118,560 at `gamma 0.1`**. Folding studies use low
+friction deliberately (Kaya & Chan, cond-mat/0212105, use gamma = 0.05); this measurement says
+the same thing in this project's own units.
+
+**The native state has to be trustworthy.** The potential's global minimum *is* the reference
+structure, so the model faithfully folds to whatever it is given. Proinsulin's reference is an
+ESMFold prediction at mean pLDDT 55.2 and it reaches Q 0.994 against it - a confident fold to
+an unreliable target. GFP (pLDDT 43.3) and alpha-synuclein (33.3, intrinsically disordered)
+were not run for this reason.
+
+### Determinism, which Phase 3 requires
+
+PLAN.md Phase 3 asks that the same protein yields the same piece. Two runs of the same
+protein with the same seed agree to **0.000e+00 A** on every coordinate of every frame; two
+different seeds diverge to 101.7 A on the final frame while both reaching the native state.
+The engine is therefore reproducible on demand and different on request, and which one the
+app wants is a setting rather than a rewrite.

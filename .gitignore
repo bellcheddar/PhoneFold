@@ -33,3 +33,6 @@ credentials.env
 
 # Trajectories are copied into the app target at build time from Apps/Shared/Resources
 Apps/PhoneFold/Resources/*.pftraj
+
+# Compiled prototype binaries
+Tools/go_model_fold_bin

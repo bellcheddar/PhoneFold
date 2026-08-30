@@ -3,7 +3,8 @@
 Questions and decisions that require Marc. Each entry dated, with context, options considered,
 and a recommendation. Nothing here is resolved by the agent.
 
-**Open:** the Phase 2 exit gate needs Marc. See the checklist at the end of this file.
+**Open:** the Phase 2 exit gate needs Marc (checklist below), and - added 2026-08-30 -
+**which engine gives PhoneFold a real folding trajectory**, at the end of this file.
 
 ---
 
@@ -485,3 +486,124 @@ the Phase 2 gate already halts for a device check. Options:
    two paths would need to stay in step.
 
 Nothing downstream is waiting on this: it can be revisited any time after Phase 2.
+
+---
+
+## OPEN — 2026-08-30 — the engine that would actually show a fold
+
+Marc: *"The current trajectories are too short and don't show folding. I want to see a
+gradation from fully unfolded to fully folded with ordered secondary structure. All compute
+done ON DEVICE, no precompute, and a clear gradient from unfolded to folded."*
+
+Nothing is blocked by this: Phase 2's gate is GREEN and the app still plays what it plays.
+**No engine has been changed and no bundled trajectory has been touched.** This is a decision
+about what PhoneFold folds, and it is Marc's.
+
+Everything below is measured on identical criteria by `Tools/fold_gradient_report.py` -
+radius of gyration per frame, CA-only P-SEA secondary-structure content per frame, CA-CA bond
+length, contacts - with the full tables in METRICS.md under **Phase 0d**. The literature and
+the licences are in MODEL_SURVEY.md.
+
+### The finding that decides it
+
+**No published generative model produces a folding pathway for a named protein.** Fourteen
+were checked. Genie 2, RFdiffusion and ProtPardelle *expand* out of a noise ball; FrameDiff,
+Chroma and AlphaFlow reorganise at roughly constant size; EigenFold and Proteina go
+coarse-to-fine. foldingDiff's own peer-reviewed paper removed the folding claim its preprint
+made. The one model that does claim pathways, PathDiffusion, needs an MSA and cannot run on
+a phone. Chroma's and Proteina's weights are non-commercial, which is a blocker regardless.
+
+So the choice is not "which diffusion model" - it is **whether PhoneFold shows a generated
+protein assembling itself, or a named protein folding.**
+
+### The four options, measured
+
+| | Genie 2 (today) | **CA structure-based (Go)** | foldingDiff | Coil-to-native morph |
+|---|---|---|---|---|
+| What the chain does | Rg **1.22 -> 10.83 A**: expands out of a blob | Rg **21.3 -> 11.7 A**: collapses onto the fold | Rg 10.1 -> 22.1 A: expands, ends extended | Rg 21.3 -> 11.4 A: collapses |
+| Ordered SS, first -> last | 0.00 -> 0.75 | 0.00 -> 0.38 (native 0.43) | 0.00 -> 0.71, all of it in the last tenth | 0.00 -> 0.43 |
+| Frames that are polypeptides | **3 / 11** | **11 / 11** | 3 / 11 | 200/200 (torsion), 30/200 (Cartesian) |
+| Closest non-bonded approach | - | 3.59 A | - | **0.20 A: chains pass through each other** |
+| A named protein? | **no** | **yes** - 9 of 9 folded, RMSD 0.6 - 3.3 A | no | yes, but it is not folding |
+| Model on disk | 33.8 MB `.mlpackage` | **912 bytes** (the native CA trace) | 57.9 MB | 912 bytes |
+| Peak memory | not measured on device | **1.5 MB** at 76 residues | - | trivial |
+| Compute for one fold | 15 s at 64 aa (Core ML, Mac GPU) | **2.3 s** at 76 aa, 28 s at 153 aa (one CPU core) | 18 s at 76 aa (PyTorch CPU) | free |
+| Fits a 60 fps frame? | 15.2 ms per denoising step on the Mac GPU, and its blob prefix already measured **19.8 ms/frame** in the app on the contact tracker alone - **it does not** | **1.3 ms/frame** at 76 aa over a 30 s playback; 15.7 ms at 153 aa | untested | yes |
+| Licence | Apache-2.0 | **none needed** - written from published equations (Clementi et al. 2000). SMOG2 is GPL and was not touched | MIT | n/a |
+| Compute unit | GPU (ANE refuses to compile it) | CPU, no Core ML, no weights | - | CPU |
+
+### 1. Recommended: the CA structure-based model, for the named gallery
+
+Take a named protein's known structure, build a potential whose minimum is that structure, and
+integrate Langevin dynamics from a self-avoiding random coil. Measured on nine of the bundled
+proteins: **9 of 9 reach the native state**, 0.6 to 3.3 A RMSD, secondary structure rising
+from **zero** to within a few points of the native content, every frame a valid polypeptide,
+5 of 5 seeds folding on ubiquitin, and bit-identical replay from a fixed seed.
+
+**Trade-off in one sentence:** it is a real folding pathway for the protein whose name is on
+the screen, and it is a *simulation towards a structure that is already known* rather than a
+prediction, so the app must say so.
+
+What it also buys, none of which the current engine can offer: TM-score and RMSD readouts have
+a reference to be measured against (the Phase 2 counters panel asked for exactly this); the
+protein has its real sequence, so hydrophobicity colouring and the Fantasy profile's R/K/D/E
+triggers fire at a real fold's 41% rather than a designed backbone's 13%; ProteinMPNN leaves
+the live path entirely; and contacts form one at a time in a physical order, which is the
+subject the Phase 3 score was written for.
+
+What it costs: **no ANE and no GPU** - it is arithmetic on one CPU core, so PLAN.md's
+"on the Neural Engine" drifts further from the truth; the practical ceiling is about **150
+residues**, with 314 measured as four failures - the best of them formed the secondary
+structure (0.03 -> 0.75 against a native 0.78) and never packed the bundle (TM 0.050); and the app needs the native coordinates,
+which is 912 bytes bundled per gallery protein, or a fetch from the PDB or AlphaFold DB for an
+arbitrary accession. **That fetch would restore the feature the Genie 2 decision gave up:
+type an accession, watch that protein fold, computed on the phone.** A downloaded reference
+structure is not a precomputed trajectory - every frame is still computed on the device.
+
+### 2. Keep Genie 2 as the "generate a protein" mode
+
+It is exported, it works, and it is the only thing here that invents a protein. Its trajectory
+is a real generative path and a poor fold: it expands rather than collapses, its first 35
+steps are a degenerate blob measured at 19.8 ms/frame against a 16.7 ms budget, and 8 of 11
+sampled frames are not polypeptides.
+
+**Trade-off:** a genuine trajectory of a protein that never existed, versus a genuine folding
+pathway of one that does. They are different acts in the same concert and the app can hold
+both - the provider abstraction was built for exactly this.
+
+### 3. foldingDiff: re-examined as asked, and it stays rejected
+
+The earlier rejection was about sample quality; this one is about the trajectory. Across three
+fresh seeds it **expands** (final Rg/expected 1.25, 1.52, 1.94 - extended, not folded), only
+2-3 frames in 11 are polypeptides, and its ordered structure appears entirely in the last
+tenth of the run rather than growing. Its own authors removed the folding claim between the
+preprint and the paper.
+
+### 4. The morph: only ever as a labelled transition
+
+Interpolating a coil into the native gives a perfect gradient and impossible physics: minimum
+non-bonded CA-CA distance **0.20 A**, with a clash in 190 of 200 frames. Chains pass through
+each other on screen. If it is ever used it must be labelled *"morph, not a fold"* in the
+frame itself and never carry a provenance that suggests a model produced it. Recommendation:
+do not use it.
+
+### What I would pick
+
+**Option 1 for the gallery, keeping option 2 as a second mode.** It is the only thing measured
+that satisfies Marc's sentence end to end - unfolded to folded, secondary structure appearing
+from nothing, on device, no precompute, and a clear gradient - and it does it for a protein
+with a name, at 912 bytes and 1.3 ms of a 16.7 ms frame.
+
+**What would change my mind**
+
+- If the point of the app is that it *predicts* structure, this is the wrong engine: it is
+  handed the answer. Genie 2 at least invents something.
+- If a Swift implementation on a phone measures far off the C figures here. That is one
+  afternoon's work to find out and it has not been done.
+- If Marc will not accept a fetched reference structure for arbitrary accessions, the gallery
+  is limited to what is bundled.
+- If PathDiffusion turns out to run without its MSA pipeline, it is the scientifically
+  strongest answer and it would displace this.
+
+**Not blocking anything.** Phase 2's human sign-off is still the open item, and Phase 3 can
+start on the current trajectories whatever is decided here.
