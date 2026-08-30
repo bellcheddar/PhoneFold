@@ -248,3 +248,49 @@ extension FoldAudioEngineTests {
         #expect((output.left.map(abs).max() ?? 0) <= 1.0)
     }
 }
+
+extension FoldAudioEngineTests {
+
+    @Test("the capture tap hears the finished mix")
+    func captureTapHearsTheMix() throws {
+        // PLAN.md: "Tap mainMixerNode for the Phase 4 capture path." Phase 4 records the piece,
+        // and a tap that heard silence would be discovered there rather than here.
+        let style = try SonifierTests.style
+        let engine = FoldAudioEngine(style: style, residueCount: 20)
+        let positions = Self.chain(20)
+
+        // The tap runs on the audio thread; this only counts and sums, and takes no lock.
+        let captured = Captured()
+        engine.installCaptureTap(bufferSize: 1_024) { buffer, _ in
+            guard let channel = buffer.floatChannelData else { return }
+            var sum = 0.0
+            for i in 0..<Int(buffer.frameLength) {
+                sum += Double(channel[0][i]) * Double(channel[0][i])
+            }
+            captured.add(frames: Int(buffer.frameLength), energy: sum)
+        }
+
+        var submitted = false
+        _ = try engine.renderOffline(seconds: 1.5) { time, engine in
+            guard !submitted, time == 0 else { return }
+            submitted = true
+            engine.submit(Self.moment(0, notes: [
+                Self.note(.pad, beat: 0, pitch: 57, residue: 5, duration: 4),
+            ]), positions: positions)
+        }
+        engine.removeCaptureTap()
+
+        #expect(captured.frames > 0, "the tap was never called")
+        #expect(captured.energy > 0, "the tap heard silence")
+    }
+
+    /// A counter the tap block can reach without locking on the audio thread.
+    final class Captured: @unchecked Sendable {
+        private(set) var frames = 0
+        private(set) var energy = 0.0
+        func add(frames count: Int, energy value: Double) {
+            frames += count
+            energy += value
+        }
+    }
+}

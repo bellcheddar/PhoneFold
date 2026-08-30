@@ -2361,3 +2361,23 @@ call, and without them the first such event leaves a silently dead engine.
 
 **Not yet verified on hardware**, and it cannot be from here. Added to the list needing Marc's
 device.
+
+### The capture tap, and what the audio architecture still lacks (2026-08-30)
+
+PLAN.md's audio architecture list, item by item, honestly:
+
+| Asked for | State |
+|---|---|
+| `AVAudioEngine` with voices fed by a bundled SoundFont | Synthesised instead - Marc's call; the licence halt cannot arise |
+| `AVAudioEnvironmentNode` with HRTF, per-residue positions | Done |
+| Musical clock decoupled from inference, holds a pad when starved | Done |
+| Tap `mainMixerNode` for the Phase 4 capture path | Done, and tested: the tap hears the mix rather than silence |
+| `AVAudioSession` `.playback` with `[.allowAirPlay]` on iOS | Done |
+| macOS: default output device with a **user-selectable route** | **Not done.** It uses the default device; there is no route picker |
+| visionOS: keep the session spatial | Uses the same `.playback` path as iOS; not verified on device |
+| Parallel MIDI event log, for export and CoreMIDI out | Export done. **CoreMIDI out on the Mac is not done** |
+
+The tap is installed here rather than in Phase 4 because the mixer belongs to this engine, and
+a capture path reaching into it from outside would be one more thing to keep in step with the
+graph. Its block runs on the audio thread, so the contract is written on it: no allocation, no
+lock, no call back into the engine.

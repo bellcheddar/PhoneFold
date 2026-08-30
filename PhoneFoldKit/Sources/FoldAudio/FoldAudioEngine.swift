@@ -109,11 +109,13 @@ public final class FoldAudioEngine: @unchecked Sendable {
     private let state = Mutex(Scheduling())
 
     public private(set) var isRunning = false
+    private var hasCaptureTap = false
 
     deinit {
         // Torn down explicitly and in order. Left to Swift's own release order the nodes
         // outlive the engine that owns their graph, which is how the destination crash found
         // its way in.
+        if hasCaptureTap { engine.mainMixerNode.removeTap(onBus: 0) }
         if engine.isRunning { engine.stop() }
         for slot in voices {
             if let node = slot.node { engine.detach(node) }
@@ -353,6 +355,31 @@ public final class FoldAudioEngine: @unchecked Sendable {
             return nil
         }
         return Double(render.sampleTime) / render.sampleRate
+    }
+
+    // MARK: - The capture path
+
+    /// Listen to the finished mix.
+    ///
+    /// PLAN.md: "Tap `mainMixerNode` for the Phase 4 capture path." Installed here rather than
+    /// in Phase 4 because the mixer belongs to this engine, and a capture path that reached
+    /// into it from outside would be one more thing to keep in step with the graph.
+    ///
+    /// **The block runs on the audio thread.** It must not allocate, must not lock, and must
+    /// not call back into this engine - copy the samples out and do the work elsewhere.
+    public func installCaptureTap(bufferSize: AVAudioFrameCount = 4_096,
+                                  _ block: @escaping AVAudioNodeTapBlock) {
+        removeCaptureTap()
+        let mixer = engine.mainMixerNode
+        mixer.installTap(onBus: 0, bufferSize: bufferSize,
+                         format: mixer.outputFormat(forBus: 0), block: block)
+        hasCaptureTap = true
+    }
+
+    public func removeCaptureTap() {
+        guard hasCaptureTap else { return }
+        engine.mainMixerNode.removeTap(onBus: 0)
+        hasCaptureTap = false
     }
 
     // MARK: - Offline, through the real graph
