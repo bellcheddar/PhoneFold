@@ -1892,3 +1892,19 @@ denials** for it.
 **Not verified:** that the AlphaFold fetch actually succeeds under the sandbox. The Mac screen
 was locked, so the result could not be read off the window, and absence of a denial in the log
 is encouraging rather than conclusive. It wants one look at a fetch on an unlocked screen.
+
+### All three engines verified on screen (2026-08-30)
+
+| Engine | On screen | Disclosure shown |
+|---|---|---|
+| Simulate | Haemoglobin alpha, all-alpha globin fold, 99% native contacts | "Simulated on device toward a known structure — not a prediction" |
+| Morph | Protein G B1, helix and sheet resolving, progress 83 | "Interpolation toward a known structure — not a fold" |
+| Generate | 64 residues, two-helix bundle, Rg 10.0 A, 163 contacts | "Generated — this protein has never existed" |
+
+The radius-of-gyration trace tells the three apart without a caption, which is a better piece of
+honesty than the caption:
+
+- **Simulate** descends and is visibly *noisy* — thermal fluctuation in a real Langevin
+  trajectory.
+- **Morph** descends perfectly smoothly. There is no physics in it and the trace shows it.
+- **Generate** *climbs*, because the noise ball opens outward rather than collapsing.
