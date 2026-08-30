@@ -106,10 +106,10 @@ public struct Sonifier: Sendable {
 
     // MARK: - State
 
-    public let style: StyleProfile
+    public private(set) var style: StyleProfile
     public let residues: [AminoAcid]
     public let seed: SequenceSeed
-    private let pitchLayer: PitchLayer
+    private var pitchLayer: PitchLayer
 
     /// Index into `style.progression`.
     private var chordIndex = 0
@@ -130,6 +130,27 @@ public struct Sonifier: Sendable {
         self.seed = seed ?? SequenceSeed(sequence: String(residues.map(\.code)))
         self.pitchLayer = PitchLayer(style: style)
         self.plateau = plateau
+    }
+
+    /// Change style without restarting the piece.
+    ///
+    /// PLAN.md: "Style switching is live and beat-quantised, never a restart." So the harmonic
+    /// state survives: the piece stays on the degree it was on, keeps its place in the
+    /// progression, and stays resolved if it had already cadenced. Rebuilding the sonifier
+    /// would send a fold that had reached its cadence back to the opening chord, which is the
+    /// one thing a listener would hear as a restart even if nothing else changed.
+    ///
+    /// The index is clamped rather than wrapped: two styles rarely have progressions of the
+    /// same length, and wrapping a position 5 into a four-chord loop would land somewhere
+    /// arbitrary rather than somewhere late.
+    public mutating func adopt(_ newStyle: StyleProfile) {
+        guard newStyle.id != style.id else { return }
+        let wasAtEnd = chordIndex >= style.progression.count - 1
+        style = newStyle
+        pitchLayer = PitchLayer(style: newStyle)
+        chordIndex = wasAtEnd
+            ? Swift.max(newStyle.progression.count - 1, 0)
+            : Swift.min(chordIndex, Swift.max(newStyle.progression.count - 1, 0))
     }
 
     // MARK: - The mapping

@@ -520,3 +520,76 @@ extension SonifierTests {
         #expect(event.notes.contains { $0.voice == .contact })
     }
 }
+
+extension SonifierTests {
+
+    @Test("a style change keeps the piece where it was, rather than restarting it")
+    func styleSwitchIsNotARestart() throws {
+        let styles = try StyleLibrary.profiles(in: StyleProfileTests.stylesDirectory)
+        let fantasy = try #require(styles["fantasy"])
+        let rock = try #require(styles["rock"])
+
+        var sonifier = Sonifier(style: fantasy, residues: Self.acids("MKTAYIAKQRQ"))
+        // Four moments on four recycles: three modulations, so the piece sits at index 3.
+        //
+        // Not six: Fantasy's progression both begins and ends on the tonic, so at index 5 the
+        // *degree* is back to the opening one and "has it modulated" cannot be asked of the
+        // degree alone. Index 3 is degree 6, which is unambiguous.
+        var moments: [ScoreMoment] = []
+        for i in 0..<4 {
+            if let moment = sonifier.moment(for: Self.frame(index: i, recycle: i, residues: 11)) {
+                moments.append(moment)
+            }
+        }
+        let before = try #require(moments.last)
+        #expect(before.degree == fantasy.progression[3], "the test needs to have modulated")
+        #expect(before.degree != fantasy.progression[0])
+
+        sonifier.adopt(rock)
+        let produced = sonifier.moment(for: Self.frame(index: 4, recycle: 3, residues: 11))
+        let after = try #require(produced)
+        // PLAN.md: live and beat-quantised, never a restart. A rebuilt sonifier would send a
+        // piece that had modulated three times back to the opening chord, which is the one
+        // thing a listener hears as a restart whatever else stays the same.
+        #expect(sonifier.style.id == "rock")
+        // Rock's progression is five long and Fantasy's six: the position is clamped into it
+        // rather than wrapped, so a piece that was late stays late.
+        #expect(after.degree == rock.progression[3])
+    }
+
+    @Test("a piece that has resolved stays resolved through a style change")
+    func styleSwitchKeepsTheCadence() throws {
+        let styles = try StyleLibrary.profiles(in: StyleProfileTests.stylesDirectory)
+        let fantasy = try #require(styles["fantasy"])
+        let jazz = try #require(styles["jazz"])
+
+        var sonifier = Sonifier(style: fantasy, residues: Self.acids("MKTAYIAKQRQ"))
+        var cadenced = false
+        for i in 0..<20 {
+            let frame = Self.frame(index: i, residues: 11,
+                                   confidence: Array(repeating: Float(93), count: 11))
+            if let moment = sonifier.moment(for: frame), moment.isCadence { cadenced = true }
+        }
+        #expect(cadenced, "the test needs the piece to have resolved first")
+
+        sonifier.adopt(jazz)
+        let produced = sonifier.moment(for: Self.frame(
+            index: 21, residues: 11, confidence: Array(repeating: Float(93), count: 11)))
+        let after = try #require(produced)
+        // Having resolved, it stays resolved: a switch must not send a finished piece back to
+        // its opening chord.
+        #expect(after.degree == jazz.progression[jazz.progression.count - 1])
+        #expect(!after.isCadence, "it cadenced once already")
+    }
+
+    @Test("adopting the style already in force changes nothing")
+    func adoptingTheSameStyleIsANoOp() throws {
+        let fantasy = try Self.style
+        var sonifier = Sonifier(style: fantasy, residues: Self.acids("MKTAYIAKQ"))
+        _ = sonifier.moment(for: Self.frame(index: 0, residues: 9))
+        let before = sonifier.moment(for: Self.frame(index: 1, recycle: 1, residues: 9))
+        sonifier.adopt(fantasy)
+        let after = sonifier.moment(for: Self.frame(index: 2, recycle: 1, residues: 9))
+        #expect(before?.degree == after?.degree)
+    }
+}

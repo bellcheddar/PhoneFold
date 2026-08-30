@@ -86,13 +86,17 @@ public final class FoldAudioEngine: @unchecked Sendable {
     public static let angstromsPerMetre: Float = 20
 
     public let sampleRate: Double
-    public let style: StyleProfile
+    public private(set) var style: StyleProfile
     public let residueCount: Int
 
     private let engine = AVAudioEngine()
     private let environment = AVAudioEnvironmentNode()
     private let voices: [SpatialVoice]
-    private let specs: [RenderVoiceSpec]
+    /// Read only on the scheduler thread, at note-on. Never on the audio thread, which reads
+    /// the copy already inside its own voice.
+    private var specs: [RenderVoiceSpec]
+    /// A style change waiting for its beat: the timbres, and the time they take effect.
+    private var pendingSpecs: (specs: [RenderVoiceSpec], from: Double)?
 
     /// Guarded by `state`, and touched only from the scheduler, never the audio thread.
     private struct Scheduling {
@@ -126,6 +130,7 @@ public final class FoldAudioEngine: @unchecked Sendable {
                                       count: Voice.allCases.count)
         for voice in Voice.allCases { table[voice.slot] = RenderVoiceSpec(style.spec(voice)) }
         specs = table
+        pendingSpecs = nil
         voices = (0..<Self.spatialVoices).map { _ in SpatialVoice() }
 
         state.withLock { $0.due.reserveCapacity(256) }
@@ -215,6 +220,30 @@ public final class FoldAudioEngine: @unchecked Sendable {
         }
     }
 
+    /// Take on a new style's timbres from a given time onward.
+    ///
+    /// **Quantised, not immediate.** Notes are placed on the timeline up to four seconds ahead,
+    /// so swapping the timbres outright would retimbre notes that were written under the old
+    /// style and are already on their way - the switch would arrive early and raggedly. Each
+    /// note is given the voices that were in force when its own onset falls.
+    public func adopt(_ newStyle: StyleProfile, from time: Double) {
+        var table = [RenderVoiceSpec](repeating: RenderVoiceSpec(VoiceSpec()),
+                                      count: Voice.allCases.count)
+        for voice in Voice.allCases { table[voice.slot] = RenderVoiceSpec(newStyle.spec(voice)) }
+        style = newStyle
+        pendingSpecs = (table, time)
+    }
+
+    /// The timbres in force for a note starting at a given time.
+    private func voiceSpecs(at time: Double) -> [RenderVoiceSpec] {
+        guard let pending = pendingSpecs else { return specs }
+        guard time >= pending.from else { return specs }
+        // The switch has arrived: adopt it, so later notes need no comparison.
+        specs = pending.specs
+        pendingSpecs = nil
+        return specs
+    }
+
     // MARK: - Feeding it
 
     /// Hand the engine a bar of music, and where the protein currently is.
@@ -289,7 +318,7 @@ public final class FoldAudioEngine: @unchecked Sendable {
         }
         slot.voice.start(frequency: note.note.frequency,
                          velocity: Double(note.note.velocity) / 127,
-                         spec: specs[note.voice.slot],
+                         spec: voiceSpecs(at: scheduled.time)[note.voice.slot],
                          timbre: scheduled.timbre,
                          sampleRate: sampleRate,
                          tag: counter,

@@ -1,7 +1,7 @@
 # PhoneFold — STATE
 
 **Current phase:** 3 (The score). Phase 0's engines are done and Phase 2's machine gate stays GREEN.
-**Current task:** P3-07. Marc answered the wizard on 2026-08-30: keep Genie 2 as a third mode, Simulate as the default, gallery references unchanged, and **do all four** of the next-work options - so Phase 3, the Phase 2 sign-off, engine hardening and polish are all in scope. Polish is done (P2-15).
+**Current task:** P3-09. Marc answered the wizard on 2026-08-30: keep Genie 2 as a third mode, Simulate as the default, gallery references unchanged, and **do all four** of the next-work options - so Phase 3, the Phase 2 sign-off, engine hardening and polish are all in scope. Polish is done (P2-15).
 **Last updated:** 2026-08-30
 
 Status vocabulary: `todo` / `doing` / `blocked` / `done`.
@@ -88,8 +88,12 @@ matter of opinion.
 | P3-04 | The musical clock: fixed tempo, jitter buffer, never blocks on inference | P3-03 | done |
 | P3-05 | Audio output: **synthesised voices, spatial from the start** — Marc's call, 2026-08-30 | P3-04 | done |
 | P3-06 | Wire the score into the app: conductor, sound toggle, one shared clock | P3-05 | done |
-| P3-07 | MIDI event log and export, round-tripped | P3-03 | todo |
-| P3-08 | The remaining four styles: Jazz, Rock, Pop, Surf | P3-02, P3-03, P3-05 | todo |
+| P3-07 | MIDI event log and export, round-tripped | P3-03 | done |
+| P3-08 | The remaining four styles: Jazz, Rock, Pop, Surf | P3-02, P3-03, P3-05 | done |
+| P3-09 | Live style switching, beat-quantised, never a restart | P3-08 | todo |
+| P3-10 | CoreHaptics on iPhone and Watch: contact transients, core rumble, convergence | P3-06 | todo |
+| P3-11 | Style picker, sound toggle and MIDI export in the app; Tay et al. citation in About | P3-08, P3-07 | todo |
+| P3-12 | Swing: declared in every style file and stored, but not yet applied to note placement | P3-08 | todo |
 
 **Marc's decisions, 2026-08-30.** Voices are **synthesised**, not sampled: no SoundFont, so
 PLAN's licence halt cannot arise and there is nothing to redistribute. **Fantasy is built all

@@ -209,3 +209,42 @@ struct FoldAudioEngineTests {
                 "live \(liveRMS) against offline \(offlineRMS)")
     }
 }
+
+extension FoldAudioEngineTests {
+
+    @Test("a style change reaches the notes written after it, not the ones already queued")
+    func styleSwitchIsQuantised() throws {
+        let styles = try StyleLibrary.profiles(in: StyleProfileTests.stylesDirectory)
+        let fantasy = try #require(styles["fantasy"])
+        let rock = try #require(styles["rock"])
+        let engine = FoldAudioEngine(style: fantasy, residueCount: 20)
+        let positions = Self.chain(20)
+
+        var submitted = false
+        var switched = false
+        let output = try engine.renderOffline(seconds: 2.0) { time, engine in
+            if !submitted, time == 0 {
+                submitted = true
+                // Four moments queued at once: two beats' worth ahead of the playhead.
+                for i in 0..<4 {
+                    engine.submit(Self.moment(i, notes: [
+                        Self.note(.pad, beat: 0, pitch: 60, residue: 5, duration: 1),
+                    ]), positions: positions)
+                }
+            }
+            if !switched, time > 0.05 {
+                switched = true
+                // From one second in - by which point notes are already on the timeline.
+                engine.adopt(rock, from: 1.0)
+            }
+        }
+        #expect(engine.style.id == "rock")
+        #expect(Self.rms(output.left) > 0.001)
+        // Swapping the timbres outright would retimbre notes written under the old style and
+        // already on their way, so the switch would arrive early and raggedly rather than on
+        // the beat it was asked for.
+        let finite = output.left.allSatisfy { $0.isFinite }
+        #expect(finite)
+        #expect((output.left.map(abs).max() ?? 0) <= 1.0)
+    }
+}

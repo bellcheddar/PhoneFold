@@ -38,7 +38,7 @@ final class ScoreConductor: @unchecked Sendable {
     private var waiting: [(moment: ScoreMoment, positions: [SIMD3<Float>])] = []
     private let lock = NSLock()
 
-    let style: StyleProfile
+    private(set) var style: StyleProfile
 
     init(style: StyleProfile, residues: [AminoAcid], readouts: Int) {
         self.style = style
@@ -116,6 +116,20 @@ final class ScoreConductor: @unchecked Sendable {
             guard let next else { return }
             engine.submit(next.moment, positions: next.positions)
         }
+    }
+
+    /// Switch style mid-piece, taking effect on the next beat.
+    ///
+    /// PLAN.md: "Style switching is live and beat-quantised, never a restart." The next
+    /// unwritten moment is by construction the next beat, so that is the switch point: the
+    /// sonifier writes from there in the new style, and the engine gives notes from there the
+    /// new timbres. What is already queued plays out as written.
+    func setStyle(_ newStyle: StyleProfile) {
+        guard newStyle.id != style.id else { return }
+        style = newStyle
+        let boundary = engine.nextBeat
+        lock.withLock { sonifier.adopt(newStyle) }
+        engine.adopt(newStyle, from: boundary)
     }
 
     // MARK: - What it measured about itself

@@ -2259,3 +2259,25 @@ sidechain are not expressible - there is no percussion voice and no ducking - so
 styles are carried by key, voicing, swing and timbre alone. Surf's spring reverb is a global
 reverb setting driven by confidence rather than a per-style effect. The `swing` field is
 declared and stored but is not yet applied to note placement.
+
+### P3-09, live style switching (2026-08-30)
+
+PLAN.md: "Style switching is live and beat-quantised, never a restart."
+
+**What makes it not a restart is that the harmonic state survives.** Rebuilding the sonifier
+would send a piece that had modulated three times, or that had already reached its cadence,
+back to the opening chord - which is the one thing a listener hears as a restart whatever else
+stays the same. The position in the progression carries over, clamped rather than wrapped
+(two styles rarely have progressions of the same length, and wrapping position 5 into a
+four-chord loop lands somewhere arbitrary rather than somewhere late), and a piece that has
+resolved stays resolved.
+
+**What makes it quantised is that the timbres change by time, not by flag.** Notes sit on the
+timeline up to four seconds ahead of the playhead, so swapping the voices outright would
+retimbre notes written under the old style and already on their way - the switch would arrive
+early and raggedly. Each note is given the voices in force at its own onset, and the switch
+point is the next unwritten moment, which is by construction the next beat.
+
+Writing the test found a trap in the test rather than the code: Fantasy's progression both
+begins and ends on the tonic, so at index 5 the *degree* is back to the opening one and "has it
+modulated" cannot be asked of the degree alone.
