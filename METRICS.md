@@ -2152,3 +2152,47 @@ number.
 `targetSeconds: 12`) while the music of the same fold runs 91 to 122 s. Both are defensible
 alone and they cannot both stand. The score's duration is a single parameter, so this moves
 either way once decided.
+
+### P3-05b, the live spatial engine (2026-08-30)
+
+`AVAudioEngine`, a pool of sixteen mono `AVAudioSourceNode`s, one `AVAudioEnvironmentNode` with
+HRTF per source. Every note is its own spatialised source, placed at the coordinate of the
+residue that produced it - the midpoint of the pair, for a contact - so the fold collapses
+around the listener because the protein does. This is what Marc asked for when he overrode the
+recommendation to defer spatial audio.
+
+Nothing here re-implements the scheduling: it drives the same `MusicalClock` and the same
+`SynthVoice` the offline renderer does, so the WAV that gets auditioned is the piece the app
+plays rather than an approximation of it.
+
+**Two API facts, verified against the SDK rather than assumed**, by compiling a probe before
+writing the engine:
+- `AVAudioSourceNode` conforms to `AVAudioMixing`, so a source node carries its own `position`
+  and `renderingAlgorithm` and can be spatialised without a player node.
+- The environment node reports rendering algorithms `[0, 1, 2, 6, 3, 7]` as applicable, HRTF
+  among them.
+
+**And one lifetime bug that only a crash could have found.** The first version cached each
+node's `AVAudioMixingDestination`. Every test segfaulted at teardown - `EXC_BAD_ACCESS` in
+`AVAudio3DMixingImpl::~AVAudio3DMixingImpl`, reached through `SpatialVoice.deinit` - because a
+destination holds an unowned reference to its mixer and the engine released the environment
+node before the array of voices. Setting `position` on the node itself needs no second object
+and has no second lifetime to get wrong. The engine now also tears its graph down explicitly in
+`deinit` rather than trusting release order.
+
+**The thread handoff is an ownership flip, not a lock.** While a slot's `isSounding` is false
+the scheduler owns its voice memory; while it is true the audio thread does. The scheduler
+publishes with a releasing store after writing every field, and the render block acquires before
+reading one. When the pool is full the oldest voice is *asked* to release and the new note is
+counted as lost, because stealing would mean writing memory the audio thread owns.
+
+Scale: **20 angstroms to the metre.** One-to-one, a 300 A chain would be spread over 300 m and
+the whole piece would arrive from a point; at this scale it is a 15 m stage, and a 30 A folded
+protein is about a metre and a half across - something a listener stands inside.
+
+Tested through the real graph in `AVAudioEngine`'s manual rendering mode, so the environment
+node, the HRTF, the connections and the render blocks are all exercised on a machine with no
+audio hardware: a note at the N-terminus arrives louder on the left and one at the C-terminus
+louder on the right, thirty-two simultaneous notes into sixteen voices lose notes without
+producing a single non-finite sample, and a cut-off pad is silent once its 1.8 s release has
+run.
