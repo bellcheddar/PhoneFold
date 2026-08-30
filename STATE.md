@@ -1,7 +1,7 @@
 # PhoneFold — STATE
 
-**Current phase:** 0 reopened, on Marc's instruction, to build three selectable folding engines. Phase 2's machine gate stays GREEN throughout.
-**Current task:** none. All three engines run on the device. Two open questions for Marc, both in `BLOCKERS.md`: whether Genie 2 belongs given it cannot fold toward a reference, and the Phase 2 human sign-off.
+**Current phase:** 3 (The score). Phase 0's engines are done and Phase 2's machine gate stays GREEN.
+**Current task:** P3-02. Marc answered the wizard on 2026-08-30: keep Genie 2 as a third mode, Simulate as the default, gallery references unchanged, and **do all four** of the next-work options - so Phase 3, the Phase 2 sign-off, engine hardening and polish are all in scope. Polish is done (P2-15).
 **Last updated:** 2026-08-30
 
 Status vocabulary: `todo` / `doing` / `blocked` / `done`.
@@ -72,6 +72,25 @@ measurements are in `METRICS.md` under Phase 0d and the literature in `MODEL_SUR
 | P0-41 | Genie 2's cosine schedule and Frenet frames in Swift | P0-35 | done: matched to float32's own precision |
 | P0-42 | Genie 2's reverse process driving Core ML on the device | P0-41 | done: mean CA-CA 3.94 A; some seeds diverge, retried, **workaround not a fix** |
 | P0-43 | All three engines live in the app | P0-37, P0-42 | done |
+| P2-15 | Polish: the counter strip clipped on a phone, trace labels sat on their traces, Genie 2 could not re-roll | P0-43 | done — and fixed a double-start that reported "cancelled" over a healthy run |
+
+### Phase 3 — the score
+
+The mapping is the competitive argument, so it is built pure and tested before any audio
+hardware: a wrong note is a bug you can assert on, and a wrong note through a speaker is a
+matter of opinion.
+
+| id | task | depends | status |
+|---|---|---|---|
+| P3-01 | Musical primitives: scales, modes, pitch, and a deterministic seed from the sequence | — | done |
+| P3-02 | Style profiles as declarative JSON, loaded and validated | P3-01 | todo |
+| P3-03 | The sonification mapping: PLAN's table, trajectory features to musical events | P3-01, P3-02 | todo |
+| P3-04 | The musical clock: fixed tempo, jitter buffer, never blocks on inference | P3-03 | todo |
+| P3-05 | Audio output. **SoundFont licence is a halt risk** — synthesised voices avoid it entirely | P3-04 | todo |
+| P3-06 | Spatial audio: each residue's note at that residue's live coordinate | P3-05 | todo |
+| P3-07 | MIDI event log and export, round-tripped | P3-03 | todo |
+| P3-08 | The five style profiles: Fantasy, Jazz, Rock, Pop, Surf | P3-02, P3-03 | todo |
+
 | P0-44 | macOS sandbox entitlement for network access, needed for an App Store build | P0-36 | done — both keys in the signed binary, no sandbox denials; the fetch itself wants one look on an unlocked screen |
 
 ### Phase 0c — the PathDiffusion named gallery

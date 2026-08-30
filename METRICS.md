@@ -1934,3 +1934,25 @@ means a replacement is already under way.
 One polish item was raised and **rejected on inspection**: the gallery leading with trp-cage
 looked like an oversight and is not. At 20 residues it folds in a few seconds where ubiquitin
 takes twenty, so with Simulate as the default engine it is the right first impression.
+
+## Phase 3 — the score
+
+### P3-01, the musical primitives (2026-08-30)
+
+Scales, modes, MIDI pitch and the seed that makes a protein sound like itself. Pure arithmetic,
+no audio, because the mapping is the competitive argument and a wrong note should be something
+a test can assert on rather than a matter of opinion through a speaker.
+
+**The seed is FNV-1a, deliberately not Swift's `Hasher`.** Standard hashing is randomly seeded
+per process by design, so a piece built on it would be different every launch - the one thing
+PLAN.md says must never happen. Pinned against values computed independently from FNV-1a's
+published definition: ubiquitin's sequence hashes to `0xb3569d42cb3c6d78`. Negative-tested by
+changing one constant of the algorithm, which the test catches.
+
+**A test of mine that could not fail, caught by its own comment.** The stability test was first
+written as `x == literal || x == x`, whose second clause is a tautology - while the comment
+above it said "comparing it against itself would prove nothing". It now pins both literals.
+
+Scale degrees run past the ends of the scale in both directions rather than clamping at the
+octave, because register is driven by the trajectory: a long-range contact asks for a note well
+below the tonic, and clamping would flatten exactly the contrast the mapping exists to show.
