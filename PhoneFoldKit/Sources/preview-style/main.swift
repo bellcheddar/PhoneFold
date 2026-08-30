@@ -4,6 +4,9 @@ import FoldCore
 import FoldGeometry
 import FoldEngine
 import FoldAudio
+import FoldRender
+import FoldCapture
+import RealityKit
 
 // PLAN.md Phase 3: "Build Tools/preview_style.swift, a command-line renderer that turns a
 // sample trajectory plus a style profile into a WAV. This lets the loop regression-test audio
@@ -21,6 +24,7 @@ struct Options {
     var output = "preview.wav"
     var midi: String?
     var cif: String?
+    var still: String?
     var quiet = false
 }
 
@@ -36,6 +40,7 @@ func usage() -> Never {
       --out <file.wav>    where to write (default preview.wav)
       --midi <file.mid>   also write a standard MIDI file of the same score
       --cif <file.cif>    also write the trajectory as a multi-model mmCIF
+      --still <file.png>  also render the final frame offscreen at 1920x1080
       --quiet             print only the summary line
 
     """.utf8))
@@ -59,6 +64,7 @@ while let argument = arguments.first {
     case "--out": options.output = value()
     case "--midi": options.midi = value()
     case "--cif": options.cif = value()
+    case "--still": options.still = value()
     case "--quiet": options.quiet = true
     case "-h", "--help": usage()
     default:
@@ -124,6 +130,28 @@ do {
     let data = OfflineRender.wav(left: result.left, right: result.right,
                                  sampleRate: result.sampleRate)
     try data.write(to: URL(fileURLWithPath: options.output))
+
+    if let path = options.still, let final = frames.last {
+        // The offscreen pass, at export resolution, driven by the same frames the film will
+        // be. Nothing is on screen: this runs on a machine with no window.
+        let stage = try OffscreenStage(size: .landscape)
+        let ca = final.backbone.map(\.ca)
+        let mesh = TubeGeometry.build(caPositions: ca,
+                                      secondaryStructure: final.secondaryStructure)
+        let options2 = ColourOptions(residueCount: bundle.residues.count,
+                                     residues: bundle.residues)
+        try stage.show(mesh: mesh, confidence: final.pLDDT, mode: .secondaryStructure,
+                       options: options2)
+        // Framed from the protein's own extent, so a 20-residue miniprotein and a 300-residue
+        // one both fill the frame rather than one of them being a dot.
+        let extent = OffscreenStage.extent(of: ca)
+        stage.frame(centre: extent.centre, radius: extent.radius)
+        _ = try await stage.render()
+        if let png = stage.png() {
+            try png.write(to: URL(fileURLWithPath: path))
+            say("still -> \(path) (1920x1080, radius \(String(format: "%.1f", extent.radius)) A)")
+        }
+    }
 
     if let path = options.cif {
         let raw = frames.filter { !$0.isInterpolated }

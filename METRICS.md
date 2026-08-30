@@ -2430,3 +2430,50 @@ anything colouring a stack by confidence is showing frame one.
 B-factor column's meaning is written into the file as an audit record, along with the
 trajectory's provenance. A structure that leaves the app without those is one somebody will
 later mistake for a prediction.
+
+### P4-02, the offscreen render pass (2026-08-30)
+
+PLAN.md forbids ReplayKit for the deliverable and asks for an `MTLTexture` pass at export
+resolution. It is `RealityRenderer`, **verified available and rendering to a 1920x1080 texture
+on this machine before a line of the stage was written** - because the alternative, drawing
+`TubeMesh` again in raw Metal, would be a second implementation of the picture, and PLAN's own
+gate is that the exported film and live playback are visually identical. Two implementations of
+a picture are two pictures.
+
+**The material moved into `FoldRender` first, for the same reason.** It was built in the app's
+`FoldCanvas`, which was fine while the only renderer was the on-screen one. There is one
+construction now and both paths call it.
+
+**Three things this found, none of which reasoning would have:**
+
+1. **A `RealityRenderer` scene has no lighting at all.** `RealityView` supplies a default
+   environment; `RealityRenderer` supplies nothing, so a lit `SimpleMaterial` renders black -
+   and against a near-black stage that is a frame in which the protein is present and
+   invisible. Measured: 0% of the frame differed from the background. The offscreen stage now
+   lights itself with a key and a fill.
+2. **The background colour is given as sRGB and lands in a linear target.** The 0.047 asked for
+   arrives as 1, not 12. The first coverage test assumed 12 and therefore counted every pixel
+   as drawn - it reported 100% coverage and could not have failed. It reads the background from
+   a corner of the frame now.
+3. **`RealityRenderer` owns and commits its own command buffer.** An external `commit()` and
+   `waitUntilCompleted()` waits for nothing and returns while the GPU is still drawing, which
+   hands the encoder the previous frame. `onComplete` is the only signal that the pixels are
+   there, so `render()` is async.
+
+**And one in my own test harness worth recording:** comparing two 1920x1080 pixel arrays inside
+an `#expect` produced **55 MB of console output** for a single failing line, because
+swift-testing prints the values it compared. Frames are compared by digest now.
+
+Framing lives in the stage rather than in each caller, because the distance depends on the
+field of view and the caller does not know it: the first attempt guessed `radius * 3.2 + 6` and
+put a 129-residue protein in the middle third of the frame. The field of view is set explicitly
+rather than defaulted, so an SDK default that changed would not silently reframe every export.
+
+Rendered, with nothing on screen, on a machine whose display was asleep: lysozyme (129
+residues, radius 22.2 A), GFP (238) and the beta-2 adrenergic 7TM (314), all at 1920x1080.
+
+**Where "visually identical" is still at risk**, stated rather than assumed: the live view gets
+`RealityView`'s implicit default environment and the offscreen stage gets two explicit lights.
+They are not the same lighting. Closing that gap means giving both paths the same explicit
+lights, which changes the look Marc has already approved - so it is in BLOCKERS.md rather than
+changed unilaterally.

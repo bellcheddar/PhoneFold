@@ -572,59 +572,16 @@ final class StageContent {
         return material
     }
 
-    /// The protein's one material: the ramp texture, sampled through uv0.
+    /// The protein's one material.
     ///
-    /// Rebuilt only when the colour mode changes, which is a tap rather than a frame. The
-    /// texture itself is 1024 by 3 texels, so this is a few milliseconds once, not per frame.
+    /// **Built by `FoldRender`, not here.** It used to be constructed in this file, which was
+    /// fine while the only renderer was this one. Phase 4 exports video offscreen, and PLAN's
+    /// gate asks that the exported film and live playback be visually identical - which two
+    /// constructions of the same material cannot guarantee, because they drift.
     private func proteinMaterial(options: ColourOptions) -> RealityKit.Material {
         rampMode = colourMode
-        var material = SimpleMaterial()
-        material.roughness = 0.9
-        material.metallic = 0
-        if let texture = rampTexture(options: options) {
-            material.color = .init(tint: .white, texture: .init(texture))
-        } else {
-            // A ramp that will not build should not take the protein down with it.
-            material.color = .init(tint: .init(red: 0.42, green: 0.55, blue: 0.65, alpha: 1))
-        }
-        return material
+        return ProteinMaterial.material(mode: colourMode, options: options)
     }
-
-    private func rampTexture(options: ColourOptions) -> TextureResource? {
-        let width = ColourRamp.width
-        let height = ColourRamp.height
-        // Rows reversed on the way into the image.
-        //
-        // `ColourRamp` numbers its rows by `SecondaryStructure.rawValue` - coil 0, helix 1,
-        // sheet 2 - and RealityKit samples the texture's V axis the other way up, so a sheet
-        // vertex asking for row 2 was reading row 0 and coming out coil slate. Helix sat in
-        // the middle row and was unaffected either way, which is why the symptom was "the
-        // strand has no colour" rather than "the colours are wrong": on screen the sheet
-        // simply vanished into the coil.
-        let logical = ColourRamp.texels(mode: colourMode, options: options)
-        let stride = ColourRamp.width * 4
-        var pixels = [UInt8](repeating: 0, count: logical.count)
-        for row in 0..<ColourRamp.height {
-            let source = row * stride
-            let destination = (ColourRamp.height - 1 - row) * stride
-            pixels.replaceSubrange(destination..<(destination + stride),
-                                   with: logical[source..<(source + stride)])
-        }
-        let space = CGColorSpace(name: CGColorSpace.sRGB)!
-        let info = CGImageAlphaInfo.premultipliedLast.rawValue
-        guard let provider = CGDataProvider(data: Data(pixels) as CFData),
-              let image = CGImage(width: width, height: height, bitsPerComponent: 8,
-                                  bitsPerPixel: 32, bytesPerRow: width * 4,
-                                  space: space, bitmapInfo: CGBitmapInfo(rawValue: info),
-                                  provider: provider, decode: nil, shouldInterpolate: true,
-                                  intent: .defaultIntent)
-        else { return nil }
-        pixels.removeAll()
-        return try? TextureResource.generate(
-            from: image, withName: "phonefold-ramp",
-            options: .init(semantic: .color, mipmapsMode: .none))
-    }
-
 
     /// Kept for device testing: the custom shader path, which may well work on real hardware
     /// where the Simulator's constant buffer limit does not apply. Opt in with

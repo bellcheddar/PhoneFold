@@ -680,3 +680,18 @@ cover any of this:
 - [ ] An intrinsically disordered protein (alpha-synuclein) audibly never resolves
 - [ ] The two-minute duration above is right, or is not
 - [ ] Haptics: a contact is a tap, the core is a rumble, and convergence is unmistakable (iPhone or Watch; a Mac has no actuator, so none of it has been felt)
+
+
+## Phase 4: the offscreen renderer lights itself and the live one does not (2026-08-30)
+
+`RealityView` supplies a default environment automatically. `RealityRenderer` supplies nothing,
+so the offscreen stage has to light itself - and it does, with an explicit key and fill. The two
+paths therefore do **not** have identical lighting, and PLAN's Phase 4 gate is that "exported
+video and live playback are audibly and visually identical".
+
+Closing it means giving the live view the same two explicit lights, so both are lit by the same
+thing rather than one relying on a framework default. That is a visible change to the look Marc
+signed off in Phase 2, which is why it has not been made.
+
+- [ ] Compare a still from the offscreen renderer against the live stage, and decide whether to
+      move the live view onto explicit lighting

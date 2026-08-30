@@ -36,7 +36,7 @@ let package = Package(
         .target(name: "FoldEngine", dependencies: ["FoldCore", "FoldGeometry"]),
         .target(name: "FoldAudio", dependencies: ["FoldCore"]),
         .target(name: "FoldRender", dependencies: ["FoldCore"]),
-        .target(name: "FoldCapture", dependencies: ["FoldCore", "FoldRender"]),
+        .target(name: "FoldCapture", dependencies: ["FoldCore", "FoldGeometry", "FoldRender"]),
         .target(name: "FoldSync", dependencies: ["FoldCore"]),
 
         // The allocation harness for PLAN.md's Phase 3 gate. An executable rather than a
@@ -50,7 +50,8 @@ let package = Package(
         // out. Regression-tests audio without a device, and auditions a style tweak in
         // seconds.
         .executableTarget(name: "preview-style",
-                          dependencies: ["FoldAudio", "FoldEngine", "FoldGeometry", "FoldCore"]),
+                          dependencies: ["FoldAudio", "FoldEngine", "FoldGeometry", "FoldCore",
+                                         "FoldRender", "FoldCapture"]),
 
         .testTarget(name: "FoldCoreTests", dependencies: ["FoldCore"],
                     resources: [.copy("Fixtures")]),
@@ -65,7 +66,8 @@ let package = Package(
         .testTarget(name: "FoldAudioTests", dependencies: ["FoldAudio", "FoldEngine"]),
         .testTarget(name: "FoldRenderTests", dependencies: ["FoldRender", "FoldGeometry"],
                     resources: [.copy("Fixtures")]),
-        .testTarget(name: "FoldCaptureTests", dependencies: ["FoldCapture"]),
+        .testTarget(name: "FoldCaptureTests",
+                    dependencies: ["FoldCapture", "FoldGeometry", "FoldRender"]),
         .testTarget(name: "FoldSyncTests", dependencies: ["FoldSync"]),
     ],
     swiftLanguageModes: [.v6]
