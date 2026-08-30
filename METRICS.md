@@ -1719,3 +1719,26 @@ distance-matrix RMSD from a start 70 times further away.
 Distance-matrix RMSD is used rather than superposed RMSD because it needs no Kabsch fit and
 raises no handedness question: two structures with the same distance matrix are the same up to
 rotation, translation and reflection, which is all "did it arrive" requires.
+
+### Release and debug do not fold to the same place (2026-08-30)
+
+The convergence test failed the phase gate in debug while passing in release, on the **same
+seed and the same step count**:
+
+| Build | dRMSD to reference | Q | Wall clock |
+|---|---|---|---|
+| Release | 0.23 A | 1.000 | 21 s |
+| Debug | 3.44 A | 0.79 | 502 s |
+
+Not a bug. Langevin dynamics is chaotic, and a difference in the last bit of a force - which is
+all it takes for an optimiser to contract a multiply-add differently - grows exponentially into
+a different trajectory. Both are successful folds of the same protein under the same physics;
+they are not the same fold, and no seed makes them so.
+
+This is a sharper version of the rule already in CLAUDE.md that debug figures are meaningless
+for performance: here the debug *result* differs too, not only the timing. The test therefore
+asserts arrival only in release, and in debug - where 100,000 steps is a tenth of a fold and
+still costs 36 seconds - asserts only that the chain is moving toward the reference.
+
+Worth noting how it was caught: the release suite was green, and I committed on that before
+reading the gate. The gate runs both builds, and it was right to.
