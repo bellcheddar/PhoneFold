@@ -31,11 +31,18 @@ final class ScoreConductor: @unchecked Sendable {
     static let lookahead = 4.0
 
     private let engine: FoldAudioEngine
+    private let haptics = FoldHaptics()
     private var sonifier: Sonifier
     private var scheduler: Task<Void, Never>?
     private var baseline: Double?
     /// Frames scored but not yet handed over, because the engine is far enough ahead.
     private var waiting: [(moment: ScoreMoment, positions: [SIMD3<Float>])] = []
+    /// Haptic events waiting for their beat, with the time and beat length they belong to.
+    ///
+    /// Not played when the bar is queued: a bar is handed over up to four seconds before it
+    /// sounds, and a tap four seconds ahead of its note is not the same event reaching two
+    /// senses, it is a fault.
+    private var hapticQueue: [(time: Double, beatDuration: Double, events: [HapticEvent])] = []
     /// Every moment written, in order, for the MIDI export. PLAN.md asks for a parallel event
     /// log written as the music plays, and this is it: what was heard, not a second scoring of
     /// the same frames.
@@ -72,12 +79,14 @@ final class ScoreConductor: @unchecked Sendable {
 
     func start() throws {
         try engine.start()
+        haptics.start()
         baseline = nil
         scheduler = Task.detached(priority: .userInitiated) { [engine] in
             while !Task.isCancelled {
                 if let now = self.playbackTime(engine) {
                     self.drain(upTo: now)
                     engine.pump(to: now)
+                    self.fireHaptics(upTo: now)
                 }
                 try? await Task.sleep(for: Self.tickInterval)
             }
@@ -88,6 +97,7 @@ final class ScoreConductor: @unchecked Sendable {
         scheduler?.cancel()
         scheduler = nil
         engine.stop()
+        haptics.stop()
         // `played` is kept: the export is of the piece that was heard, and stopping playback
         // is not a reason to forget it.
         lock.withLock { waiting.removeAll(keepingCapacity: true) }
@@ -126,8 +136,28 @@ final class ScoreConductor: @unchecked Sendable {
                 waiting.isEmpty ? nil : waiting.removeFirst()
             }
             guard let next else { return }
+            // The moment's own start time, taken before the submit that advances it.
+            let start = engine.nextBeat
             engine.submit(next.moment, positions: next.positions)
+            let events = HapticScore.events(for: next.moment)
+            if !events.isEmpty {
+                let beat = MusicalClock.beatDuration(tempo: next.moment.tempo)
+                lock.withLock { hapticQueue.append((start, beat, events)) }
+            }
         }
+    }
+
+    /// Play the haptics whose beat has arrived.
+    private func fireHaptics(upTo now: Double) {
+        let due: [(time: Double, beatDuration: Double, events: [HapticEvent])] =
+            lock.withLock {
+                let ready = hapticQueue.filter { $0.time <= now }
+                hapticQueue.removeAll { $0.time <= now }
+                // A backlog means the device stalled; playing it all at once would be a jolt
+                // rather than a fold, so only the most recent bar survives a pile-up.
+                return ready.count > 2 ? Array(ready.suffix(1)) : ready
+            }
+        for batch in due { haptics.play(batch.events, beatDuration: batch.beatDuration) }
     }
 
     /// Switch style mid-piece, taking effect on the next beat.
@@ -147,6 +177,7 @@ final class ScoreConductor: @unchecked Sendable {
     // MARK: - What it measured about itself
 
     var soundingVoices: Int { engine.soundingVoices }
+    var hapticsAvailability: FoldHaptics.Availability { haptics.availability }
     var starvedBeats: Int { engine.starvedBeats }
     var droppedForPolyphony: Int { engine.droppedForPolyphony }
     var pendingBars: Int { lock.withLock { waiting.count } }

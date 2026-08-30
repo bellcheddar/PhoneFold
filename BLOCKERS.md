@@ -679,3 +679,4 @@ cover any of this:
 - [ ] The spatial mix reads as a protein collapsing around the listener, on headphones
 - [ ] An intrinsically disordered protein (alpha-synuclein) audibly never resolves
 - [ ] The two-minute duration above is right, or is not
+- [ ] Haptics: a contact is a tap, the core is a rumble, and convergence is unmistakable (iPhone or Watch; a Mac has no actuator, so none of it has been felt)

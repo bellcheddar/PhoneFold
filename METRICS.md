@@ -2318,3 +2318,46 @@ An About sheet now exists, because PLAN.md asks for the Tay et al. citation to a
 and there was nowhere to put it. It carries the citation, the trajectory's own provenance
 disclosure, the style's description, the note that a disordered region never resolves, and that
 every voice is synthesised rather than sampled.
+
+### P3-10, haptics (2026-08-30)
+
+PLAN.md: "transient on contact formation, sharper for long-range, a low rumble tracking core
+packing, a distinct pattern at convergence."
+
+**Split in two, for the same reason the musical clock has no audio framework in it.** Which
+moments produce which feelings is the interesting part, is the same on a phone and a watch, and
+can be asserted exactly; playing them needs an actuator this machine does not have.
+`HapticScore` is pure and tested; `FoldHaptics` is the CoreHaptics half.
+
+Mapped:
+
+| Trajectory feature | Feeling |
+|---|---|
+| Contact, local (\|i-j\| < 6) | Transient, sharpness 0.30 |
+| Contact, medium (6 to 11) | Transient, sharpness 0.55 |
+| Contact, long-range (12+) | Transient, sharpness 0.85 |
+| Long-range hydrophobic (the core) | Transient, intensity x1.25 |
+| Compaction above 1/3 | Continuous rumble, intensity 0.15 to 0.60, sharpness 0.10 |
+| Convergence | Continuous, 2 beats or more, soft and strong, once |
+
+Capped at six taps a bar: a bar can carry sixteen contact onsets, and sixteen taps in a beat is
+a buzz rather than sixteen sensations. Contacts below velocity 0.15 are not felt at all - that
+is the floor the confidence mapping uses for a completely unresolved residue, and felt it would
+be noise under the taps that matter. The rumble is silent below a third compaction: an unfolded
+chain that buzzed continuously would be a constant rather than a signal, and the point is that
+it grows.
+
+**Haptics fire on the beat, not when the bar is queued.** A bar is handed to the audio engine up
+to four seconds before it sounds; a tap four seconds ahead of its note is not one event reaching
+two senses, it is a fault. A backlog plays only the most recent bar, because a pile-up released
+at once is a jolt rather than a fold.
+
+**`CoreHaptics` imports on every platform PhoneFold ships to, including ones with no actuator**,
+so the header being present proves nothing - a Mac and a simulator both compile it and neither
+can buzz. `supportsHaptics` is the only honest test, and a device that cannot buzz counts what
+it could not play rather than throwing on the first event. The engine's `stoppedHandler` and
+`resetHandler` are both wired: the system stops the engine on backgrounding and on a phone
+call, and without them the first such event leaves a silently dead engine.
+
+**Not yet verified on hardware**, and it cannot be from here. Added to the list needing Marc's
+device.
