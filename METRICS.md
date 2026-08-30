@@ -1494,3 +1494,63 @@ protein with the same seed agree to **0.000e+00 A** on every coordinate of every
 different seeds diverge to 101.7 A on the final frame while both reaching the native state.
 The engine is therefore reproducible on demand and different on request, and which one the
 app wants is a setting rather than a rewrite.
+
+## Phase 0e — the structure-based model in Swift (2026-08-30)
+
+Ported from `Tools/go_model_fold.c`, and validated against it rather than against a picture of
+a folded protein: the C's `--forces` mode dumps the force on every particle for one
+configuration, and the Swift agrees to a **worst relative disagreement below 1e-9** across all
+76 residues of a perturbed ubiquitin. That exercises every term - bonds, angles, dihedrals, the
+12-10 native well, the non-native repulsion - and is a far stronger check than a folded
+structure, because two different force fields can both fold a small protein.
+
+| Measurement | Value |
+|---|---|
+| Swift, 76 residues | **18.93 us/step** |
+| C, same protein | 19.15 us/step |
+| Native contacts, ubiquitin, 8 A cutoff, \|i-j\| >= 3 | 184 (Swift and C agree) |
+
+The Swift is as fast as the C. There is no penalty for the port and no reason to ship a C
+target.
+
+### How long a fold actually takes, which changes the architecture
+
+Ubiquitin, 76 residues, seed 11, annealed 1.0 -> 0.55:
+
+| Steps | Wall clock | Q (native contacts) | Rg |
+|---|---|---|---|
+| 200,000 | 3.8 s | 0.09 -> 0.49 | 20.0 -> 17.6 A |
+| 500,000 | 9.5 s | 0.09 -> 0.53 | 20.0 -> 18.2 A |
+| 1,000,000 | 19.0 s | 0.09 -> 0.52 | 20.0 -> 15.8 A |
+| **2,000,000** | **38.1 s** | **0.09 -> 0.96** | **20.0 -> 11.6 A** |
+
+**A complete fold is 38 s of compute on an M1 Max**, not the 2.3 s quoted in the Phase 0d
+survey - that figure was for a run that does not finish folding. Two consequences: the
+trajectory cannot be computed before playback begins, so frames have to stream as they are
+produced; and the non-native repulsion, which is O(n^2) over every pair that is not a contact,
+is the obvious target if that has to come down.
+
+Note the transition is not gradual in the reaction coordinate: Q sits near 0.5 from 200k to 1M
+steps and then completes. That is a real two-state transition rather than a slow drift, which
+is what a funnelled model is supposed to show.
+
+### The unfolded state
+
+A self-avoiding random coil, not a straight chain: backbone angles across 85-145 degrees,
+dihedrals uniform, rejected against a 4 A clash with backtracking two residues on failure.
+
+| Residues | Swift, mean of 8 seeds | Python reference | Kohn's law |
+|---|---|---|---|
+| 40 | 14.6 A (11.3-22.6) | 15.2 A | 17.4 A |
+| 76 | 19.8 A (14.4-30.0) | 19.6 A | 24.4 A |
+| 129 | 29.5 A (23.7-45.4) | 27.7 A | 32.1 A |
+
+Swift and Python agree closely. **Both run at 0.81 to 0.92 of Kohn's experimental scaling**,
+so the law is the right order and not the right constant for this walk, and the test is written
+around what the walk measurably does rather than around the idealised law.
+
+A hypothesis measured and rejected on the way: that the coil was too compact because clashing
+candidates were being accepted instead of backtracked. Adding backtracking changed the radii
+**not at all** - byte-identical - because the walk never fails a placement at this clash radius.
+The compactness was the walk's own nature, and the single-seed test that flagged it was the
+thing at fault.
