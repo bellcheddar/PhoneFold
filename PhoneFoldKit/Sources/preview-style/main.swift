@@ -19,6 +19,7 @@ struct Options {
     var engine = "gallery"
     var steps: Int?
     var output = "preview.wav"
+    var midi: String?
     var quiet = false
 }
 
@@ -32,6 +33,7 @@ func usage() -> Never {
                           morph and simulate fold toward the trajectory's final structure
       --steps <n>         steps for the structure-based model
       --out <file.wav>    where to write (default preview.wav)
+      --midi <file.mid>   also write a standard MIDI file of the same score
       --quiet             print only the summary line
 
     """.utf8))
@@ -53,6 +55,7 @@ while let argument = arguments.first {
     case "--engine": options.engine = value()
     case "--steps": options.steps = Int(value())
     case "--out": options.output = value()
+    case "--midi": options.midi = value()
     case "--quiet": options.quiet = true
     case "-h", "--help": usage()
     default:
@@ -118,6 +121,11 @@ do {
     let data = OfflineRender.wav(left: result.left, right: result.right,
                                  sampleRate: result.sampleRate)
     try data.write(to: URL(fileURLWithPath: options.output))
+
+    if let path = options.midi {
+        try MIDIFile.encode(score, style: style).write(to: URL(fileURLWithPath: path))
+        say("midi -> \(path)")
+    }
 
     print(String(format:
         "%@ %@ %@  %.1fs  peak %.3f  rms %.4f  %.1f LUFS  starved %d  refused %d  -> %@",

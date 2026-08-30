@@ -50,12 +50,20 @@ public struct VoiceSpec: Sendable, Codable, Hashable {
     /// pushes. Ignored for the other waveforms.
     public var fmRatio: Double
     public var fmIndex: Double
+    /// Waveshaping, 0 clean. Rock's "distortion depth" and Surf's grit; a soft saturation
+    /// rather than a hard clip, so it adds harmonics without adding a rectangle.
+    public var drive: Double
+    /// Amplitude modulation: rate in hertz and depth 0...1. Surf's tremolo picking, and the
+    /// only way a style can ask for a sound that moves while it is held.
+    public var tremoloHz: Double
+    public var tremoloDepth: Double
     /// Linear gain for this voice in the mix, before any dynamics.
     public var gain: Double
 
     public init(waveform: Waveform = .sine, harmonics: [Double] = [], attack: Double = 0.01,
                 decay: Double = 0.1, sustain: Double = 0.7, release: Double = 0.3,
                 detuneCents: Double = 0, fmRatio: Double = 2, fmIndex: Double = 1,
+                drive: Double = 0, tremoloHz: Double = 0, tremoloDepth: Double = 0,
                 gain: Double = 0.5) {
         self.waveform = waveform
         self.harmonics = harmonics
@@ -66,7 +74,32 @@ public struct VoiceSpec: Sendable, Codable, Hashable {
         self.detuneCents = detuneCents
         self.fmRatio = fmRatio
         self.fmIndex = fmIndex
+        self.drive = drive
+        self.tremoloHz = tremoloHz
+        self.tremoloDepth = tremoloDepth
         self.gain = gain
+    }
+
+    /// Decoded with defaults, so a style file written before these existed still loads.
+    ///
+    /// Without this, adding a field to the schema silently breaks every style already on disk -
+    /// including the ones a user has edited - which is the opposite of what putting styles in
+    /// JSON was for.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        waveform = try c.decodeIfPresent(Waveform.self, forKey: .waveform) ?? .sine
+        harmonics = try c.decodeIfPresent([Double].self, forKey: .harmonics) ?? []
+        attack = try c.decodeIfPresent(Double.self, forKey: .attack) ?? 0.01
+        decay = try c.decodeIfPresent(Double.self, forKey: .decay) ?? 0.1
+        sustain = try c.decodeIfPresent(Double.self, forKey: .sustain) ?? 0.7
+        release = try c.decodeIfPresent(Double.self, forKey: .release) ?? 0.3
+        detuneCents = try c.decodeIfPresent(Double.self, forKey: .detuneCents) ?? 0
+        fmRatio = try c.decodeIfPresent(Double.self, forKey: .fmRatio) ?? 2
+        fmIndex = try c.decodeIfPresent(Double.self, forKey: .fmIndex) ?? 1
+        drive = try c.decodeIfPresent(Double.self, forKey: .drive) ?? 0
+        tremoloHz = try c.decodeIfPresent(Double.self, forKey: .tremoloHz) ?? 0
+        tremoloDepth = try c.decodeIfPresent(Double.self, forKey: .tremoloDepth) ?? 0
+        gain = try c.decodeIfPresent(Double.self, forKey: .gain) ?? 0.5
     }
 }
 

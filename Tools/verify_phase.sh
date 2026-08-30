@@ -183,7 +183,53 @@ case "$PHASE" in
       fail "the app project is missing; run xcodegen in Apps/PhoneFold"
     fi
     ;;
-  3|4|5)
+  3)
+    # The audio criteria are meaningful in a debug build - they are arithmetic, not throughput -
+    # but the allocation harness is a separate executable and has to exist.
+    if swift test --package-path PhoneFoldKit --filter FoldAudioTests \
+         >/tmp/pf_gate_audio.log 2>&1; then
+      pass "swift test (FoldAudio)"
+    else
+      fail "swift test (FoldAudio) - see /tmp/pf_gate_audio.log"
+      tail -30 /tmp/pf_gate_audio.log >&2
+    fi
+
+    # Each of these is one line of PLAN.md's exit gate. Named rather than counted, so a test
+    # that stops running shows up as a missing criterion rather than as a smaller number.
+    for marker in "every style renders identically three times, clean and in range" \
+                  "a real fold exports and comes back with every note" \
+                  "the scheduler allocates nothing while playing" \
+                  "the graph renders audio through the environment node"; do
+      if grep -q "$marker" /tmp/pf_gate_audio.log 2>/dev/null; then
+        pass "ran: $marker"
+      else
+        fail "did NOT run: $marker"
+      fi
+    done
+
+    # And an end-to-end render of every style through the shipping command line tool, which
+    # exercises the style files on disk rather than a fixture.
+    STYLES="$ROOT/Apps/Shared/Resources/Styles"
+    BIN=$(swift build --package-path PhoneFoldKit --show-bin-path 2>/dev/null)
+    if [[ -x "$BIN/preview-style" ]]; then
+      RENDERED=0
+      for style in fantasy jazz rock pop surf; do
+        if "$BIN/preview-style" "$TRAJ_DIR/lysozyme.pftraj" --style "$style" \
+             --styles "$STYLES" --out "/tmp/pf_gate_$style.wav" --quiet \
+             >>/tmp/pf_gate_render.log 2>&1; then
+          RENDERED=$((RENDERED + 1))
+        else
+          fail "preview-style could not render $style - see /tmp/pf_gate_render.log"
+        fi
+      done
+      if [[ "$RENDERED" == "5" ]]; then
+        pass "all five styles render to a WAV through preview-style"
+      fi
+    else
+      fail "preview-style is not built"
+    fi
+    ;;
+  4|5)
     skip "phase $PHASE gate checks not yet implemented"
     ;;
   *)

@@ -24,6 +24,9 @@ public struct RenderVoiceSpec: Sendable, Hashable {
     public var detuneCents: Double
     public var fmRatio: Double
     public var fmIndex: Double
+    public var drive: Double
+    public var tremoloHz: Double
+    public var tremoloDepth: Double
     public var gain: Double
 
     public init(_ spec: VoiceSpec) {
@@ -45,6 +48,9 @@ public struct RenderVoiceSpec: Sendable, Hashable {
         detuneCents = spec.detuneCents
         fmRatio = Swift.max(spec.fmRatio, 0)
         fmIndex = Swift.max(spec.fmIndex, 0)
+        drive = Swift.min(Swift.max(spec.drive, 0), 1)
+        tremoloHz = Swift.max(spec.tremoloHz, 0)
+        tremoloDepth = Swift.min(Swift.max(spec.tremoloDepth, 0), 1)
         gain = Swift.max(spec.gain, 0)
     }
 }
@@ -143,6 +149,10 @@ public struct SynthVoice: Sendable {
     /// -1 hard left, 0 centre, 1 hard right. Set from where the note's residue is in space.
     private var leftGain: Double = 0.7071
     private var rightGain: Double = 0.7071
+    private var tremoloPhase: Double = 0
+    /// Normalisation for the drive curve, so turning drive up does not just turn the voice up.
+    private var driveGain: Double = 1
+    private var driveAmount: Double = 0
 
     public init() {}
 
@@ -168,6 +178,12 @@ public struct SynthVoice: Sendable {
         detuneRatio = pow(2, (spec.detuneCents + timbre.detuneCents) / 1200)
         filterState = 0
         filterCoefficient = Self.onePoleCoefficient(cutoff: timbre.cutoff, sampleRate: sampleRate)
+        tremoloPhase = 0
+        // Soft saturation, normalised so that driving a voice adds harmonics rather than
+        // level. Without the normalisation a distorted Rock guitar would simply be the loudest
+        // thing in the mix, which is a fader, not a distortion.
+        driveAmount = 1 + spec.drive * 12
+        driveGain = spec.drive > 0 ? 1 / tanh(driveAmount) : 1
         // Equal power, so a note sweeping across the stage keeps its loudness. A linear pan
         // dips by 3 dB in the middle, which on a fold that collapses toward the centre would
         // sound like the music receding exactly as the protein arrives.
@@ -282,10 +298,21 @@ public struct SynthVoice: Sendable {
                 sample = (sample + second) * 0.5
             }
 
+            if spec.drive > 0 { sample = tanh(sample * driveAmount) * driveGain }
+
             // One-pole low-pass: the murk that low confidence is supposed to sound like.
             filterState += filterCoefficient * (sample - filterState)
 
-            let value = filterState * level * amplitude * spec.gain
+            var envelope = level
+            if spec.tremoloDepth > 0, spec.tremoloHz > 0 {
+                // Between 1 and 1 - depth, so tremolo only ever takes level away. Adding it
+                // would make a tremolo voice louder than a plain one at the same gain.
+                envelope *= 1 - spec.tremoloDepth * 0.5 * (1 - cos(2 * .pi * tremoloPhase))
+                tremoloPhase += spec.tremoloHz * dt
+                if tremoloPhase >= 1 { tremoloPhase -= 1 }
+            }
+
+            let value = filterState * envelope * amplitude * spec.gain
             left[i] += Float(value * leftGain)
             right[i] += Float(value * rightGain)
 

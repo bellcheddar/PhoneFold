@@ -92,6 +92,38 @@ struct OfflineRenderTests {
         #expect(result.loudness < -8, "rendered at \(result.loudness) LUFS")
     }
 
+    @Test("every style renders identically three times, clean and in range")
+    func everyStyleMeetsTheGate() async throws {
+        // PLAN.md's Phase 3 exit gate, all of it that a machine can check, over all five
+        // styles rather than the default one: "Identical audio output hash for the same
+        // sequence across three runs (all five styles)" and "Offline render of all five styles
+        // completes with no clipping; LUFS within target range."
+        let styles = try StyleLibrary.profiles(in: StyleProfileTests.stylesDirectory)
+        #expect(styles.count == 5, "PLAN.md specifies five styles; found \(styles.count)")
+        let input = try await Self.score("lysozyme")
+        let renderer = OfflineRender()
+
+        for id in styles.keys.sorted() {
+            let style = try #require(styles[id])
+            let runs = (0..<3).map { _ in
+                renderer.render(input.score, style: style, residueCount: input.residues)
+            }
+            let hashes = runs.map(Self.hash)
+            #expect(hashes[0] == hashes[1], "\(id) is not deterministic")
+            #expect(hashes[1] == hashes[2], "\(id) is not deterministic")
+
+            let result = runs[0]
+            #expect(result.peak < 1.0, "\(id) peaked at \(result.peak)")
+            #expect(result.peak > 0.05, "\(id) rendered near silence at \(result.peak)")
+            #expect(result.refusedNotes == 0, "\(id) refused \(result.refusedNotes) notes")
+            #expect(result.loudness > -30 && result.loudness < -8,
+                    "\(id) rendered at \(result.loudness) LUFS")
+            let finite = result.left.allSatisfy { $0.isFinite }
+                && result.right.allSatisfy { $0.isFinite }
+            #expect(finite, "\(id) rendered a non-finite sample")
+        }
+    }
+
     // MARK: - Loudness
 
     @Test("loudness tracks level, and silence is not a number")

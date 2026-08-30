@@ -2196,3 +2196,66 @@ audio hardware: a note at the N-terminus arrives louder on the left and one at t
 louder on the right, thirty-two simultaneous notes into sixteen voices lose notes without
 producing a single non-finite sample, and a cut-off pad is silent once its 1.8 s release has
 run.
+
+### P3-07, the MIDI export (2026-08-30)
+
+Standard MIDI file, format 1, 480 ticks per quarter, one channel and one named track per voice
+plus a conductor track. **A real tempo map, not a baked-in speed**: the accelerando is the whole
+point of the radius-of-gyration mapping, so positions are in ticks - which are
+tempo-independent - and every tempo change is a set-tempo event. A file with one fixed tempo
+would export a different piece from the one that played.
+
+**The parser is written from the specification's byte layout, not from the writer.** A writer
+checked only against its own reader is one mistake made twice. It handles running status and
+note-on-with-velocity-zero, neither of which this writer emits, so the round-trip test is a
+test of both halves.
+
+**Independently validated.** `AVMIDIPlayer` accepts the file and reports 8.194 s;
+`AVAudioSequencer` reads 6 tracks with sensible lengths in beats. Two of Apple's parsers, not
+mine.
+
+**And the round trip found a real defect in the export.** On a ubiquitin fold, 71 notes went in
+and **61 came back**. MIDI cannot express two of the same pitch overlapping on one channel, and
+the score asks for exactly that: the pad sustains four beats and a new one starts every beat,
+so a chord tone overlaps itself four deep. A note-on for a pitch already sounding is ambiguous -
+nothing can tell which of the two a later note-off ends. Earlier notes are now truncated at the
+later one's onset, which is what a DAW does, and 70 of the 71 come back. The last one is two
+notes of the same pitch on the same tick of the same channel: the same musical instant twice,
+which the synthesiser plays as two voices and MIDI has no way to distinguish however it is
+written. Asserted as "every distinguishable note", with the duplicate counted rather than
+waved away.
+
+### P3-08, the remaining four styles (2026-08-30)
+
+Jazz, Rock, Pop and Surf, as declarative JSON alongside Fantasy.
+
+**Two synthesis parameters were added first, so the styles are real rather than claimed.**
+PLAN.md asks Rock for "distortion depth" and Surf for "tremolo picking", and the schema could
+express neither - four style files differing only in key and tempo would have been a thinner
+thing than the plan describes. `drive` is a soft saturation normalised by `1/tanh(k)`, so
+turning it up adds harmonics rather than level (unnormalised, a distorted guitar is just the
+loudest thing in the mix). `tremoloDepth` only ever takes level away, for the same reason.
+
+`VoiceSpec` now decodes with per-field defaults, so adding these did not invalidate a style
+file already on disk - including one a user has edited, which is what putting styles in JSON
+was for.
+
+Measured, lysozyme through the shipping command-line renderer:
+
+| Style | Mode | Duration | Peak | LUFS |
+|---|---|---|---|---|
+| Fantasy | minor | 9.8 s | 0.727 | -16.0 |
+| Jazz | dorian | 8.7 s | 0.687 | -17.2 |
+| Rock | aeolian | 8.2 s | 0.861 | -14.5 |
+| Pop | major | 10.0 s | 0.758 | -17.5 |
+| Surf | phrygian | 8.1 s | 0.662 | -18.7 |
+
+All five deterministic across three runs, none clipping, none refusing a note, all inside the
+loudness range. The durations differ because tempo differs by style, and the piece is the same
+number of beats.
+
+**What the schema still cannot say**, stated rather than implied: Jazz's brushed kit and Pop's
+sidechain are not expressible - there is no percussion voice and no ducking - so those two
+styles are carried by key, voicing, swing and timbre alone. Surf's spring reverb is a global
+reverb setting driven by confidence rather than a per-style effect. The `swing` field is
+declared and stored but is not yet applied to note placement.
