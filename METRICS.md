@@ -2392,7 +2392,7 @@ so `load file.cif` gives one object with n states.
 **Biotite refused the first version, and that is the whole reason for validating against
 somebody else's parser.** `KeyError: 'pdbx_PDB_ins_code'` inside `_fill_annotations`: a real
 reader assumes the author columns and the placeholder columns are present, and my own parser -
-written to my own layout - was perfectly happy without them. The `atom_site` loop is 20 columns
+written to my own layout - was perfectly happy without them. The `atom_site` loop is 21 columns
 now rather than 16.
 
 **And the round trip found a second defect, in the caller rather than the writer.** The

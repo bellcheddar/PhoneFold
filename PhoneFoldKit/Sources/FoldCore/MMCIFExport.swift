@@ -46,7 +46,11 @@ public enum MMCIFExport {
     /// Biotite refuses a file with no `pdbx_PDB_ins_code` - `KeyError` inside
     /// `_fill_annotations` - and it is not alone in assuming the author columns are present.
     /// A file only this module's own parser can read would satisfy nothing.
-    static let atomSiteColumns = 20
+    ///
+    /// Counted, not remembered: the first value here said 20 because five columns were added
+    /// and four were counted. The file was correct - Biotite read it - and the constant was
+    /// not, which is exactly the direction a test should catch it from.
+    static let atomSiteColumns = 21
 
     /// mmCIF quoting: a value that is empty, or contains a space or a quote, has to be
     /// protected or the column count of the row changes and the file stops parsing.
