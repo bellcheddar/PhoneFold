@@ -2097,3 +2097,58 @@ test. In a process doing nothing else, a delta is the scheduler's. Measured:
 
 The harness also reports that the played runs never starved, never refused a bar, and never
 reallocated the output array, so a zero cannot come from the loop quietly doing nothing.
+
+### P3-05a, the synthesiser and the offline render (2026-08-30)
+
+The first sound. Voices are synthesised rather than sampled, which was Marc's call on
+2026-08-30 and removes the SoundFont licence question PLAN.md flagged as a possible halt.
+
+**A raw readout is one beat, not one bar - measured, not chosen for tidiness.** At one bar per
+readout a 180-readout live fold rendered as an **eight-minute** piece: 480.1 s, against an
+animation the app plays in 12 s. At one beat each the same fold is 121.9 s, which is a piece of
+music. The gallery's eight-readout references become 6.1 s, which is short, but eight ESMFold
+readouts of an already-folded protein do not contain more music than that.
+
+**This forced the clock's design.** A beat's worth of contacts is spread across semiquavers, so
+a flurry of sixteen runs four beats past the readout that made it and overlaps the three after
+it. A scheduler holding one bar at a time would have to discard that tail, so the clock became
+a bounded queue of absolute times.
+
+**Two starvation bugs, both found by rendering rather than by reasoning:**
+- Starvation fired at the exact moment boundary rather than past it, marking every on-time tick
+  as a stall. `>` rather than `>=`.
+- An unbounded catch-up filled the queue: advancing sixty seconds after one moment held until
+  the queue was full and then refused everything. Holding is now capped at 8 beats per tick.
+
+**Low confidence sounded silent, not murky.** Squaring velocity into amplitude, on top of the
+low-pass and the voice's own gain, attenuated a low-confidence note three times over: the first
+twenty-four seconds of a villin morph rendered at **0.001 RMS** against 0.115 elsewhere in the
+same style. Velocity is now linear, and the low-pass floor is 500 Hz rather than 300 - a
+one-pole filter is 6 dB per octave, so 300 Hz does not make a note dull, it makes it absent.
+After the fix the same fold rises 0.004 to 0.134 RMS across two minutes: an audible crescendo
+tracking the fold, which is what the mapping was for.
+
+**Measured on the shipping path**, Fantasy style, 48 kHz:
+
+| Trajectory | Engine | Duration | Peak | LUFS | Notes | Cadence |
+|---|---|---|---|---|---|---|
+| lysozyme | gallery | 6.1 s | 0.870 | -14.4 | 84 | bar 7 of 8 |
+| ubiquitin | gallery | 6.1 s | 0.702 | -16.2 | — | — |
+| trp-cage | structure-based, 400k steps | 91.1 s | 0.848 | -14.6 | 1,913 | bar 125 of 181 |
+| villin HP36 | morph | 121.9 s | 0.544 | -21.5 | 1,193 | bar 175 of 180 |
+
+No clipping anywhere, and none refused. The limiter's ceiling is 0.999 rather than 1: with a
+ceiling of exactly 1 the asymptote *reaches* it in Float, leaving nothing for the sixteen-bit
+conversion to round into.
+
+**Loudness is ITU-R BS.1770-4 with both gates**, which matters here more than usual: a piece
+opens on an unfolded chain, and ungated, nine seconds of silence in front of three of tone
+reads six decibels quieter than the tone alone. Calibration is asserted by relation rather than
+by an absolute figure - twice the amplitude is 6.02 dB - and the K-weighting coefficients are
+the standard's own at 48 kHz, so any other rate returns `nan` rather than a plausible wrong
+number.
+
+**Still to reconcile, and it is Marc's call:** the app animates a fold in 12 s (`FoldPlayer.pace`,
+`targetSeconds: 12`) while the music of the same fold runs 91 to 122 s. Both are defensible
+alone and they cannot both stand. The score's duration is a single parameter, so this moves
+either way once decided.

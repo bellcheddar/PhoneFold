@@ -36,34 +36,34 @@ let moments = (0..<64).map { moment($0) }
 
 /// Play `bars` bars, feeding the buffer as fast as it drains.
 func play(bars: Int) -> (starved: Int, refused: Int, capacity: Int) {
-    var clock = MusicalClock(capacity: 64)
+    var clock = MusicalClock(capacity: 256)
     var out: [ScheduledNote] = []
     out.reserveCapacity(4096)
     var time = 0.0
     for i in 0..<bars {
         clock.submit(moments[i % moments.count])
-        time += 2
+        time += MusicalClock.momentDuration(tempo: 120)
         clock.advance(to: time, into: &out)
         out.removeAll(keepingCapacity: true)
     }
-    return (clock.starvedBars, clock.refusedMoments, out.capacity)
+    return (clock.starvedBeats, clock.refusedNotes, out.capacity)
 }
 
 /// Play one bar and then let the buffer run dry for `bars` bars.
 func hold(bars: Int) -> Int {
-    var clock = MusicalClock(capacity: 8)
+    var clock = MusicalClock(capacity: 256)
     var out: [ScheduledNote] = []
     out.reserveCapacity(4096)
     clock.submit(moment(0))
-    var time = 2.0
+    var time = MusicalClock.momentDuration(tempo: 120)
     clock.advance(to: time, into: &out)
     out.removeAll(keepingCapacity: true)
     for _ in 0..<bars {
-        time += 2
+        time += MusicalClock.momentDuration(tempo: 120)
         clock.advance(to: time, into: &out)
         out.removeAll(keepingCapacity: true)
     }
-    return clock.starvedBars
+    return clock.starvedBeats
 }
 
 // Warm each path first. The first bulk pass through a code path costs a few hundred blocks

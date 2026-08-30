@@ -34,8 +34,29 @@ public struct Sonifier: Sendable {
 
     // MARK: - Constants
 
-    /// Beats in a bar. One raw frame is one bar of music.
+    /// Beats in a bar. Only the pad's length and the held-beat duration are written in bars.
     public static let beatsPerBar = 4.0
+
+    /// How much musical time one raw readout occupies.
+    ///
+    /// **One beat, not one bar, and that is measured rather than chosen for tidiness.** A live
+    /// fold is 180 raw readouts. At one bar each, the Fantasy style's 66 to 132 BPM makes an
+    /// eight-minute piece over an animation the app plays in twelve seconds - rendered and
+    /// timed, not estimated. At one beat each it is 180 beats, 82 to 164 seconds, which is a
+    /// piece of music and can share a clock with a fold the viewer is willing to watch.
+    ///
+    /// The gallery's eight-readout references become eight beats, which is short. They contain
+    /// eight ESMFold readouts of an already-folded protein, so there is not more music in them
+    /// to find.
+    public static let beatsPerMoment = 1.0
+
+    /// The gap between contacts in a flurry, in beats. Semiquavers.
+    ///
+    /// A beat's worth of contacts can run past its own beat and overlap the moments after it,
+    /// which is why the clock schedules on an absolute timeline rather than a bar at a time.
+    /// Sixteen contacts is a four-beat run - a gesture - where sixteen crammed into one beat
+    /// would be the machine-gun burst PLAN.md warns about.
+    static let contactSpacing = 0.25
 
     /// The most contacts that can sound in one bar.
     ///
@@ -47,9 +68,9 @@ public struct Sonifier: Sendable {
     /// `ScoreMoment.droppedContacts` rather than discarded quietly.
     static let maximumContactNotes = 16
 
-    /// The most notes a texture voice may place in one bar. Eight is two per beat, which is as
-    /// fast as the arpeggio can articulate at the style's top tempo.
-    static let maximumTextureNotes = 8
+    /// The most notes a texture voice may place in one moment. Four to a beat is semiquavers,
+    /// which is as fast as the arpeggio can articulate at the style's top tempo.
+    static let maximumTextureNotes = 4
 
     /// Octave offsets, relative to the style's own root octave.
     ///
@@ -196,10 +217,10 @@ public struct Sonifier: Sendable {
             return a.j < b.j
         }
         let kept = Array(ordered.prefix(Self.maximumContactNotes))
-        // Spread across the bar rather than stacked on the downbeat. A single contact still
-        // lands on beat one; a flurry of sixteen becomes a run of semiquavers, which is
-        // audible as sixteen events where a sixteen-note cluster is audible as one noise.
-        let step = Self.beatsPerBar / Double(Swift.max(kept.count, 1))
+        // A run of semiquavers rather than a stack on the downbeat. A single contact still
+        // lands on the beat; a flurry of sixteen becomes a four-beat run, which is audible as
+        // sixteen events where a sixteen-note cluster is audible as one noise.
+        let step = Self.contactSpacing
         let notes = kept.enumerated().map { position, contact -> NoteEvent in
             let core = contact.isHydrophobicPair && contact.range == .longRange
             let voice: Voice = core ? .bass : .contact
@@ -241,7 +262,7 @@ public struct Sonifier: Sendable {
         let count = Self.textureCount(fraction: frame.structureFractions.sheet)
         guard count > 0, !sheet.isEmpty else { return [] }
         let placed = Self.spread(sheet, count: count)
-        let step = Self.beatsPerBar / Double(count)
+        let step = Self.beatsPerMoment / Double(count)
         return placed.enumerated().map { position, residueIndex in
             NoteEvent(voice: .rhythm,
                       note: MIDINote(pitch: style.scale.pitch(degree: chord[position % chord.count],
@@ -260,7 +281,7 @@ public struct Sonifier: Sendable {
         let count = Self.textureCount(fraction: frame.structureFractions.coil)
         guard count > 0, !coil.isEmpty else { return [] }
         let placed = Self.spread(coil, count: count)
-        let step = Self.beatsPerBar / Double(count)
+        let step = Self.beatsPerMoment / Double(count)
         return placed.enumerated().map { position, residueIndex in
             // Climbing through the chord and on into the octave above, which is what makes it
             // figuration rather than a repeated arpeggio.
@@ -327,7 +348,10 @@ public struct Sonifier: Sendable {
     /// bright, and the murk would collapse into the bottom few percent.
     public static func timbre(meanConfidence: Float) -> TimbreState {
         let q = Swift.min(Swift.max(Double(meanConfidence) / 100, 0), 1)
-        return TimbreState(cutoff: 300 * pow(40, q),      // 300 Hz murky, 12 kHz open
+        // The floor is 500 Hz rather than 300. A one-pole filter is only 6 dB per octave, so
+        // 300 Hz does not make a note dull, it makes it absent: a fold opening at zero
+        // confidence rendered at 0.001 RMS. At 500 Hz the murk is audible as murk.
+        return TimbreState(cutoff: 500 * pow(28, q),      // 500 Hz murky, 14 kHz open
                            detuneCents: 35 * (1 - q),     // a third of a semitone at worst
                            reverb: 0.60 - 0.45 * q)       // a wash, drying to a room
     }

@@ -254,8 +254,8 @@ struct SonifierTests {
         #expect(murky.detuneCents > clear.detuneCents)
         #expect(murky.reverb > clear.reverb)
         // The named endpoints, so a later tweak to the curve has to be deliberate.
-        #expect(abs(Sonifier.timbre(meanConfidence: 0).cutoff - 300) < 0.001)
-        #expect(abs(Sonifier.timbre(meanConfidence: 100).cutoff - 12000) < 0.001)
+        #expect(abs(Sonifier.timbre(meanConfidence: 0).cutoff - 500) < 0.001)
+        #expect(abs(Sonifier.timbre(meanConfidence: 100).cutoff - 14000) < 0.001)
         #expect(Sonifier.timbre(meanConfidence: 100).detuneCents == 0)
     }
 

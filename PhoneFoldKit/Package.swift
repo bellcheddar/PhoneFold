@@ -27,6 +27,7 @@ let package = Package(
         .library(name: "FoldCapture", targets: ["FoldCapture"]),
         .library(name: "FoldSync", targets: ["FoldSync"]),
         .executable(name: "foldaudio-probe", targets: ["foldaudio-probe"]),
+        .executable(name: "preview-style", targets: ["preview-style"]),
     ],
     targets: [
         .target(name: "FoldCore"),
@@ -44,6 +45,12 @@ let package = Package(
         // blocks alone and 8,092 under a full run. FoldAudioTests runs this and reads its
         // numbers.
         .executableTarget(name: "foldaudio-probe", dependencies: ["FoldAudio"]),
+
+        // PLAN.md Phase 3's command-line renderer: a trajectory plus a style profile in, a WAV
+        // out. Regression-tests audio without a device, and auditions a style tweak in
+        // seconds.
+        .executableTarget(name: "preview-style",
+                          dependencies: ["FoldAudio", "FoldEngine", "FoldGeometry", "FoldCore"]),
 
         .testTarget(name: "FoldCoreTests", dependencies: ["FoldCore"],
                     resources: [.copy("Fixtures")]),
