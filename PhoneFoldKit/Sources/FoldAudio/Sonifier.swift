@@ -35,7 +35,7 @@ public struct Sonifier: Sendable {
     // MARK: - Constants
 
     /// Beats in a bar. One raw frame is one bar of music.
-    static let beatsPerBar = 4.0
+    public static let beatsPerBar = 4.0
 
     /// The most contacts that can sound in one bar.
     ///
@@ -151,6 +151,20 @@ public struct Sonifier: Sendable {
         notes += padNotes(frame: frame, chord: chordDegrees, register: register)
         notes += rhythmNotes(frame: frame, chord: chordDegrees, register: register)
         notes += arpeggioNotes(frame: frame, chord: chordDegrees, register: register)
+
+        // In beat order, which is the order they will be played in.
+        //
+        // The clock walks a bar's notes with a single watermark rather than searching, so a
+        // note out of order would not be late - it would be skipped until the playhead passed
+        // it, and a pad written after the contacts would never sound at all. Ties are broken
+        // by voice, pitch and residue so the order is fully determined and a piece cannot
+        // differ between runs by the sort alone.
+        notes.sort {
+            if $0.beatOffset != $1.beatOffset { return $0.beatOffset < $1.beatOffset }
+            if $0.voice != $1.voice { return $0.voice.rawValue < $1.voice.rawValue }
+            if $0.note.pitch != $1.note.pitch { return $0.note.pitch < $1.note.pitch }
+            return $0.residue < $1.residue
+        }
 
         return ScoreMoment(frameIndex: frame.index, tempo: tempo, notes: notes,
                            timbre: Self.timbre(meanConfidence: frame.meanPLDDT),
@@ -301,7 +315,7 @@ public struct Sonifier: Sendable {
     ///
     /// Floored at 30 rather than 1: a note that is inaudible has not been played, and the
     /// point of sounding a low-confidence residue is that it is heard *and* sounds wrong.
-    static func velocity(confidence: Float) -> UInt8 {
+    public static func velocity(confidence: Float) -> UInt8 {
         let q = Swift.min(Swift.max(Double(confidence) / 100, 0), 1)
         return UInt8(30 + 90 * q)
     }
@@ -311,7 +325,7 @@ public struct Sonifier: Sendable {
     /// The cutoff is exponential because pitch and brightness are perceived in ratios: a
     /// linear sweep from 300 Hz would spend most of its travel in a range that already sounds
     /// bright, and the murk would collapse into the bottom few percent.
-    static func timbre(meanConfidence: Float) -> TimbreState {
+    public static func timbre(meanConfidence: Float) -> TimbreState {
         let q = Swift.min(Swift.max(Double(meanConfidence) / 100, 0), 1)
         return TimbreState(cutoff: 300 * pow(40, q),      // 300 Hz murky, 12 kHz open
                            detuneCents: 35 * (1 - q),     // a third of a semitone at worst

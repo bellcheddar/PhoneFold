@@ -2048,3 +2048,52 @@ protein's size rather than of its folding. Checked against real native radii: tr
 **Recycle boundaries only exist in the gallery.** Every live engine emits `recycle: 0`
 throughout, so the harmonic modulation row of PLAN's table fires for ESMFold trajectories and
 never for a simulated fold. Stated rather than papered over.
+
+### P3-04, the musical clock (2026-08-30)
+
+A fixed-tempo scheduler in front of a bounded jitter buffer, with no audio framework in it at
+all: it converts bars to seconds and nothing else, so it can be tested exactly rather than
+listened to.
+
+**Tempo is per bar, not per piece.** The accelerando means every bar has its own length, and a
+clock that assumed one tempo would drift further out of step with the fold on every bar.
+
+**A moment's notes are sorted into beat order by the sonifier**, because the clock walks a bar
+with a single watermark rather than searching. Out of order, a note is not merely late - it is
+skipped until the playhead passes it, and a pad written after the contacts would never sound at
+all. Found by writing the clock, not by listening.
+
+**Starvation is reported only when a bar has actually run out.** The first attempt marked every
+tick that landed on a downbeat as starving, because "nothing queued" and "the current bar has
+not finished" look the same from inside the loop.
+
+**The allocation gate, and the instrument being wrong twice.** PLAN.md asks for "no
+audio-thread allocations detected in the scheduler (assert with a test harness)". Darwin's only
+allocation counter is `malloc_zone_statistics`, which is **process-wide**, and that took two
+corrections to measure honestly:
+
+1. Measured inside the test process, the first bulk run through `advance` reported 343 blocks
+   and every run after it reported 2 - ten times the iterations still reported 2. That 343 is a
+   one-off warm-up of the code path, not per-tick allocation, so an assertion of "zero on the
+   first run" would have been asserting something untrue about the runtime rather than
+   something true about the scheduler. Bisection established this: an empty loop and a
+   `removeAll` loop both report 2, so the probe itself is trustworthy, and the 343 tracked the
+   *first* use of a path rather than the amount of work in it.
+2. Then the same test failed under the full suite, reporting 2,099 and 8,092 blocks where it
+   had reported 2 running alone. swift-testing runs suites in parallel, so the figure was
+   dominated by whatever else happened to be allocating at that moment. **A process-wide
+   counter cannot measure one thread**, and no amount of tolerance-widening fixes that - it
+   only makes the test unable to fail.
+
+The harness is therefore its own executable, `foldaudio-probe`, run as a subprocess by the
+test. In a process doing nothing else, a delta is the scheduler's. Measured:
+
+| Loop | Blocks |
+|---|---|
+| 10,000 bars played | 0 |
+| 100,000 bars played | 0 |
+| 10,000 bars held (starved) | 0 |
+| 100,000 bars held (starved) | 0 |
+
+The harness also reports that the played runs never starved, never refused a bar, and never
+reallocated the output array, so a zero cannot come from the loop quietly doing nothing.

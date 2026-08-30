@@ -26,6 +26,7 @@ let package = Package(
         .library(name: "FoldRender", targets: ["FoldRender"]),
         .library(name: "FoldCapture", targets: ["FoldCapture"]),
         .library(name: "FoldSync", targets: ["FoldSync"]),
+        .executable(name: "foldaudio-probe", targets: ["foldaudio-probe"]),
     ],
     targets: [
         .target(name: "FoldCore"),
@@ -36,6 +37,13 @@ let package = Package(
         .target(name: "FoldRender", dependencies: ["FoldCore"]),
         .target(name: "FoldCapture", dependencies: ["FoldCore", "FoldRender"]),
         .target(name: "FoldSync", dependencies: ["FoldCore"]),
+
+        // The allocation harness for PLAN.md's Phase 3 gate. An executable rather than a
+        // test, because Darwin's only allocation counter is process-wide and swift-testing
+        // runs suites in parallel: measured inside the test process the same loop reported 2
+        // blocks alone and 8,092 under a full run. FoldAudioTests runs this and reads its
+        // numbers.
+        .executableTarget(name: "foldaudio-probe", dependencies: ["FoldAudio"]),
 
         .testTarget(name: "FoldCoreTests", dependencies: ["FoldCore"],
                     resources: [.copy("Fixtures")]),
