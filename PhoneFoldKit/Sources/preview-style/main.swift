@@ -20,6 +20,7 @@ struct Options {
     var steps: Int?
     var output = "preview.wav"
     var midi: String?
+    var cif: String?
     var quiet = false
 }
 
@@ -34,6 +35,7 @@ func usage() -> Never {
       --steps <n>         steps for the structure-based model
       --out <file.wav>    where to write (default preview.wav)
       --midi <file.mid>   also write a standard MIDI file of the same score
+      --cif <file.cif>    also write the trajectory as a multi-model mmCIF
       --quiet             print only the summary line
 
     """.utf8))
@@ -56,6 +58,7 @@ while let argument = arguments.first {
     case "--steps": options.steps = Int(value())
     case "--out": options.output = value()
     case "--midi": options.midi = value()
+    case "--cif": options.cif = value()
     case "--quiet": options.quiet = true
     case "-h", "--help": usage()
     default:
@@ -121,6 +124,25 @@ do {
     let data = OfflineRender.wav(left: result.left, right: result.right,
                                  sampleRate: result.sampleRate)
     try data.write(to: URL(fileURLWithPath: options.output))
+
+    if let path = options.cif {
+        let raw = frames.filter { !$0.isInterpolated }
+        let header = MMCIFExport.Header(
+            entryID: bundle.metadata.accession ?? (options.trajectory as NSString)
+                .lastPathComponent.replacingOccurrences(of: ".pftraj", with: ""),
+            title: bundle.metadata.name,
+            sequence: bundle.metadata.sequence,
+            confidenceSource: bundle.metadata.provenance.confidenceSource,
+            disclosure: bundle.metadata.provenance.disclosure)
+        // Alpha carbons only unless the provider carried a real backbone: a CA-trace fold has
+        // no N, C or O, and writing four atoms from one would be inventing three. Asked of the
+        // readouts rather than assumed, so a provider that does carry a backbone exports one.
+        let traceOnly = bundle.readouts.first?.backbone == nil
+        try MMCIFExport.write(frames: raw, residues: bundle.residues, header: header,
+                              backboneOnly: traceOnly)
+            .write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
+        say("cif -> \(path) (\(raw.count) models, \(traceOnly ? "CA trace" : "full backbone"))")
+    }
 
     if let path = options.midi {
         try MIDIFile.encode(score, style: style).write(to: URL(fileURLWithPath: path))

@@ -229,7 +229,49 @@ case "$PHASE" in
       fail "preview-style is not built"
     fi
     ;;
-  4|5)
+  4)
+    if swift test --package-path PhoneFoldKit --filter MMCIFExportTests \
+         >/tmp/pf_gate_cif.log 2>&1; then
+      pass "swift test (mmCIF export)"
+    else
+      fail "swift test (mmCIF export) - see /tmp/pf_gate_cif.log"
+      tail -20 /tmp/pf_gate_cif.log >&2
+    fi
+
+    # "mmCIF parses in Biotite" is PLAN's own wording, and it is the criterion that matters:
+    # a file only this repository's parser can read would satisfy nothing. Biotite refused the
+    # first version outright over a missing pdbx_PDB_ins_code column.
+    BIN=$(swift build --package-path PhoneFoldKit --show-bin-path 2>/dev/null)
+    VENV="$ROOT/Tools/.venv/bin/python3"
+    if [[ -x "$BIN/preview-style" && -x "$VENV" ]]; then
+      "$BIN/preview-style" "$TRAJ_DIR/lysozyme.pftraj" \
+        --styles "$ROOT/Apps/Shared/Resources/Styles" \
+        --out /tmp/pf_gate_cif.wav --cif /tmp/pf_gate_cif.cif --quiet >/dev/null 2>&1
+      if "$VENV" -c "
+import sys
+import biotite.structure.io.pdbx as pdbx
+import numpy as np
+f = pdbx.CIFFile.read('/tmp/pf_gate_cif.cif')
+stack = pdbx.get_structure(f, extra_fields=['b_factor'])
+assert stack.stack_depth() > 1, 'not a multi-model file'
+last = pdbx.get_structure(f, model=stack.stack_depth(), extra_fields=['b_factor'])
+ca = last[last.atom_name == 'CA']
+d = np.linalg.norm(np.diff(ca.coord, axis=0), axis=1)
+assert 3.6 < d.mean() < 4.0, f'CA-CA mean {d.mean():.2f} A is not a backbone'
+assert last.b_factor.max() > 0, 'the confidence column is empty'
+" >>/tmp/pf_gate_cif.log 2>&1; then
+        pass "the exported mmCIF parses in Biotite and is a backbone"
+      else
+        fail "Biotite could not read the exported mmCIF - see /tmp/pf_gate_cif.log"
+        tail -20 /tmp/pf_gate_cif.log >&2
+      fi
+    else
+      fail "preview-style or Tools/.venv is missing; cannot check the mmCIF in Biotite"
+    fi
+
+    skip "phase 4: video export, the 20-fold leak run and the accessibility audit are not built yet"
+    ;;
+  5)
     skip "phase $PHASE gate checks not yet implemented"
     ;;
   *)

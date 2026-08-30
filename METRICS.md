@@ -2381,3 +2381,52 @@ The tap is installed here rather than in Phase 4 because the mixer belongs to th
 a capture path reaching into it from outside would be one more thing to keep in step with the
 graph. Its block runs on the audio thread, so the contract is written on it: no allocation, no
 lock, no call back into the engine.
+
+## Phase 4 — big screen, capture, and the iPhone ship
+
+### P4-01, the mmCIF exports (2026-08-30)
+
+Final model and multi-model trajectory, pLDDT in the B-factor column, models numbered from one
+so `load file.cif` gives one object with n states.
+
+**Biotite refused the first version, and that is the whole reason for validating against
+somebody else's parser.** `KeyError: 'pdbx_PDB_ins_code'` inside `_fill_annotations`: a real
+reader assumes the author columns and the placeholder columns are present, and my own parser -
+written to my own layout - was perfectly happy without them. The `atom_site` loop is 20 columns
+now rather than 16.
+
+**And the round trip found a second defect, in the caller rather than the writer.** The
+command-line exporter had `backboneOnly: true` hard-coded, on the assumption that a bundled
+trajectory is a CA trace. It is not: the ESMFold gallery files carry real N, C and O, so the
+export was discarding two thirds of the atoms it had. It now asks the readouts.
+
+Measured, through Biotite, on the exported lysozyme trajectory:
+
+| | |
+|---|---|
+| Models | 8 |
+| Atoms per model | 516 (four per residue) |
+| Elements | C, N, O |
+| CA-CA | 3.80 A |
+| N-CA | 1.46 A |
+| CA-C | 1.52 A |
+| C-O | 1.23 A |
+| Biotite's own SSE annotation | 35 helix, 8 sheet, 86 coil |
+| B-factor, model 1 | 74.36 to 85.36 |
+| B-factor, model 8 | 82.13 to 96.96 |
+
+The bond lengths are the textbook peptide values, Biotite's secondary structure annotation
+finds a mostly-helical protein with a small sheet - which is lysozyme - and the per-model
+confidence climbs across the trajectory the way the app measured it climbing. Genie 2's file
+comes out as 201 single-atom models, correctly, because a diffusion run has no backbone to
+write.
+
+**One property of the format worth knowing:** Biotite's `AtomArrayStack` carries annotations
+per atom, not per model, so reading a multi-model file as a stack collapses the B-factors to
+the first model's. The file is right - reading model 8 explicitly gives model 8's values - but
+anything colouring a stack by confidence is showing frame one.
+
+**What the file says about itself.** Three of the four engines do not report pLDDT, so the
+B-factor column's meaning is written into the file as an audit record, along with the
+trajectory's provenance. A structure that leaves the app without those is one somebody will
+later mistake for a prediction.

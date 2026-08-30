@@ -1,7 +1,7 @@
 # PhoneFold — STATE
 
 **Current phase:** 3 (The score). Phase 0's engines are done and Phase 2's machine gate stays GREEN.
-**Current task:** Phase 3 machine gate is GREEN; what remains is Marc's ears and the Phase 2 sign-off. Marc answered the wizard on 2026-08-30: keep Genie 2 as a third mode, Simulate as the default, gallery references unchanged, and **do all four** of the next-work options - so Phase 3, the Phase 2 sign-off, engine hardening and polish are all in scope. Polish is done (P2-15).
+**Current task:** P4-02. Phase 3's machine gate is GREEN; what remains of it is Marc's ears (BLOCKERS.md) and the Phase 2 sign-off. Marc answered the wizard on 2026-08-30: keep Genie 2 as a third mode, Simulate as the default, gallery references unchanged, and **do all four** of the next-work options - so Phase 3, the Phase 2 sign-off, engine hardening and polish are all in scope. Polish is done (P2-15).
 **Last updated:** 2026-08-30
 
 Status vocabulary: `todo` / `doing` / `blocked` / `done`.
@@ -255,3 +255,29 @@ mean and minimum confidence.
 than a CA trace and Genie 2 emits CA only. TM-score and RMSD need a reference structure, which
 a *generated* protein does not have: they fit the PathDiffusion named gallery, not live
 generative mode. Raise this on entry to Phase 2 rather than quietly dropping them.
+
+
+## Phase 4 — big screen, capture, and the iPhone ship
+
+Ordered so that everything a machine can finish comes before anything needing a device, an
+Apple TV or Marc's account. The exports are first because they are pure functions over data
+that already exists, and because three of the four gate criteria are about them.
+
+| id | task | depends | status |
+|---|---|---|---|
+| P4-01 | mmCIF export: final model with pLDDT in the B-factor column, and a multi-model trajectory | — | done |
+| P4-02 | Offscreen render pass at export resolution, driven by the same frame stream | — | todo |
+| P4-03 | `AVAssetWriter` video plus audio from the `mainMixerNode` tap; H.264 and HEVC | P4-02 | todo |
+| P4-04 | Export presets (1920x1080, 1080x1920, 4K) and the optional burned-in overlay | P4-03 | todo |
+| P4-05 | Export UI: progress, background safety, save to Photos with permissions | P4-03 | todo |
+| P4-06 | Onboarding: three cards, and the permanent disclaimer in About | — | todo |
+| P4-07 | Sample gallery notes: what to listen for in each of the twelve | — | todo |
+| P4-08 | Accessibility: VoiceOver, Dynamic Type, Reduce Motion, colour-blind-safe palette | — | todo |
+| P4-09 | Mutation duet: wild type and mutant in one key, pLDDT delta driving dissonance | P3-09 | todo |
+| P4-10 | External display scene, `AVRoutePickerView`, connect and disconnect mid-fold | — | todo |
+| P4-11 | Live Activity and Dynamic Island | — | todo |
+| P4-12 | App icon (`marcs-vibe-icon`), privacy manifest, no analytics | — | todo |
+| P4-13 | Leak check across 20 consecutive folds | P4-03 | todo |
+
+**Needs Marc, not a machine:** AirPlay to a real Apple TV, the exported-video comparison, cold
+launch on device, and signing and TestFlight. Those are the phase's human halt.
