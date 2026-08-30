@@ -1956,3 +1956,95 @@ above it said "comparing it against itself would prove nothing". It now pins bot
 Scale degrees run past the ends of the scale in both directions rather than clamping at the
 octave, because register is driven by the trajectory: a long-range contact asks for a note well
 below the tonic, and clamping would flatten exactly the contrast the mapping exists to show.
+
+### P3-02, the style profiles (2026-08-30)
+
+Styles are declarative JSON in `Apps/Shared/Resources/Styles`, referenced into the app bundle
+as a folder reference rather than copied into the target. A copy would be free to drift from
+the canonical file with nothing to notice it had, and the tests read the shipping file for the
+same reason: a fixture copy would pass while the real style was broken.
+
+**`voices` is keyed by `String`, not by `Voice`.** Swift encodes a dictionary whose keys are
+neither `String` nor `Int` as a flat *array* of alternating keys and values, so an enum key
+would have produced JSON no one could hand-edit - which is the entire point of putting styles
+in JSON. Asserted directly, by decoding the encoded form back through `JSONSerialization` and
+checking it is an object.
+
+**A voice is a timbre, not a patch number.** PLAN.md specified a bundled SoundFont and flagged
+an unlicensed one as a halt; Marc chose synthesis instead on 2026-08-30, which removes the
+licence question entirely and leaves nothing to redistribute.
+
+### P3-03, the sonification mapping (2026-08-30)
+
+PLAN.md's core table, implemented row for row and measured against the trajectories that
+exist. Three constants were set by measurement, and the first attempt at each was wrong.
+
+**The gallery `.pftraj` files are not folds, and tuning to them would have tuned to the wrong
+thing.** Measured across all thirteen: eight raw readouts each, of which readout 0 already
+carries the entire contact map - 132 for alpha3d, 312 for lysozyme, 755 for the beta-2
+adrenergic 7TM, 2,697 for GFP, 3,448 for alpha-synuclein - and mean pLDDT jumps to its final
+value on readout 1 and then sits flat within 0.4 (lysozyme 94.3, 94.4, 94.5, 94.4, 94.3, 94.2,
+94.1). They are eight readouts from the tail of one ESMFold recycle: a structure being
+refined, not a protein folding. The constants below were measured on live engine runs, which
+is the path the app defaults to.
+
+**Contacts per readout, live engines, excluding each trajectory's first readout** (trp-cage 20,
+villin HP36 36, ubiquitin 76 residues; structure-based at 200k steps, 180 frames):
+
+| Engine | p50 | p90 | p99 | max |
+|---|---|---|---|---|
+| Structure-based | 2 to 6 | 6 to 16 | 10 to 24 | 15 to 37 |
+| Morph | 0 to 2 | 2 to 6 | 3 to 9 | 3 to 13 |
+
+A cap of **16 notes per bar** therefore leaves better than nine bars in ten whole. The first
+attempt was 6, which dropped 62% to 99% of every trajectory's contacts - a cap that was
+silently rewriting the fold rather than protecting a bar from a cluster. Measured on the
+shipping path: villin under both engines now drops under 5%, asserted.
+
+**Contacts are spread across the bar, not stacked on the downbeat.** Sixteen simultaneous
+onsets are audible as one noise; sixteen spread across four beats are audible as sixteen
+events.
+
+**The first raw frame establishes state; it does not sound.** Its contacts are whatever is
+already in contact when the trajectory begins - 9 to 40 local pairs for a random coil, the
+whole contact map for a bundled readout. Reported as `establishedContacts`, distinct from
+`droppedContacts`, because nothing went wrong.
+
+**The plateau window is six readouts**, tolerance 1.5 on the 0-100 scale, floor 50. Measured
+firing points across every trajectory and both classes:
+
+| Trajectory | Fires at | Of |
+|---|---|---|
+| lysozyme, myoglobin, ubiquitin, villin, ww_domain (gallery) | 6 or 7 | 8 |
+| villin HP36, morph | 174 | 180 |
+| trp-cage, structure-based | 113 | 181 |
+| ubiquitin, structure-based | 137 | 181 |
+| GFP, alpha-synuclein, Genie 2 | never | — |
+
+A window of 8 or more cannot fire at all on an eight-readout trajectory. A window of 3 fires on
+a transient stall at readout 45 of 181, a quarter of the way into a structure-based fold. Six
+is the only size that works on both.
+
+**And the floor does real work.** GFP holds at mean pLDDT 34 to 37 and alpha-synuclein - an
+intrinsically disordered protein - at 31 to 39, so neither ever resolves. That is PLAN.md's
+"an intrinsically disordered region never resolves, so it stays a detuned wash for the whole
+piece", falling out of the mapping rather than being special-cased. Genie 2 never resolves
+either, for a different reason: its confidence is denoising progress, which climbs
+monotonically and so has no plateau to find.
+
+**A compaction gate on the cadence was measured and rejected.** Requiring compaction >= 0.8 as
+well as a confidence plateau killed the cadence entirely for villin and ubiquitin under the
+structure-based model at 200k steps, because a truncated fold never gets that compact. A piece
+that can never resolve is worse than one that resolves early.
+
+**Radius of gyration is normalised by chain length**, against two measured scaling laws:
+denatured `Rg = 1.927 N^0.598` (Kohn et al., PNAS 2004, 101(34):12491) and native globular
+`Rg = 2.2 N^0.38` (Flory scaling as fitted by Dima and Thirumalai, J. Phys. Chem. B 2004,
+108(21):6564). Without it a 20-residue miniprotein reads as permanently compact and a
+300-residue one as permanently extended, and the accelerando would be a property of the
+protein's size rather than of its folding. Checked against real native radii: trp-cage at
+7.2 A over 20 residues and lysozyme at 14.3 A over 129 both read above 0.9.
+
+**Recycle boundaries only exist in the gallery.** Every live engine emits `recycle: 0`
+throughout, so the harmonic modulation row of PLAN's table fires for ESMFold trajectories and
+never for a simulated fold. Stated rather than papered over.

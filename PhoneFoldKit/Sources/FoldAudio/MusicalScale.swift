@@ -109,6 +109,18 @@ public struct SequenceSeed: Sendable, Hashable {
 
     /// A generator that starts from this seed, for one deterministic musical decision stream.
     public func generator() -> SplitMix64Music { SplitMix64Music(seed: value) }
+
+    /// A generator for one *position* in the trajectory.
+    ///
+    /// Not the same as advancing a single stream frame by frame. A single stream makes every
+    /// choice depend on how many frames came before it, so scrubbing to frame 400 would
+    /// produce a different chord than playing to frame 400 - the same protein sounding like
+    /// two different pieces depending on how it was reached. Deriving the stream from the
+    /// position makes the score seekable, which the scrubber needs and the loop tests.
+    public func stream(at position: Int) -> SplitMix64Music {
+        SplitMix64Music(seed: value ^ (UInt64(bitPattern: Int64(position))
+                                       &* 0x9E3779B97F4A7C15))
+    }
 }
 
 /// The generator behind every stochastic musical choice.

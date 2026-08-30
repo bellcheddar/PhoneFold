@@ -41,8 +41,13 @@ let package = Package(
                     resources: [.copy("Fixtures")]),
         .testTarget(name: "FoldGeometryTests", dependencies: ["FoldGeometry"],
                     resources: [.copy("Fixtures")]),
-        .testTarget(name: "FoldEngineTests", dependencies: ["FoldEngine", "FoldGeometry"]),
-        .testTarget(name: "FoldAudioTests", dependencies: ["FoldAudio"]),
+        .testTarget(name: "FoldEngineTests", dependencies: ["FoldEngine", "FoldGeometry"],
+                    resources: [.copy("Fixtures")]),
+        // FoldAudio itself depends only on FoldCore. Its tests additionally pull in
+        // FoldEngine so the sonifier can be run against a real bundled trajectory rather
+        // than against frames a test made up - the mapping has to hold on the shapes the
+        // engines actually produce, which is the failure a synthetic frame cannot catch.
+        .testTarget(name: "FoldAudioTests", dependencies: ["FoldAudio", "FoldEngine"]),
         .testTarget(name: "FoldRenderTests", dependencies: ["FoldRender", "FoldGeometry"],
                     resources: [.copy("Fixtures")]),
         .testTarget(name: "FoldCaptureTests", dependencies: ["FoldCapture"]),

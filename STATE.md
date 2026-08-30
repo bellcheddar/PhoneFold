@@ -1,7 +1,7 @@
 # PhoneFold — STATE
 
 **Current phase:** 3 (The score). Phase 0's engines are done and Phase 2's machine gate stays GREEN.
-**Current task:** P3-03. Marc answered the wizard on 2026-08-30: keep Genie 2 as a third mode, Simulate as the default, gallery references unchanged, and **do all four** of the next-work options - so Phase 3, the Phase 2 sign-off, engine hardening and polish are all in scope. Polish is done (P2-15).
+**Current task:** P3-04. Marc answered the wizard on 2026-08-30: keep Genie 2 as a third mode, Simulate as the default, gallery references unchanged, and **do all four** of the next-work options - so Phase 3, the Phase 2 sign-off, engine hardening and polish are all in scope. Polish is done (P2-15).
 **Last updated:** 2026-08-30
 
 Status vocabulary: `todo` / `doing` / `blocked` / `done`.
@@ -84,7 +84,7 @@ matter of opinion.
 |---|---|---|---|
 | P3-01 | Musical primitives: scales, modes, pitch, and a deterministic seed from the sequence | — | done |
 | P3-02 | Style profiles as declarative JSON, loaded and validated | P3-01 | done |
-| P3-03 | The sonification mapping: PLAN's table, trajectory features to musical events | P3-01, P3-02 | todo |
+| P3-03 | The sonification mapping: PLAN's table, trajectory features to musical events | P3-01, P3-02 | done |
 | P3-04 | The musical clock: fixed tempo, jitter buffer, never blocks on inference | P3-03 | todo |
 | P3-05 | Audio output: **synthesised voices, spatial from the start** — Marc's call, 2026-08-30 | P3-04 | todo |
 | P3-07 | MIDI event log and export, round-tripped | P3-03 | todo |
