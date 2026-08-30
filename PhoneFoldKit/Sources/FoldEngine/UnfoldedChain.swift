@@ -25,6 +25,14 @@ public enum UnfoldedChain {
     /// Natural extension reference frame: build an orthonormal frame on the last two bonds and
     /// place the new atom in it. Doing this by rotating vectors instead accumulates error over
     /// a few hundred residues and quietly stops producing the bond length it was asked for.
+    ///
+    /// **`phi` is in the same convention as `StructureBasedModel.dihedral`**, so that reading a
+    /// chain's dihedrals and placing them back reproduces the chain. The construction below
+    /// naturally yields the *negative* of that convention - work the cross products through and
+    /// the measured dihedral comes out as `atan2(-sin phi, cos phi)` - so the sine term is
+    /// negated here. Nothing noticed while the only caller was the random coil, where `phi` is
+    /// drawn uniformly around the circle and a sign flip is invisible; the morph, which reads
+    /// real dihedrals and replays them, noticed immediately.
     static func place(_ a: SIMD3<Double>, _ b: SIMD3<Double>, _ c: SIMD3<Double>,
                       bond: Double, theta: Double, phi: Double) -> SIMD3<Double> {
         let b1 = c - b, b2 = b - a
@@ -34,7 +42,7 @@ public enum UnfoldedChain {
         // Three collinear points leave the dihedral undefined; any perpendicular will do.
         n1 = length > 1e-9 ? n1 / length : simd_normalize(perpendicular(to: e1))
         let e2 = simd_cross(n1, e1)
-        return c + bond * (-cos(theta) * e1 + sin(theta) * (cos(phi) * e2 + sin(phi) * n1))
+        return c + bond * (-cos(theta) * e1 + sin(theta) * (cos(phi) * e2 - sin(phi) * n1))
     }
 
     static func perpendicular(to v: SIMD3<Double>) -> SIMD3<Double> {

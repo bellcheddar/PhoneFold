@@ -1554,3 +1554,40 @@ candidates were being accepted instead of backtracked. Adding backtracking chang
 **not at all** - byte-identical - because the walk never fails a placement at this clash radius.
 The compactness was the walk's own nature, and the single-seed test that flagged it was the
 thing at fault.
+
+### The morph engine, and a claim of mine that measurement killed (2026-08-30)
+
+Interpolating an unfolded coil into the native structure, 200 frames on ubiquitin:
+
+| | Bond lengths | Closest non-bonded approach |
+|---|---|---|
+| Torsion space | **3.68 - 3.89 A** | 0.28 A |
+| Cartesian | 0.55 - 3.89 A | 0.34 A |
+
+Torsion space keeps the chain a chain: every CA-CA bond stays at a real distance, where a
+Cartesian morph pulls the backbone through itself until its bonds collapse to a third of an
+angstrom. That is the difference between a chain moving and a chain melting.
+
+**What it does not do is prevent clashes.** 0.28 A against 0.34 A is no improvement, and I had
+written into the source that torsion space fixed the clashing before measuring it. It does not:
+interpolating torsions constrains bonded geometry and says nothing about whether two distant
+parts of the chain pass through each other. Both numbers are now measured by a test so the
+claim cannot drift back.
+
+A morph is therefore never physically valid, and is labelled as an interpolation wherever it
+appears.
+
+### Two porting bugs, both caught by round-trip
+
+**A dihedral sign.** `UnfoldedChain.place` produced the *negative* of the dihedral that
+`StructureBasedModel.dihedral` measures - work the cross products through and the measured
+angle comes out as `atan2(-sin phi, cos phi)`. Nothing noticed while the only caller was the
+random coil, where the dihedral is drawn uniformly around the circle and a sign flip yields an
+equally valid coil. The morph reads real dihedrals and replays them, and landed **34.7 A from
+its own destination**. A round-trip test - read a chain's internal coordinates, build it back,
+require the same chain - now pins it at under 1e-6 A.
+
+**The first two bonds.** The morph's first three atoms were taken from a linear interpolation
+of positions, so they ignored the interpolated bond lengths: a straight line between two
+conformations is shorter than the arc the chain travels, and the first bonds fell below 3 A.
+They are now constructed from the interpolated internal coordinates like every other atom.
