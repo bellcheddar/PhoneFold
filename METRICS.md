@@ -1616,3 +1616,27 @@ measures how much of each residue's own native contact set has formed, so the co
 first is visible while the termini are still loose. A residue with no native contacts of its
 own takes the chain's overall value, because 0/0 is not 0 - scoring those zero painted them as
 permanently unfolded even in the native structure, which a viewer would read as meaningful.
+
+### Fetching a reference structure from AlphaFold (2026-08-30)
+
+**The file URL is asked for, not constructed.** `AF-{accession}-F1-model_v4.cif` returns **HTTP
+404** today: AlphaFold is on `model_v6`, and the version moved during this project. The
+prediction API at `/api/prediction/{accession}` reports the URL for whatever the current
+release is, along with the sequence, so one extra request removes a class of breakage that
+would otherwise reach a user as "that protein does not exist".
+
+Verified against the live service (P69905, haemoglobin subunit alpha): 142 residues, sequence
+beginning MVLSPADKTNVK, pLDDT all within 0-100, radius of gyration in the range a folded
+globular domain occupies. Those network checks are **opt-in** behind `PHONEFOLD_NETWORK_TESTS=1`
+- a phase gate that fails on a train or when EBI is down stops being read - and the parser is
+covered offline by a real trimmed excerpt of AlphaFold's own mmCIF.
+
+**Column positions are read from the loop header, never assumed.** mmCIF declares its column
+order and that order is not fixed across producers or versions. A test shuffles the declared
+order, swapping `Cartn_x` with `occupancy` in both header and data, and requires identical
+coordinates out - which a parser counting fields from the left would fail. Fixed-width slicing
+would be worse still: it drops every `ATOM` line while `HETATM` happens to line up.
+
+The sequence comes from the coordinates rather than from the API's sequence field, because a
+prediction can cover a fragment of a longer entry and a sequence longer than the coordinates
+misaligns every residue type in the app.
