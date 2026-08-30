@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Required for any App Store macOS build. -->
+    <key>com.apple.security.app-sandbox</key>
+    <true/>
+    <!-- Outbound only, for fetching a reference structure from AlphaFold. The app never
+         listens, so the server entitlement is deliberately absent. -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+</dict>
+</plist>

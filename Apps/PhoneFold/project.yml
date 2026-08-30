@@ -45,6 +45,10 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.mdeller.phonefold
+        # macOS only. `com.apple.security.app-sandbox` is not a valid iOS entitlement - iOS
+        # sandboxes every app implicitly - and supplying it there is a provisioning error
+        # rather than a no-op, so the setting is conditioned on the SDK.
+        "CODE_SIGN_ENTITLEMENTS[sdk=macosx*]": PhoneFold-macOS.entitlements
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.education
         ENABLE_HARDENED_RUNTIME: YES
         CODE_SIGN_STYLE: Automatic

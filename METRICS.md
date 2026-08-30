@@ -1872,3 +1872,23 @@ several minutes on a phone. Starting from a draw known to complete costs nothing
 Note the radius-of-gyration trace for a generated protein runs the *other way* from a fold: it
 climbs from 1.7 A as the noise ball opens out, where the structure-based engine's descends. The
 two engines are doing genuinely different things and the trace shows it without being told.
+
+### The macOS sandbox entitlement (2026-08-30)
+
+An App Store macOS build must be sandboxed, and a sandboxed app has no network unless it says
+so. `PhoneFold-macOS.entitlements` declares `com.apple.security.app-sandbox` and
+`com.apple.security.network.client` — outbound only; the app never listens, so the server
+entitlement is deliberately absent.
+
+Applied **conditionally on the SDK**, `CODE_SIGN_ENTITLEMENTS[sdk=macosx*]`, because
+`com.apple.security.app-sandbox` is not a valid iOS entitlement — iOS sandboxes every app
+implicitly — and supplying it there is a provisioning error rather than a harmless no-op. One
+target builds for both platforms, so the condition is not optional.
+
+Verified: both platforms build, `codesign -d --entitlements` shows both keys in the signed
+macOS binary, the sandboxed app launches and stays up, and the system log records **no sandbox
+denials** for it.
+
+**Not verified:** that the AlphaFold fetch actually succeeds under the sandbox. The Mac screen
+was locked, so the result could not be read off the window, and absence of a denial in the log
+is encouraging rather than conclusive. It wants one look at a fetch on an unlocked screen.

@@ -72,7 +72,7 @@ measurements are in `METRICS.md` under Phase 0d and the literature in `MODEL_SUR
 | P0-41 | Genie 2's cosine schedule and Frenet frames in Swift | P0-35 | done: matched to float32's own precision |
 | P0-42 | Genie 2's reverse process driving Core ML on the device | P0-41 | done: mean CA-CA 3.94 A; some seeds diverge, retried, **workaround not a fix** |
 | P0-43 | All three engines live in the app | P0-37, P0-42 | done |
-| P0-44 | macOS sandbox entitlement for network access, needed for an App Store build | P0-36 | todo |
+| P0-44 | macOS sandbox entitlement for network access, needed for an App Store build | P0-36 | done — both keys in the signed binary, no sandbox denials; the fetch itself wants one look on an unlocked screen |
 
 ### Phase 0c — the PathDiffusion named gallery
 
