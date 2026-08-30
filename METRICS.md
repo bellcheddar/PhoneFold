@@ -1772,3 +1772,33 @@ The Mac app is not sandboxed, so the fetch works in development. An App Store bu
 sandboxed and will need `com.apple.security.network.client`, which is not yet in the project.
 Recorded rather than added, because enabling the sandbox changes more than one thing and
 belongs with the distribution work rather than in the middle of the engine.
+
+## Phase 0f — Genie 2's reverse process in Swift (2026-08-30)
+
+The exported `Genie2Step_L64.mlpackage` is **one denoising step**: `trans [1,64,3]`,
+`rots [1,64,3,3]`, `timesteps [1]` in, predicted noise `z [1,64,3]` out. The schedule and the
+reverse loop are not in it, so both have to be driven from Swift, and both have to match the
+training-time definitions exactly - a diffusion schedule that is subtly wrong does not fail, it
+denoises to plausible rubbish.
+
+Ported and validated against the upstream Python:
+
+**The cosine schedule matches to the precision the arithmetic allows, and no further.** Torch
+builds it in float32, and the early betas are `1 - (ratio of two nearly-equal cosines)` -
+catastrophic cancellation whose absolute error is one ULP of 1.0 however the arithmetic is
+ordered. Computing it in `Double` gives a *mathematically better and wrong* answer: beta[1]
+comes out 2.4625e-06 against the 2.5034e-06 the network was trained with, 1.6% out on the last
+denoising step. Recomputed in `Float` it agrees to **1.1920928955078125e-07, exactly 2^-23**.
+The tail agrees to 1.4e-05 relative, and the cumulative product to 7.6e-05 after a thousand
+ULP-noisy multiplications. What that is worth where it is used: beta scales added noise as its
+square root, and sqrt(0.3599776) against sqrt(0.3599825) differ in the sixth decimal.
+
+**Genie 2's frames have determinant -1.** Not a porting mistake - the port matches upstream
+element for element, worst disagreement below 1e-06. It falls out of the construction: the
+binormal is perpendicular to the tangent, so `t . (b x n) = t . (b x (b x t)) = -1` exactly.
+They are orthonormal but improper, the network was trained on frames built this way, and
+"correcting" them to proper rotations would feed it something it has never seen.
+
+Also noted, not fixed because it is upstream's and harmless here: `compute_frenet_frames` calls
+`torch.cross` without `dim`, which picks the first axis of size 3. With a batch of one that is
+the intended last axis; with a batch of three it would silently cross the wrong dimension.
