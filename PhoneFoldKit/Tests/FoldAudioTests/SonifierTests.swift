@@ -648,3 +648,96 @@ extension SonifierTests {
         #expect(swung.min()! > straight.min()!)
     }
 }
+
+extension SonifierTests {
+
+    @Test("a fold lasts about the length it is meant to")
+    func pacingHitsItsTarget() throws {
+        let style = try Self.style
+        let mid = (style.tempoSlow + style.tempoFast) / 2
+
+        // A live fold: 180 readouts. Marc's call on 2026-08-31 was about forty-five seconds.
+        let live = Sonifier.pacing(readouts: 180, style: style)
+        #expect(live.readoutsPerMoment == 2, "readouts are grouped rather than stretched")
+        #expect(live.moments == 90)
+        let seconds = live.seconds(atTempo: mid)
+        #expect(abs(seconds - Sonifier.targetSeconds) < 6, "\(seconds) s against a 45 s target")
+
+        // Grouping alone cannot hit it - at 180 readouts it offers 55 s or 36 s and neither is
+        // 45 - which is why the beat length is trimmed as well.
+        #expect(live.beatsPerMoment < 1)
+    }
+
+    @Test("a very short trajectory is not stretched into a dirge")
+    func shortTrajectoriesAreClamped() throws {
+        let style = try Self.style
+        // The gallery's eight ESMFold readouts. Stretched to forty-five seconds they would be
+        // eleven-beat moments, which is eight events spread over a piece with no shape; the
+        // pad they hold is only four beats long.
+        let gallery = Sonifier.pacing(readouts: 8, style: style)
+        #expect(gallery.readoutsPerMoment == 1, "there is nothing to group")
+        #expect(gallery.beatsPerMoment <= 4)
+        #expect(gallery.moments == 8)
+    }
+
+    @Test("a very long trajectory is not compressed past what a voice can play")
+    func longTrajectoriesAreClamped() throws {
+        let style = try Self.style
+        // A 201-readout Genie 2 run, and a hypothetical one ten times longer.
+        for readouts in [201, 2_010] {
+            let pacing = Sonifier.pacing(readouts: readouts, style: style)
+            // The texture voices place up to four notes inside a moment; below half a beat
+            // they cannot articulate them.
+            #expect(pacing.beatsPerMoment >= 0.5)
+            #expect(pacing.readoutsPerMoment >= 1)
+            #expect(pacing.moments > 0)
+        }
+    }
+
+    @Test("grouping gathers contacts, it does not lose them")
+    func groupingKeepsEveryContact() throws {
+        let style = try Self.style
+        var sonifier = Sonifier(style: style, residues: Array(repeating: .alanine, count: 60),
+                                beatsPerMoment: 1, readoutsPerMoment: 3)
+        // The establishing *moment* spans three readouts, not one: its contacts are the
+        // starting state and are inventory rather than events, however many readouts it took
+        // to gather them.
+        var established = 0
+        for i in 0..<3 {
+            if let moment = sonifier.moment(for: Self.frame(index: i, residues: 60)) {
+                established += moment.establishedContacts
+            }
+        }
+
+        // Then six readouts carrying one contact apiece.
+        var sounded = 0
+        var moments = 0
+        for i in 3..<9 {
+            let contact = ContactEvent(i: i, j: i + 20, distance: 7, isHydrophobicPair: false)
+            if let moment = sonifier.moment(for: Self.frame(index: i, residues: 60,
+                                                            contacts: [contact])) {
+                moments += 1
+                sounded += moment.notes.count { $0.voice == .contact || $0.voice == .bass }
+                #expect(moment.droppedContacts == 0)
+            }
+        }
+        // Two moments from six readouts, and every contact in them: grouping must gather
+        // events, never discard them.
+        #expect(moments == 2)
+        #expect(sounded == 6)
+    }
+
+    @Test("a moment carries its own length, so the clock can time it")
+    func momentsCarryTheirLength() throws {
+        let style = try Self.style
+        var sonifier = Sonifier(style: style, residues: Array(repeating: .alanine, count: 12),
+                                beatsPerMoment: 0.75, readoutsPerMoment: 1)
+        _ = sonifier.moment(for: Self.frame(index: 0))
+        let produced = sonifier.moment(for: Self.frame(index: 1))
+        let moment = try #require(produced)
+        #expect(moment.beats == 0.75)
+        // And the clock reads it from the moment rather than from a global, which is what lets
+        // two trajectories of different lengths share one implementation.
+        #expect(MusicalClock.momentDuration(tempo: 120, beats: moment.beats) == 0.375)
+    }
+}

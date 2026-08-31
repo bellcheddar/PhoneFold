@@ -70,8 +70,7 @@ public final class OffscreenStage {
 
     private let protein = Entity()
     private let camera = Entity()
-    private let key = Entity()
-    private let fill = Entity()
+    private var lights: [Entity] = []
     private var mesh: LowLevelTubeMesh?
     private var vertexCapacity = 0
     private var materialMode: ColourMode?
@@ -107,38 +106,40 @@ public final class OffscreenStage {
         var lens = PerspectiveCameraComponent()
         lens.fieldOfViewInDegrees = Self.fieldOfViewDegrees
         lens.fieldOfViewOrientation = .vertical
-        lens.near = 0.05
-        lens.far = 10_000
+        // The near and far planes are set from the protein's own scale rather than left at a
+        // room-scale default: the depth buffer's precision goes as the ratio of the two, and
+        // the live stage's dark creases along the ribbons were exactly this - 10,000 to 1
+        // spends almost all of the buffer on the first fraction of the scene.
+        lens.near = 0.5
+        lens.far = 2_000
         camera.components.set(lens)
         renderer.entities.append(camera)
         renderer.entities.append(protein)
         renderer.activeCamera = camera
 
-        // **The stage has to light itself, and the live one does not.**
+        // **The stage has to light itself, and the live one used not to.**
         //
         // `RealityView` supplies a default environment automatically; `RealityRenderer` supplies
         // nothing at all, so a lit `SimpleMaterial` renders black - and against a near-black
         // stage that is a frame in which the protein is present and invisible. Measured: with
         // no light, 0% of the frame differed from the background.
         //
-        // A key and a fill, from opposite sides, so a tube reads as round rather than as a
-        // flat silhouette. **This is not the same lighting the live view gets**, and closing
-        // that gap means giving both paths the same explicit lights - which changes the look
-        // Marc has already seen. Written up in BLOCKERS.md rather than quietly guessed at.
-        key.components.set(DirectionalLightComponent(color: .white, intensity: 12_000))
-        key.look(at: .zero, from: SIMD3(3, 5, 4), relativeTo: nil)
-        fill.components.set(DirectionalLightComponent(color: .init(red: 0.55, green: 0.62,
-                                                                   blue: 0.95, alpha: 1),
-                                                      intensity: 4_000))
-        fill.look(at: .zero, from: SIMD3(-4, -2, -3), relativeTo: nil)
-        renderer.entities.append(key)
-        renderer.entities.append(fill)
+        // The rig comes from `FoldRender` and the live view now uses the same one, so the two
+        // paths are lit by the same code rather than by a default on one side and a guess on
+        // the other. That was Marc's call on 2026-08-31.
+        lights = StageLighting.makeLights()
+        for light in lights { renderer.entities.append(light) }
         renderer.cameraSettings.colorBackground = .color(.init(red: 0.047, green: 0.039,
                                                               blue: 0.122, alpha: 1))
     }
 
     /// Vertical field of view, in degrees.
-    public static let fieldOfViewDegrees: Float = 60
+    ///
+    /// **42, because that is what the live stage uses.** Lighting was not the only thing that
+    /// differed between the two paths: a 60-degree lens against the live view's 42 gives a
+    /// visibly deeper perspective on the same protein, which "exported video and live playback
+    /// are visually identical" does not survive either. Matching the lens costs nothing.
+    public static let fieldOfViewDegrees: Float = 42
 
     /// Where the camera stands, in the same terms the live stage uses.
     public func place(camera transform: Transform) {

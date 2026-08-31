@@ -644,9 +644,13 @@ carries *"Generated — this protein has never existed"*.
 **Not blocking anything.** All three engines work today; this is about what the app should
 claim, which is Marc's call and not a technical one.
 
-## Phase 3: how long is a fold? (2026-08-30)
+## RESOLVED 2026-08-31: how long is a fold? — about forty-five seconds
 
-**Decided provisionally, and Marc may want to move it.**
+Marc chose ~45 s over the two minutes one-beat-per-readout produced and the twelve seconds
+Phase 2 used. Implemented as `Sonifier.pacing(readouts:style:targetSeconds:)`, which both the
+score and the animation read, so they cannot drift apart. Measured durations are in METRICS.md.
+
+The original write-up follows.
 
 The app used to play every trajectory in about 12 seconds (`FoldPlayer.pace`, `targetSeconds:
 12`), which Marc asked for during Phase 2 when a trajectory was eight ESMFold readouts. A live
@@ -682,7 +686,7 @@ cover any of this:
 - [ ] Haptics: a contact is a tap, the core is a rumble, and convergence is unmistakable (iPhone or Watch; a Mac has no actuator, so none of it has been felt)
 
 
-## Phase 4: the offscreen renderer lights itself and the live one does not (2026-08-30)
+## RESOLVED 2026-08-31: the offscreen renderer lights itself and the live one does not
 
 `RealityView` supplies a default environment automatically. `RealityRenderer` supplies nothing,
 so the offscreen stage has to light itself - and it does, with an explicit key and fill. The two
@@ -693,5 +697,9 @@ Closing it means giving the live view the same two explicit lights, so both are 
 thing rather than one relying on a framework default. That is a visible change to the look Marc
 signed off in Phase 2, which is why it has not been made.
 
-- [ ] Compare a still from the offscreen renderer against the live stage, and decide whether to
-      move the live view onto explicit lighting
+**Marc chose to unify on explicit lights.** One rig in `FoldRender.StageLighting`, used by the
+live stage and the offscreen renderer. The lens was mismatched too - 60 degrees offscreen
+against the live view's 42 - and is now 42 in both.
+
+- [ ] Still needs Marc's eye: the live stage's look has changed, because it no longer gets
+      RealityView's default environment on top of the explicit lights

@@ -2477,3 +2477,50 @@ residues, radius 22.2 A), GFP (238) and the beta-2 adrenergic 7TM (314), all at 
 They are not the same lighting. Closing that gap means giving both paths the same explicit
 lights, which changes the look Marc has already approved - so it is in BLOCKERS.md rather than
 changed unilaterally.
+
+### Marc's two decisions, 2026-08-31
+
+**A fold lasts about forty-five seconds**, not two minutes and not twelve seconds.
+
+Two knobs rather than one, because one is too coarse: readouts are grouped into moments, and
+then each moment's length in beats is trimmed. At 180 readouts, grouping alone offers 55 s (two
+per moment) or 36 s (three) and neither is 45; grouping by two and shortening the moment to
+0.82 beats gives 45.
+
+| Trajectory | Engine | Pacing | Duration | Cadence |
+|---|---|---|---|---|
+| villin HP36 | morph | 180 readouts to 90 moments of 0.82 beats | 51.7 s | bar 89 of 90 |
+| trp-cage | structure-based, 400k | 181 to 91 moments of 0.82 beats | 38.4 s | bar 60 of 91 |
+| lysozyme | gallery | 8 readouts, 1 each, 4.00 beats | 17.1 s | bar 7 of 8 |
+
+The gallery stays at 17 s rather than stretching to 45: eight readouts spread over forty-five
+seconds would be eleven-beat moments, and a moment longer than a bar has no shape - the pad it
+holds is only four beats.
+
+**Three consequences, all measured, none of them free:**
+
+1. **The plateau detector had to be re-derived, and both obvious fixes were wrong.** It is a
+   *rate* of change: six moments used to be six readouts, and 1.5 across them is a quarter of a
+   point per readout. Grouping makes six moments twelve readouts. Leaving the tolerance alone
+   stopped a morph resolving at all - 0 cadences where there had been 1, because its confidence
+   saturates over only the last handful of readouts. Shrinking the window instead made it
+   permissive enough that a **Genie 2 run cadenced**, which a generative sample must never do,
+   having nothing to converge on. Scaling the tolerance with the grouping keeps the rate fixed
+   and both cases correct.
+2. **The contact cap bites harder**, and that is a real cost of a shorter piece rather than a
+   defect: half as many bars means each carries twice as many contacts and reaches the
+   sixteen-note cap more often. Measured 5.5% dropped against 1% before. Raising the cap is not
+   the answer - sixteen onsets in a 0.82-beat moment is already thirty notes a second.
+3. **The clock's queue was too small, and was silently losing music.** 128 notes looked like
+   four times a moment's worth, but the queue holds everything inside the producer's four-second
+   lookahead - eight moments in flight - and a trp-cage fold **refused 76 notes**. Sized for the
+   lookahead now, at 512.
+
+**And the lighting is unified on explicit lights.** The live view was lit by `RealityView`'s
+implicit default environment and the offscreen renderer by two lights of its own, which
+"exported video and live playback are visually identical" cannot survive. One rig in
+`FoldRender`, used by both.
+
+The lens was not identical either, and would have been missed if only the lighting had been
+looked at: the offscreen stage was on a 60-degree lens against the live view's 42, which is a
+visibly deeper perspective on the same protein. Both are 42 now.

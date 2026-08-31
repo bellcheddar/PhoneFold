@@ -195,7 +195,8 @@ final class FoldPlayer: ObservableObject {
                 try made.start()
                 conductor = made
                 pace = ScoreConductor.secondsPerReadout(style: style, readouts: readouts)
-                audioDiagnostic = "\(style.name), \(readouts) bars"
+                audioDiagnostic = "\(style.name), \(made.pacing.moments) bars, "
+                    + String(format: "%.0f s", made.pacing.seconds(atTempo: (style.tempoSlow + style.tempoFast) / 2))
             } catch {
                 audioDiagnostic = "silent: \(error)"
             }

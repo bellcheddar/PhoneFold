@@ -51,10 +51,14 @@ public struct MusicalClock: Sendable {
 
     /// How many notes may be waiting at once.
     ///
-    /// A moment produces at most sixteen contacts and about a dozen texture notes, and a
-    /// contact flurry overlaps three or four moments, so a hundred and twenty-eight is several
-    /// times the worst case and costs a few kilobytes.
-    public static let defaultCapacity = 128
+    /// **512, and the first value of 128 was measured to be too small.** A moment produces at
+    /// most sixteen contacts and about a dozen texture notes, which made 128 look like four
+    /// times the worst case - but the queue holds everything inside the producer's lookahead,
+    /// not one moment. At four seconds of lookahead and the 0.82-beat moments a
+    /// forty-five-second fold uses, that is eight moments in flight, and a trp-cage fold
+    /// refused 76 notes. Refusing a note is silently losing music, so the queue is sized for
+    /// the lookahead rather than for a bar. It costs a few tens of kilobytes.
+    public static let defaultCapacity = 512
 
     private var pending: [ScheduledNote]
     private var pendingCount = 0

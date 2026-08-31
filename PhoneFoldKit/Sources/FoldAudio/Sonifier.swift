@@ -55,12 +55,57 @@ public struct Sonifier: Sendable {
     /// Four bars. Below that a trajectory does not produce a phrase, it produces a gesture.
     static let minimumBeats = 16.0
 
-    /// How much musical time one readout gets, for a trajectory of a given length.
+    /// How long a fold should take, in seconds.
     ///
-    /// One beat each for anything long enough to fill four bars, which is every live fold at
-    /// 180 readouts. The gallery's eight-readout references would otherwise be six seconds
-    /// long, so they get two beats apiece and run to about twelve - which is what the renderer
-    /// already targets for them.
+    /// **Marc's call, 2026-08-31: about forty-five seconds.** The alternatives were measured
+    /// rather than argued: at one beat per readout a 180-readout fold ran 122 s, which is a
+    /// real piece but long to watch and long to export; at the twelve seconds Phase 2 used -
+    /// chosen when a trajectory was eight readouts - the same fold is about five bars and
+    /// loses roughly nine contact events in ten to the per-bar cap.
+    public static let targetSeconds = 45.0
+
+    /// How a trajectory of a given length is laid out in musical time.
+    ///
+    /// Two knobs rather than one, because one is too coarse. Readouts are grouped into moments
+    /// so that a long trajectory does not become a long piece, and then each moment's length in
+    /// beats is trimmed so the result lands on the target rather than on whatever the integer
+    /// grouping happened to give: at 180 readouts, grouping alone offers 55 s (two per moment)
+    /// or 36 s (three), and neither is 45.
+    public struct Pacing: Sendable, Hashable {
+        /// Raw readouts merged into one musical moment. Their contacts accumulate.
+        public let readoutsPerMoment: Int
+        /// How long each moment lasts, in beats.
+        public let beatsPerMoment: Double
+        /// How many moments the piece will have.
+        public let moments: Int
+
+        public var beats: Double { Double(moments) * beatsPerMoment }
+
+        /// How long the piece runs at a given tempo, which is what the animation must match.
+        public func seconds(atTempo tempo: Double) -> Double {
+            beats * 60 / Swift.max(tempo, 1)
+        }
+    }
+
+    /// Choose the grouping and the beat length for a trajectory.
+    public static func pacing(readouts: Int, style: StyleProfile,
+                              targetSeconds target: Double = Sonifier.targetSeconds) -> Pacing {
+        guard readouts > 0 else {
+            return Pacing(readoutsPerMoment: 1, beatsPerMoment: beatsPerMoment, moments: 0)
+        }
+        let tempo = (style.tempoSlow + style.tempoFast) / 2
+        let targetBeats = Swift.max(target * tempo / 60, minimumBeats)
+        let group = Swift.max(Int((Double(readouts) / targetBeats).rounded()), 1)
+        let moments = Int((Double(readouts) / Double(group)).rounded(.up))
+        // Clamped: a very short trajectory would otherwise ask for a nine-beat moment, and a
+        // moment longer than a bar has no musical shape - the pad it holds is already four
+        // beats. A very long one would ask for a fraction of a beat, and the texture voices
+        // cannot articulate four notes inside a third of one.
+        let beats = Swift.min(Swift.max(targetBeats / Double(moments), 0.5), 4)
+        return Pacing(readoutsPerMoment: group, beatsPerMoment: beats, moments: moments)
+    }
+
+    /// Kept for callers that only need the beat length. Prefer `pacing(readouts:style:)`.
     public static func beatsPerMoment(forReadouts count: Int) -> Double {
         guard count > 0 else { return beatsPerMoment }
         return Swift.max(beatsPerMoment, (minimumBeats / Double(count)).rounded())
@@ -118,18 +163,36 @@ public struct Sonifier: Sendable {
     private var plateau: PlateauDetector
     private var hasCadenced = false
 
-    /// How much musical time each readout gets. See `beatsPerMoment(forReadouts:)`.
+    /// How much musical time each moment gets, and how many readouts it covers.
     public let beatsPerMoment: Double
+    public let readoutsPerMoment: Int
+    /// Raw readouts seen since the last moment was emitted, and the contacts they carried.
+    private var readoutsSinceMoment = 0
+    private var carriedContacts: [ContactEvent] = []
 
     public init(style: StyleProfile, residues: [AminoAcid], seed: SequenceSeed? = nil,
-                plateau: PlateauDetector = PlateauDetector(),
-                beatsPerMoment: Double = Sonifier.beatsPerMoment) {
+                plateau: PlateauDetector? = nil,
+                beatsPerMoment: Double = Sonifier.beatsPerMoment,
+                readoutsPerMoment: Int = 1) {
         self.beatsPerMoment = Swift.max(beatsPerMoment, 0.05)
+        self.readoutsPerMoment = Swift.max(readoutsPerMoment, 1)
         self.style = style
         self.residues = residues
         self.seed = seed ?? SequenceSeed(sequence: String(residues.map(\.code)))
         self.pitchLayer = PitchLayer(style: style)
-        self.plateau = plateau
+        // The plateau is a *rate* of change, and grouping changes how much trajectory a
+        // window covers.
+        //
+        // Six moments used to be six readouts, and 1.5 across them is a quarter of a point per
+        // readout. Grouping two readouts into a moment makes six moments twelve readouts, so
+        // the same rate allows twice the span. Both of the obvious alternatives were tried and
+        // both were wrong: leaving the tolerance alone stopped a morph resolving at all (0
+        // cadences where there had been 1, because its confidence saturates over only the last
+        // handful of readouts), and shrinking the window instead made it permissive enough
+        // that a Genie 2 run cadenced - which a generative sample must never do, having nothing
+        // to converge on.
+        let group = Swift.max(readoutsPerMoment, 1)
+        self.plateau = plateau ?? PlateauDetector(window: 6, tolerance: 1.5 * Float(group))
     }
 
     /// Change style without restarting the piece.
@@ -161,6 +224,17 @@ public struct Sonifier: Sendable {
     /// readouts; triggering on them would turn one contact into a burst of sixty.
     public mutating func moment(for frame: FoldFrame) -> ScoreMoment? {
         guard !frame.isInterpolated, frame.residueCount > 0 else { return nil }
+
+        // Several readouts can share one moment, so that a 180-readout fold is a
+        // forty-five-second piece rather than a two-minute one. Their contacts accumulate:
+        // grouping must not lose events, only gather them, and the moment that is finally
+        // emitted carries every contact its readouts saw.
+        carriedContacts.append(contentsOf: frame.newContacts)
+        readoutsSinceMoment += 1
+        guard readoutsSinceMoment >= readoutsPerMoment else { return nil }
+        readoutsSinceMoment = 0
+        let contacts = carriedContacts
+        carriedContacts.removeAll(keepingCapacity: true)
 
         // Harmony. A recycle boundary modulates; convergence cadences and then stays put,
         // because a piece that resolves and then wanders off has not resolved.
@@ -204,11 +278,11 @@ public struct Sonifier: Sendable {
         var notes: [NoteEvent] = []
         var dropped = 0
         if hasEstablished {
-            let produced = contactNotes(frame: frame, register: register)
+            let produced = contactNotes(contacts, frame: frame, register: register)
             notes += produced.0
             dropped = produced.dropped
         } else {
-            established = frame.newContacts.count
+            established = contacts.count
             hasEstablished = true
         }
         notes += padNotes(frame: frame, chord: chordDegrees, register: register)
@@ -249,21 +323,25 @@ public struct Sonifier: Sendable {
 
     /// Every moment in a trajectory, for offline rendering and for the tests.
     public static func score(style: StyleProfile, residues: [AminoAcid],
-                             frames: [FoldFrame]) -> [ScoreMoment] {
+                             frames: [FoldFrame],
+                             targetSeconds: Double = Sonifier.targetSeconds) -> [ScoreMoment] {
         let readouts = frames.count { !$0.isInterpolated }
+        let pacing = pacing(readouts: readouts, style: style, targetSeconds: targetSeconds)
         var sonifier = Sonifier(style: style, residues: residues,
-                                beatsPerMoment: beatsPerMoment(forReadouts: readouts))
+                                beatsPerMoment: pacing.beatsPerMoment,
+                                readoutsPerMoment: pacing.readoutsPerMoment)
         return frames.compactMap { sonifier.moment(for: $0) }
     }
 
     // MARK: - Contacts
 
     /// Note onsets for the contacts that formed on this frame.
-    func contactNotes(frame: FoldFrame, register: Int) -> ([NoteEvent], dropped: Int) {
+    func contactNotes(_ contacts: [ContactEvent], frame: FoldFrame,
+                      register: Int) -> ([NoteEvent], dropped: Int) {
         // Ordered so that if the bar cannot hold them all, what survives is what carries the
         // fold: core packing first, then the longest-range contacts. Fully deterministic -
         // the indices break every tie.
-        let ordered = frame.newContacts.sorted { a, b in
+        let ordered = contacts.sorted { a, b in
             let aCore = a.isHydrophobicPair && a.range == .longRange
             let bCore = b.isHydrophobicPair && b.range == .longRange
             if aCore != bCore { return aCore }

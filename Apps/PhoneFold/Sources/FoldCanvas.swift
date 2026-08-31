@@ -303,6 +303,11 @@ final class StageContent {
         cameraEntity.components.set(PerspectiveCameraComponent(near: 0.05, far: 20,
                                                                fieldOfViewInDegrees: 42))
         root.addChild(cameraEntity)
+        // **The same rig the offscreen renderer uses**, from `FoldRender`, rather than
+        // `RealityView`'s implicit default environment. PLAN's Phase 4 gate is that an export
+        // and the live view look identical, and a default on one side against explicit lights
+        // on the other cannot give that. Marc's call, 2026-08-31.
+        for light in StageLighting.makeLights() { root.addChild(light) }
         applyCamera()
     }
 

@@ -51,28 +51,32 @@ final class ScoreConductor: @unchecked Sendable {
 
     private(set) var style: StyleProfile
 
+    let pacing: Sonifier.Pacing
+
     init(style: StyleProfile, residues: [AminoAcid], readouts: Int) {
         self.style = style
+        pacing = Sonifier.pacing(readouts: readouts, style: style)
         engine = FoldAudioEngine(style: style, residueCount: residues.count)
         sonifier = Sonifier(style: style, residues: residues,
-                            beatsPerMoment: Sonifier.beatsPerMoment(forReadouts: readouts))
+                            beatsPerMoment: pacing.beatsPerMoment,
+                            readoutsPerMoment: pacing.readoutsPerMoment)
     }
 
     /// How long a readout should stay on screen for the animation to finish with the music.
     ///
-    /// **This is what reconciles the two clocks, and it is why a live fold now takes about two
-    /// minutes rather than twelve seconds.** The score gives a readout one beat, so its length
-    /// is a tempo away from being fixed; the animation has to take the same time or the piece
-    /// is cut off half-played. Measured: at 12 s a 180-readout fold showed fifteen readouts a
-    /// second and its music ran 122 s.
+    /// **This is what reconciles the two clocks.** The animation has to take the same time as
+    /// the piece or the music is cut off half-played, and the piece's length is set by the
+    /// pacing: Marc chose about forty-five seconds on 2026-08-31, against the twelve the
+    /// renderer used from Phase 2 and the two minutes one beat per readout produced.
     ///
     /// The style's midpoint tempo is used rather than the live one, because the pace has to be
     /// chosen before the fold has happened. The accelerando then runs slightly ahead of the
     /// animation early and slightly behind it late, which the jitter buffer absorbs.
     static func secondsPerReadout(style: StyleProfile, readouts: Int) -> Float {
+        guard readouts > 0 else { return 1 }
         let tempo = (style.tempoSlow + style.tempoFast) / 2
-        let beats = Sonifier.beatsPerMoment(forReadouts: readouts)
-        return Float(beats * 60 / Swift.max(tempo, 1))
+        let pacing = Sonifier.pacing(readouts: readouts, style: style)
+        return Float(pacing.seconds(atTempo: tempo) / Double(readouts))
     }
 
     // MARK: - Transport

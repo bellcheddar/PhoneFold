@@ -109,9 +109,13 @@ struct TrajectoryScoreTests {
         for (name, bundle) in bundles {
             let frames = try await Self.frames(for: bundle)
             let score = Sonifier.score(style: style, residues: bundle.residues, frames: frames)
-            // One moment per raw readout, not per rendered frame.
+            // One moment per *group* of raw readouts, not per rendered frame. Readouts are
+            // grouped so that a 180-readout fold is a forty-five-second piece rather than a
+            // two-minute one.
             let raw = frames.filter { !$0.isInterpolated }.count
-            #expect(score.count == raw, "\(name): \(score.count) moments for \(raw) readouts")
+            let pacing = Sonifier.pacing(readouts: raw, style: style)
+            #expect(score.count == pacing.moments,
+                    "\(name): \(score.count) moments, \(pacing.moments) expected from \(raw) readouts")
             try Self.check(score, residues: bundle.residues.count, style: style, name: name)
 
             // Only the opening bar reports established contacts, and only it.
@@ -189,11 +193,17 @@ struct TrajectoryScoreTests {
             }
             let dropped = score.reduce(0) { $0 + $1.droppedContacts }
             #expect(sounded > 0, "\(engine.rawValue) sounded no contacts at all")
-            // The cap exists to stop a cluster, not to rewrite the fold. On the path the app
-            // actually takes it should almost never bite: measured p99 is 13 contacts per
-            // readout for villin under the structure-based model, against a cap of 16.
+            // The cap exists to stop a cluster, not to rewrite the fold.
+            //
+            // **It bites harder since the piece got shorter, and that is a real cost of the
+            // forty-five-second choice rather than a defect.** Grouping two readouts into one
+            // moment halves the number of bars available to put contacts in, so a bar now
+            // carries twice as many and reaches the sixteen-note cap more often: measured 5.5%
+            // dropped against 1% before. Raising the cap is not the answer - sixteen onsets in
+            // a 0.8-beat moment is already thirty notes a second, which is the machine-gun
+            // burst PLAN.md warns about.
             let fraction = Double(dropped) / Double(sounded + dropped)
-            #expect(fraction < 0.05,
+            #expect(fraction < 0.10,
                     "\(engine.rawValue) dropped \(dropped) of \(sounded + dropped) contacts")
 
             // A live fold starts genuinely unfolded and ends compact: the accelerando has

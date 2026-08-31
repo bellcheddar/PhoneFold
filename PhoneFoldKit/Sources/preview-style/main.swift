@@ -116,6 +116,11 @@ do {
     var frames: [FoldFrame] = []
     for try await frame in FoldFrameSequence(provider: provider) { frames.append(frame) }
 
+    let readouts = frames.count { !$0.isInterpolated }
+    let pacing = Sonifier.pacing(readouts: readouts, style: style)
+    say("pacing: \(readouts) readouts -> \(pacing.moments) moments of "
+        + String(format: "%.2f", pacing.beatsPerMoment) + " beats "
+        + "(\(pacing.readoutsPerMoment) readout\(pacing.readoutsPerMoment == 1 ? "" : "s") each)")
     let score = Sonifier.score(style: style, residues: bundle.residues, frames: frames)
     let dropped = score.reduce(0) { $0 + $1.droppedContacts }
     let established = score.reduce(0) { $0 + $1.establishedContacts }
