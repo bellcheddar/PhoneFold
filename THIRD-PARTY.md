@@ -5,6 +5,11 @@ somebody else's model, trains on somebody else's labels, and fetches somebody el
 structures. Everything it leans on is listed here with its licence, what PhoneFold uses it for,
 and — where it matters — what PhoneFold changed.
 
+PhoneFold's own source is MIT and this file does not override it: the Apache-2.0 and BSD parts
+stay under their own terms. `LICENSE` is kept as the bare MIT text with nothing appended, because
+GitHub's licence classifier matches the body and trailing prose makes the repository show no
+licence at all.
+
 Licences were read from each project's own repository on 2026-08-31 rather than recalled.
 
 ## Models
