@@ -3392,3 +3392,105 @@ less, often while the arm is still moving - and the confidence already has a pla
 in the complication, which is a different question asked at a different time.
 
 **Measured:** builds. **Not measured:** what it looks like on a wrist. In `BLOCKERS.md`.
+
+## P5b-06, the Fold of the Day, and the version that had to be thrown away (2026-08-31)
+
+PLAN: "Standalone Fold of the Day: one precomputed short trajectory per day, playable on the
+Watch alone as a small animation with haptics. No inference, no phone required."
+
+### The first bake looked right and showed nothing
+
+The obvious source is the twelve bundled `.pftraj` trajectories, and the first generator used
+them. Everything about it worked: it read the files, projected them, quantised them, counted
+contacts and wrote an 86 kB resource. The check that killed it was one line - compare the first
+frame with the last, which is what the animation is *about*:
+
+| fold | span, frame 1 → last | contacts on frame 1 / total |
+|---|---|---|
+| protein G B1 | 947 → 946 (×1.00) | 137 / 210 (65%) |
+| ubiquitin | 962 → 1000 (×1.04) | 160 / 232 (69%) |
+| WW domain | 944 → 920 (×0.97) | 58 / 107 (54%) |
+
+Those are ESMFold trunk readouts: the trunk is already close to its answer by the first captured
+block, so as an animation this is a folded protein twitching, preceded by one enormous haptic
+burst and followed by almost nothing. **Nothing in the pipeline was wrong.** The generator, the
+projection, the quantisation and the contact counter were all correct, and the output was
+useless, which is why it survived every intermediate check and died on the first end-to-end one.
+
+### The second bake, from the engine the app ships
+
+The structure-based (Gō) model, started from a self-avoiding random coil - the same engine that
+was ported to Swift in P0-33 and agrees with this C to better than 1e-9 in forces. Cooling from
+kT 1.0 to 0.6 rather than running longer, per P0-39.
+
+| fold | residues | steps | wall | Q final | RMSD to native | Rg start → end |
+|---|---|---|---|---|---|---|
+| trp-cage TC5b | 20 | 2.0 M | 9.0 s | 0.973 | 0.68 Å | 9.5 → 6.9 Å |
+| WW domain | 34 | 3.4 M | 30.7 s | 0.986 | 0.93 Å | 12.8 → 9.3 Å |
+| villin HP36 | 36 | 3.6 M | 33.6 s | 0.957 | 2.06 Å | 13.9 → 9.8 Å |
+| protein G B1 | 56 | 5.6 M | 76.7 s | 1.000 | 0.79 Å | 22.0 → 10.4 Å |
+| alpha-3D | 73 | 7.3 M | 134.5 s | 0.952 | 3.62 Å | 21.4 → 14.0 Å |
+| ubiquitin | 76 | 7.6 M | 152.0 s | 0.984 | 1.03 Å | 21.3 → 11.5 Å |
+
+And the same end-to-end check the first version failed:
+
+| fold | span, frame 1 → last | contacts on frame 1 / total |
+|---|---|---|
+| trp-cage | 561 → 260 (×0.46) | 19 / 553 (3%) |
+| protein G B1 | 736 → 211 (×0.29) | 55 / 1201 (5%) |
+| ubiquitin | 906 → 256 (×0.28) | 107 / 1889 (6%) |
+
+The structure ends at 28-46% of the width it started at, and 94-97% of the contacts form after
+the first frame. That is a fold you can watch.
+
+228 kB for six folds, 90 frames each, interpolated to sixty a second on the wrist. Three
+decisions in the bake that are not free:
+
+- **One scale for the whole trajectory, from the widest frame.** Normalising each frame to fit
+  would draw the coil and the folded core at the same size, which deletes the only thing the
+  animation is about - and it is the kind of mistake that makes the output look *better*.
+- **A fixed projection plane, from the folded structure's two principal axes.** Projected down
+  the long axis of a helical bundle a fold is a blob in which nothing happens.
+- **Contacts counted with the tracker's own hysteresis** (8.0 Å in, 8.5 Å out, separation 3), so
+  the wrist's haptics during a daily fold land where the phone's do during a real one.
+
+### The wrist's canvas, measured rather than reasoned about (2026-08-31)
+
+The first working version drew the protein at about a quarter of the size it should have been.
+Three rounds of guessing went nowhere, and the second round produced a **pixel-identical
+screenshot** after a real layout change - which is the tell that the change was not on the path
+that was broken.
+
+`simctl` cannot touch a watch app and `--console` returns nothing for it, exactly as it returns
+nothing for the phone. So the number went on the glass, in the Canvas itself, and the answer was
+one screenshot away:
+
+    204x63  n36  w0.85
+
+The canvas was **63 pt tall**. `draw` scales by `min(width, height)`, so a 204-wide canvas was
+being scaled as if it were 63 wide. The data had been right the whole time - `w0.85` is the coil
+reaching 85% of the quantised box on frame 1, which is exactly what the bake wrote. The title,
+the subtitle and a `.bordered` button had taken three quarters of a 46 mm screen between them,
+and nothing in the layout looked unusual.
+
+Fixed by giving the fold the screen and putting the caption over it. Two consequences worth
+keeping:
+
+- **`.aspectRatio(1, contentMode: .fit)` was buying nothing** and hiding the problem. `draw`
+  already letterboxes itself by taking `min(width, height)`.
+- **The projection is translated per frame and scaled once**, and both halves of that took a
+  wrong turn first. Centring every frame on the *folded* structure's centroid - the obvious
+  choice - put the coil off to one side, because a coil's centre of mass is nowhere near the
+  core it collapses into, and the animation drifted into frame as it went. Centring instead on
+  the whole trajectory's bounding box fixed the coil and broke the ending: the folded structure
+  sat in a corner, and `max|coordinate|` stopped meaning "how big is this" - which silently
+  disabled the one test that catches a trajectory that does not fold, and the test went from
+  passing to failing for a reason that had nothing to do with folding. What a viewer actually
+  does is keep the object in the middle and let it change size, so each frame is centred on its
+  own centroid and the scale is taken once from the widest frame. The scale is the part that
+  must not vary: a per-frame scale draws a coil and a core the same size.
+
+Also added: `PHONEFOLD_WATCH_SCREEN` and `PHONEFOLD_WATCH_AUTOPLAY`. watchOS has no input
+injection at all, so the third page of a vertical `TabView` is unreachable from a script - and
+without a way to reach it the Fold of the Day could have been built, bundled and shipped
+without anything outside a wrist ever seeing it draw.

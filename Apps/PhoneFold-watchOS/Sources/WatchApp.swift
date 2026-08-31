@@ -94,14 +94,43 @@ enum WristHapticPlayer {
     }
 }
 
+/// Which screen the wrist opens on, and whether the daily fold starts by itself.
+///
+/// **A debug affordance, for the same reason the phone has one.** `simctl` can install, launch
+/// and screenshot a watch app and it cannot touch it: there is no input injection for watchOS,
+/// so the third page of a vertical `TabView` is unreachable from a script and a screenshot can
+/// only ever show page one. Without this the Fold of the Day could be built, bundled and
+/// shipped without anyone outside a wrist ever seeing it draw.
+///
+///     SIMCTL_CHILD_PHONEFOLD_WATCH_SCREEN=daily SIMCTL_CHILD_PHONEFOLD_WATCH_AUTOPLAY=1 \
+///         xcrun simctl launch <udid> com.mdeller.phonefold.watchkitapp
+///
+/// Both are absent in a normal launch and neither changes what anything does when they are.
+enum WatchLaunch {
+    enum Screen: Int { case nowPlaying, voicing, daily }
+
+    static var screen: Screen {
+        switch ProcessInfo.processInfo.environment["PHONEFOLD_WATCH_SCREEN"] {
+        case "voicing": .voicing
+        case "daily": .daily
+        default: .nowPlaying
+        }
+    }
+
+    static var autoplaysDailyFold: Bool {
+        ProcessInfo.processInfo.environment["PHONEFOLD_WATCH_AUTOPLAY"] == "1"
+    }
+}
+
 struct WatchRootView: View {
     @EnvironmentObject private var model: WatchModel
+    @State private var screen = WatchLaunch.screen
 
     var body: some View {
-        TabView {
-            NowPlayingView()
-            VoicingView()
-            FoldOfTheDayView()
+        TabView(selection: $screen) {
+            NowPlayingView().tag(WatchLaunch.Screen.nowPlaying)
+            VoicingView().tag(WatchLaunch.Screen.voicing)
+            FoldOfTheDayView().tag(WatchLaunch.Screen.daily)
         }
         .tabViewStyle(.verticalPage)
     }

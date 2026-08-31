@@ -41,3 +41,4 @@ Apps/PhoneFold/Resources/*.pftraj
 
 # Compiled prototype binaries
 Tools/go_model_fold_bin
+Tools/.fold_of_the_day_cache/

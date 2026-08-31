@@ -369,7 +369,7 @@ unreachable. `FoldSync` is currently a stub with a version string, so this is al
 | P5b-03 | Transport remote: play, pause, style, colour mode, with the Digital Crown scrubbing the timeline | P5b-02 | done: **the phone's half was never constructed** and is now; paired devices needed to confirm |
 | P5b-04 | Wrist haptics of the fold, the phone keeping the audio | P5b-02 | done: `FoldRemote.Cue`, `WristHaptics` (9 tests), the wrist plays them; feeling them is Marc's (BLOCKERS.md) |
 | P5b-05 | Complication: the last fold's mean confidence as a progress ring, tap to open the remote | P5b-02 | done: 7 timeline tests, widget extension builds |
-| P5b-06 | Fold of the Day: one precomputed short trajectory, playable on the Watch with no phone | P5b-02 | todo |
+| P5b-06 | Fold of the Day: one precomputed short trajectory, playable on the Watch with no phone | P5b-02 | done: six Go-model folds baked (235 kB), the day picker and decoder in `FoldCore` with 13 tests, and the screen verified drawing in the simulator |
 | P5b-07 | Live Activity mirrored on the wrist | P4-11, P5b-02 | done: `.small` supplemental family and a wrist layout; seeing it is Marc's (BLOCKERS.md) |
 
 **Machine gate (5b):** builds, the connectivity handshake unit-tested with a mock session,

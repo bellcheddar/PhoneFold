@@ -949,3 +949,9 @@ surface to synthesise a drag against.
       wrist layout (a capacity gauge and two lines) or the iPhone Lock Screen banner squeezed
       onto a watch face, which is what the system falls back to and which is why the missing
       declaration would have been invisible
+
+- [ ] Feel the Fold of the Day. The animation and its haptic cues are verified drawing and
+      firing in the simulator, which can show a picture and cannot buzz. The two things only a
+      wrist settles: whether six seconds is the right length for something you look at while
+      walking, and whether a `.click` per contact burst under a fold that forms 553 to 2,131
+      contacts reads as a rhythm or as noise. `WristHaptics`' burst threshold is the dial
