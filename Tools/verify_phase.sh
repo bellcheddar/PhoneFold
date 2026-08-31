@@ -385,8 +385,11 @@ assert last.b_factor.max() > 0, 'the confidence column is empty'
     # it to PhoneFold's virtual source, and read back the bytes that actually crossed CoreMIDI
     # rather than the bytes the sender believes it wrote. A test asserting what `send` was
     # called with would pass with the endpoint disposed.
-    if swift test --package-path PhoneFoldKit --filter MIDISourceTests \
-         >/tmp/pf_gate_midi.log 2>&1; then
+    # Its own invocation, and the environment variable that enables the suite. It is skipped
+    # in the main run because it fails there for reasons that are the harness's rather than the
+    # code's: serially the whole suite passes, and alone these pass.
+    if PHONEFOLD_COREMIDI_TESTS=1 swift test --package-path PhoneFoldKit \
+         --filter MIDISourceTests >/tmp/pf_gate_midi.log 2>&1; then
       pass "the CoreMIDI virtual source emits valid events to a loopback client"
     else
       fail "the CoreMIDI loopback tests failed - see /tmp/pf_gate_midi.log"

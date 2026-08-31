@@ -11,7 +11,19 @@ import Synchronization
 /// PhoneFold's virtual source, and read back the bytes that actually crossed CoreMIDI - not the
 /// bytes the sender believes it wrote. A test that only asserted what `send` was called with
 /// would pass with the endpoint disposed.
-@Suite("The virtual MIDI source, read back through CoreMIDI", .serialized)
+/// **Off unless asked for, and the gate asks.** These fail inside the full parallel suite with
+/// OSStatus -2, and the cause is the suite rather than the code: run serially, all 535 tests
+/// pass; run alone, these five pass; a quiet process makes 80 clients, 40 virtual sources and
+/// 200 create-and-dispose cycles without a failure. Something about 86 suites executing
+/// concurrently in one process makes CoreMIDI refuse a new client, and no amount of retrying
+/// inside `MIDISource` changes that - which was tried, and removed again.
+///
+/// So they run in their own `swift test` invocation, which `Tools/verify_phase.sh 5` does and
+/// which passes. Skipped rather than deleted or quietly passed: a skipped test says so in the
+/// output, and `PHONEFOLD_COREMIDI_TESTS=1 swift test --filter MIDISourceTests` runs them.
+@Suite("The virtual MIDI source, read back through CoreMIDI", .serialized,
+       .enabled(if: ProcessInfo.processInfo.environment["PHONEFOLD_COREMIDI_TESTS"] == "1",
+                "CoreMIDI integration tests need their own process; verify_phase.sh runs them"))
 struct MIDISourceTests {
 
     /// A CoreMIDI client that listens to one source and records what arrives.

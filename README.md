@@ -45,11 +45,12 @@ PhoneFold folds a protein on the device in front of you and turns the trajectory
 
 | Format | Contents | Validated by |
 |---|---|---|
-| `.mp4` | The fold rendered offscreen at export resolution with its music, ProRes and 4K planned | `ffprobe`, in the phase gate |
+| `.mp4` / `.mov` | The fold rendered offscreen at export resolution with its music. H.264, HEVC, ProRes 422 HQ and 4444, up to 4K | `ffprobe`, in the phase gate |
 | `.mid` | Standard MIDI file, one track per voice, with the tempo map | Round-trip through `AVAudioSequencer` |
 | `.cif` | Final model, confidence in the B-factor column | Biotite, in the phase gate |
 | `.cif` | Multi-model trajectory of the raw frames, for PyMOL | Biotite, in the phase gate |
 | `.wav` | The score alone, loudness-normalised to ITU-R BS.1770-4 | Both gates of the standard |
+| PNG sequence | Numbered frames for grading, with a README carrying the frame rate | The frame rate is the one thing a folder of PNGs cannot hold |
 
 ## 🧱 Stack
 
@@ -114,7 +115,7 @@ Phases 0 to 4 hold a green machine gate. Phase 5 is in progress.
 |---|---|---|
 | 0 to 3 | Engines, stage, score | Gate green |
 | 4 | Exports, accessibility, the lecture theatre, iPhone ship | Gate green |
-| 5a | PhoneFold Studio (macOS) | In progress |
+| 5a | PhoneFold Studio (macOS) | Code complete; gate held by one test-suite failure |
 | 5b | Apple Watch | Planned |
 | 5c | Vision Pro | Planned |
 
@@ -134,11 +135,11 @@ Roadmap for PhoneFold, in dependency order. Completed items keep their detail: t
 - [x] **Accessibility.** VoiceOver, Reduce Motion, Reduce Transparency, a colour-blind-safe palette, and Dynamic Type capped at accessibility 3 (above that the controls leave no room for the protein, and PhoneFold is a stage)
 - [x] **Genie 2's divergence traced to its cause** rather than worked around with a seed retry
 - [x] **PhoneFold Studio.** A native macOS target compiling the same stage with its own entry point, a menu bar, and multi-window where each window owns its own fold
-- [ ] **Studio batch mode.** A multi-record FASTA or a list of accessions in, a film per protein out, headless. This is the feature that makes the Mac useful rather than a larger phone
-- [ ] **CoreMIDI virtual source**, so a DAW can record the fold live. Nothing else in this space does this
-- [ ] **ProRes, 4K and image-sequence export** for anyone who wants to grade the result
-- [ ] **Drag and drop PDB and mmCIF** to superpose a prediction against an experimental structure with per-residue RMSD. The one analytical concession, because on a Mac it is expected
-- [ ] **Handoff**, so a fold started on the phone continues on the Mac
+- [x] **Studio batch mode.** A multi-record FASTA or a list of accessions in, a film per protein out, headless. A FASTA gives sequences and PhoneFold cannot fold a sequence, so what a batch really consumes is identifiers, and a file with no accession in its headers is rejected on line 1 rather than at record 30 of an overnight run. The sequence is still read and checked against the database's, naming the first residue that differs
+- [x] **CoreMIDI virtual source**, so a DAW can record the fold live. Nothing else in this space does this. Verified from a separate process enumerating CoreMIDI, which is what Logic does: no sources before the switch, PhoneFold after it, none again on quit
+- [x] **ProRes, 4K and image-sequence export** for anyone who wants to grade the result. ProRes needs a QuickTime container, takes no bitrate, and carries uncompressed audio: each of those fails quietly if missed, and an MP4 holding ProRes writes without complaint and then will not open
+- [x] **Drag and drop PDB and mmCIF** to superpose a prediction against an experimental structure with per-residue RMSD. The one analytical concession, because on a Mac it is expected. Matching residues by number is necessary and not sufficient: AlphaFold P00698 against 1LYZ matches all 129 by number and returns 18.11 Å, because a UniProt entry includes the signal peptide and a crystal structure of the mature protein does not. Comparing the residue *names* catches it and derives the 18-residue shift, after which the answer is 0.54 Å
+- [x] **Handoff**, so a fold started on the phone continues on the Mac. It carries what to fold rather than the fold, and a missing field yields nothing rather than a default: a continuation that quietly substitutes the default engine starts something else and looks like it worked. Crossing between two real devices is still unconfirmed
 - [ ] **Apple Watch.** A transport remote with the Digital Crown scrubbing the timeline, wrist haptics of the fold while the phone plays the audio, and a standalone Fold of the Day
 - [ ] **Vision Pro.** Volume mode on a desk, an immersive concert hall at room scale, and SharePlay so a department can stand inside the same protein
 - [ ] **The app icon**, which is blocked on a house-style skill this machine does not have

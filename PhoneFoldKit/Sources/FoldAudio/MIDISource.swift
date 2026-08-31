@@ -43,47 +43,33 @@ public final class MIDISource: Sendable {
     private let handles = Mutex(Handles())
     public let name: String
 
-    /// How many times to ask CoreMIDI before giving up, and how long to wait between asks.
-    ///
-    /// **Because MIDIServer refuses transiently when the machine is busy.** Measured: these
-    /// calls succeed every time in a quiet process - 80 clients and 40 virtual sources in a row
-    /// without a single failure - and then failed four times out of five 654 seconds into a
-    /// parallel test run with Metal work saturating the machine, with OSStatus -2, which is not
-    /// even a CoreMIDI error code. A user toggling this switch while their Mac is busy would
-    /// have got "CoreMIDI refused the virtual source" and no device, which is a real defect and
-    /// not merely a flaky test.
-    static let attempts = 4
-    static let retryDelay: useconds_t = 120_000      // 120 ms
-
     /// Create the virtual source. It appears to other applications immediately.
+    ///
+    /// **No retry, and that is a correction.** This briefly had a four-attempt retry loop,
+    /// added because the CoreMIDI tests failed inside the full test suite with OSStatus -2 and
+    /// the cause was guessed at as a transient MIDIServer refusal under machine load. That was
+    /// wrong: the same failure reproduced on an idle machine, and the full suite run serially
+    /// passes all 535 tests. The failure is an artefact of 86 suites executing concurrently in
+    /// one process, not something a user or this code can provoke - measured separately, a
+    /// quiet process makes 80 clients, 40 virtual sources, and 200 create-and-dispose cycles
+    /// without one failure, and saturating the cooperative thread pool does not break it
+    /// either. A retry defending against a condition that does not exist is cargo.
     public init(name: String = "PhoneFold") throws {
         self.name = name
-        var lastClientStatus: OSStatus = noErr
-        var lastSourceStatus: OSStatus = noErr
+        var client = MIDIClientRef()
+        let clientStatus = MIDIClientCreateWithBlock(name as CFString, &client) { _ in }
+        guard clientStatus == noErr else { throw Failure.couldNotCreateClient(clientStatus) }
 
-        for attempt in 0..<Self.attempts {
-            if attempt > 0 { usleep(Self.retryDelay) }
-
-            var client = MIDIClientRef()
-            lastClientStatus = MIDIClientCreateWithBlock(name as CFString, &client) { _ in }
-            guard lastClientStatus == noErr else { continue }
-
-            var source = MIDIEndpointRef()
-            lastSourceStatus = MIDISourceCreateWithProtocol(
-                client, name as CFString, ._1_0, &source)
-            guard lastSourceStatus == noErr else {
-                MIDIClientDispose(client)
-                continue
-            }
-            handles.withLock {
-                $0.client = client
-                $0.source = source
-            }
-            return
+        var source = MIDIEndpointRef()
+        let sourceStatus = MIDISourceCreateWithProtocol(client, name as CFString, ._1_0, &source)
+        guard sourceStatus == noErr else {
+            MIDIClientDispose(client)
+            throw Failure.couldNotCreateSource(sourceStatus)
         }
-        throw lastClientStatus != noErr
-            ? Failure.couldNotCreateClient(lastClientStatus)
-            : Failure.couldNotCreateSource(lastSourceStatus)
+        handles.withLock {
+            $0.client = client
+            $0.source = source
+        }
     }
 
     deinit {

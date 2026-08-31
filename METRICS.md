@@ -3171,3 +3171,33 @@ program and explicitly not what PLAN asks for.
 **A crash found only by real data.** The first run on real files exited 139. `String(format:)`
 bridges to C varargs and `%s` with a Swift `String` is undefined behaviour; every synthetic test
 passed because none of them formatted a residue name.
+
+## The CoreMIDI suite's full-run failure (2026-08-31) — resolved, and my first diagnosis was wrong
+
+| Condition | Result |
+|---|---|
+| `MIDISourceTests` alone | 5 pass |
+| With `OfflineRenderTests` | pass |
+| With `OffscreenStageTests` + `FilmWriterTests` (Metal-heavy) | pass |
+| With `FoldAudioEngineTests` (live AVAudioEngine) | pass |
+| Full suite, **parallel** | **4 of 5 fail**, `OSStatus -2` |
+| Full suite, **`--no-parallel`** | **535 tests in 86 suites, all pass** (1714 s against 709 s) |
+| Standalone: 80 clients, then 40 virtual sources | no failure |
+| Standalone: 200 create-and-dispose cycles | no failure |
+| Standalone: cooperative thread pool saturated, 12 creations | 0 failed |
+
+**I diagnosed this wrongly the first time and shipped code on the strength of it.** The initial
+reading was a transient MIDIServer refusal under machine saturation, and `MIDISource.init` gained
+a four-attempt retry. It was recorded as unconfirmed at the time, and then disconfirmed: the same
+four failures reproduced with the retry in place on a machine at load 1.24. The retry has been
+removed rather than kept with a corrected comment, because code defending against a condition
+that does not exist is cargo, and the disproven story would have outlived the memory of it.
+
+The cause is 86 suites executing concurrently in one process. It is not machine load, not a
+client or endpoint limit, not a leak on the disposal path, and not cooperative-pool starvation:
+each of those was tested standalone and rejected. Nothing in `MIDISource` can change it, and the
+feature is verified working system-wide from a separate process.
+
+So the suite is `.enabled(if:)` on `PHONEFOLD_COREMIDI_TESTS`, which `verify_phase.sh 5` sets for
+its own invocation. Skipped rather than deleted or quietly passed: a skipped test prints its
+reason, and the gate still runs them for real.
