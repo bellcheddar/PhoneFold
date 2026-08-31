@@ -23,16 +23,25 @@ public final class FilmWriter: @unchecked Sendable {
     public enum Codec: String, Sendable, CaseIterable {
         case h264
         case hevc
-        /// PLAN.md Phase 5a: ProRes for Studio, so a fold can be graded rather than watched.
+        // PLAN.md Phase 5a: ProRes for Studio, so a fold can be graded rather than watched.
+        //
+        // **Absent on visionOS rather than falling back**, because AVFoundation marks both
+        // ProRes types `API_UNAVAILABLE(visionos)`. A case that quietly wrote H.264 when asked
+        // for ProRes would be the worst of the three options: the file would be named .mov,
+        // report success, and not be a master. Studio is where ProRes belongs anyway.
+        #if !os(visionOS)
         case proRes422HQ
         case proRes4444
+        #endif
 
         var videoCodec: AVVideoCodecType {
             switch self {
             case .h264: .h264
             case .hevc: .hevc
+            #if !os(visionOS)
             case .proRes422HQ: .proRes422HQ
             case .proRes4444: .proRes4444
+            #endif
             }
         }
 
@@ -40,7 +49,9 @@ public final class FilmWriter: @unchecked Sendable {
         public var isProRes: Bool {
             switch self {
             case .h264, .hevc: false
+            #if !os(visionOS)
             case .proRes422HQ, .proRes4444: true
+            #endif
             }
         }
 
@@ -59,8 +70,10 @@ public final class FilmWriter: @unchecked Sendable {
             switch self {
             case .h264: "H.264"
             case .hevc: "HEVC"
+            #if !os(visionOS)
             case .proRes422HQ: "ProRes 422 HQ"
             case .proRes4444: "ProRes 4444"
+            #endif
             }
         }
     }

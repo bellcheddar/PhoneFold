@@ -410,13 +410,30 @@ assert last.b_factor.max() > 0, 'the confidence column is empty'
       fi
     fi
 
-    # The handshake and the timeline, which are the two things 5b names by hand. Run together
+    # PLAN.md Phase 5c's machine gate: "builds for visionOS, renderer runs in the Simulator
+    # from the sample provider, immersive space lifecycle unit-tested." The build and the
+    # lifecycle are checked here; the renderer actually drawing is confirmed by screenshot and
+    # recorded in METRICS.md, because a script cannot look at a protein.
+    if [[ -f "$APP_DIR/PhoneFold.xcodeproj/project.pbxproj" ]]; then
+      if (cd "$APP_DIR" && xcodebuild build -project PhoneFold.xcodeproj \
+            -scheme PhoneFoldVision -configuration Release \
+            -destination "platform=visionOS Simulator,name=Apple Vision Pro" \
+            -derivedDataPath "$DD" CODE_SIGNING_ALLOWED=NO \
+            >/tmp/pf_gate_vision.log 2>&1); then
+        pass "PhoneFold builds for visionOS"
+      else
+        fail "the visionOS build failed - see /tmp/pf_gate_vision.log"
+      fi
+    fi
+
+    # The handshake, the timeline and the immersive lifecycle, which are the things 5b and 5c
+    # name by hand. Run together
     # because they are the same claim: the wrist shows what the phone said, and the face shows
     # what the wrist last heard.
     if swift test --package-path PhoneFoldKit \
-         --filter "RemoteLinkTests|FoldComplicationTests" \
+         --filter "RemoteLinkTests|FoldComplicationTests|ImmersiveSessionTests" \
          >/tmp/pf_gate_watchlink.log 2>&1; then
-      pass "the Watch handshake and the complication timeline hold up"
+      pass "the Watch handshake, the complication timeline and the immersive lifecycle hold up"
     else
       fail "the Watch link tests failed - see /tmp/pf_gate_watchlink.log"
       tail -20 /tmp/pf_gate_watchlink.log >&2

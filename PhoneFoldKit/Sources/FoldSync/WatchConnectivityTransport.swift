@@ -79,10 +79,15 @@ extension WatchConnectivityTransport: WCSessionDelegate {
         link.withLock { $0 }?.received(payload: applicationContext)
     }
 
-    #if os(iOS)
-    // Required on iOS only, and both are about switching to a *different* Watch. Reactivating
-    // is the whole correct response: the new device knows nothing, and the handshake will hand
-    // it the current state as soon as it is reachable.
+    #if os(iOS) || os(visionOS)
+    // Required wherever a session can be *re*-paired, which is iOS and visionOS but not
+    // watchOS. Both are about switching to a different Watch, and reactivating is the whole
+    // correct response: the new device knows nothing, and the handshake hands it the current
+    // state as soon as it is reachable.
+    //
+    // The guard said `os(iOS)` until visionOS was built, where the protocol requires exactly
+    // the same two members and the conformance failed with a message naming neither of them.
+    // A platform guard is a claim about every platform, not only the one in front of you.
     public func sessionDidBecomeInactive(_ session: WCSession) {}
 
     public func sessionDidDeactivate(_ session: WCSession) {

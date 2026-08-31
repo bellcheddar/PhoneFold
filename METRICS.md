@@ -3217,3 +3217,27 @@ PASS  the CoreMIDI virtual source emits valid events to a loopback client
 Parallel is 2.4x faster than serial: 705 s against 1714 s. That is why the CoreMIDI suite was
 isolated into its own invocation rather than the whole suite being run with `--no-parallel`,
 which would have cost seventeen minutes on every gate to work around five tests.
+
+## Phase 5c: the machine gate's three items (2026-08-31)
+
+| PLAN's wording | Result |
+|---|---|
+| "builds for visionOS" | yes, and the other four surfaces still build |
+| "renderer runs in the Simulator from the sample provider" | yes - trp-cage drawing in a volume in the simulated room, screenshot taken |
+| "immersive space lifecycle unit-tested" | 5 tests in `ImmersiveSessionTests`, and the app is driven by that state machine rather than a boolean |
+
+**Four platform assumptions that only visionOS refuted**, each of which built fine everywhere
+else:
+
+- `WCSessionDelegate` requires `sessionDidBecomeInactive` and `sessionDidDeactivate` on visionOS
+  as well as iOS. The guard said `os(iOS)`, and the conformance failed with a message naming
+  neither member.
+- `WidgetCenter` exists on visionOS only from 26.0, against this package's 2.0 floor. Availability
+  -checked rather than raising the whole package for one optional refresh on a platform with no
+  complication.
+- **ProRes is `API_UNAVAILABLE(visionos)`.** The cases are absent there rather than falling back
+  to H.264: a codec that quietly wrote H.264 when asked for ProRes would produce a file named
+  `.mov` that reports success and is not a master.
+- **RealityKit on visionOS has no `CustomMaterial`** and permits no custom Metal surface shaders.
+  The stage's shader was already an opt-in path behind `PHONEFOLD_CUSTOM_SHADER`, so visionOS
+  takes the default every other platform takes.

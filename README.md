@@ -120,9 +120,9 @@ Phases 0 to 4 hold a green machine gate. Phase 5 is in progress.
 |---|---|---|
 | 0 to 3 | Engines, stage, score | Gate green |
 | 4 | Exports, accessibility, the lecture theatre, iPhone ship | Gate green |
-| 5a | PhoneFold Studio (macOS) | Code complete; gate held by one test-suite failure |
-| 5b | Apple Watch | Planned |
-| 5c | Vision Pro | Planned |
+| 5a | PhoneFold Studio (macOS) | Gate green |
+| 5b | Apple Watch | Gate met: builds, handshake and complication timeline tested |
+| 5c | Vision Pro | Gate met: builds, renders in a volume, lifecycle tested |
 
 `PLAN.md` is the specification and is read-only. `STATE.md` is the task ledger, `METRICS.md` holds only measured numbers, and `BLOCKERS.md` holds what needs a human and a piece of hardware.
 

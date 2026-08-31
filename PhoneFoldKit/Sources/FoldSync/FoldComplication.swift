@@ -119,7 +119,14 @@ public enum FoldComplicationStore {
         #if canImport(WidgetKit)
         // Ask for a redraw rather than waiting for the next scheduled one, so a fold started
         // now shows on the face now.
-        WidgetCenter.shared.reloadAllTimelines()
+        //
+        // Availability-checked rather than platform-guarded: `WidgetCenter` exists on visionOS
+        // only from 26.0, and this package deploys to visionOS 2.0. Raising the whole package's
+        // floor to satisfy one optional refresh on a platform that has no complication would be
+        // the wrong way round.
+        if #available(iOS 14.0, macOS 11.0, watchOS 9.0, visionOS 26.0, *) {
+            WidgetCenter.shared.reloadAllTimelines()
+        }
         #endif
     }
 

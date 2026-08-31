@@ -5,6 +5,7 @@ options:
     iOS: "18.0"
     macOS: "15.0"
     watchOS: "11.0"
+    visionOS: "2.0"
   createIntermediateGroups: true
 
 # The team id is never written into this repository: XcodeGen expands the environment
@@ -230,3 +231,45 @@ targets:
         CODE_SIGN_ENTITLEMENTS: PhoneFoldWatch.entitlements
         CODE_SIGN_STYLE: Automatic
         SKIP_INSTALL: YES
+
+  # PLAN.md Phase 5c. Compiles the phone's own stage with its own entry point, exactly as
+  # PhoneFold Studio does, so FoldCanvas and FoldPlayer have one definition across five surfaces.
+  PhoneFoldVision:
+    type: application
+    platform: visionOS
+    sources:
+      - path: Sources
+        excludes:
+          - PhoneFoldApp.swift
+          # RealityKit on visionOS has no CustomMaterial and permits no custom Metal surface
+          # shaders, so this would not compile and nothing there would use it.
+          - StageShaders.metal
+      - path: ../PhoneFold-visionOS/Sources
+      - path: ../Shared/Sources
+      - path: Resources
+        buildPhase: resources
+      - path: ../../Models/Genie2Step_L64.mlpackage
+        buildPhase: resources
+      - path: ../Shared/Resources/Styles
+        buildPhase: resources
+        type: folder
+      - path: ../Shared/Resources/Notes
+        buildPhase: resources
+        type: folder
+    dependencies:
+      - package: PhoneFoldKit
+        products: [FoldCore, FoldGeometry, FoldEngine, FoldRender, FoldAudio, FoldCapture,
+                   FoldSync]
+    info:
+      path: PhoneFoldVision-Info.plist
+      properties:
+        CFBundleDisplayName: PhoneFold
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        NSHumanReadableCopyright: "2026 Marc C. Deller"
+        ITSAppUsesNonExemptEncryption: false
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.mdeller.phonefold.vision
+        CODE_SIGN_STYLE: Automatic

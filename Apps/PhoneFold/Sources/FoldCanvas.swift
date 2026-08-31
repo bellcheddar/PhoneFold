@@ -631,9 +631,19 @@ final class StageContent {
     /// Kept for device testing: the custom shader path, which may well work on real hardware
     /// where the Simulator's constant buffer limit does not apply. Opt in with
     /// PHONEFOLD_CUSTOM_SHADER=1.
+    /// **Not available on visionOS at all.** RealityKit there has no `CustomMaterial`: custom
+    /// Metal surface shaders are not permitted, which is a platform decision rather than an
+    /// omission. The default path does not use it anyway - the protein is one part with a ramp
+    /// texture - so visionOS simply takes the fallback that every other platform takes unless
+    /// PHONEFOLD_CUSTOM_SHADER is set.
     private func tubeMaterial() -> RealityKit.Material {
         if let material { return material }
         var made: RealityKit.Material
+        #if os(visionOS)
+        var unlit = UnlitMaterial(color: .white)
+        unlit.faceCulling = .none
+        made = unlit
+        #else
         do {
             let library = try MTLCreateSystemDefaultDevice()
                 .flatMap { try $0.makeDefaultLibrary(bundle: .main) }
@@ -659,6 +669,7 @@ final class StageContent {
             unlit.faceCulling = .none
             made = unlit
         }
+        #endif
         material = made
         return made
     }

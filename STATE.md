@@ -1,7 +1,7 @@
 # PhoneFold — STATE
 
 **Current phase:** 5 (Fleet). Phases 0, 2, 3 and 4 all hold a GREEN machine gate.
-**Current task:** 5c, Vision Pro, at Marc's direction. **5b's machine gate is met**: it builds, the handshake is tested against a mock session and the complication timeline is tested. P5b-04 (wrist haptics), P5b-06 (Fold of the Day) and P5b-07 (Live Activity on the wrist) are real 5b features but are **not** in PLAN's 5b gate and are deferred rather than done. P5b-03 is wired on both sides and all three surfaces build; what it does over a real pairing is unverified and is in `BLOCKERS.md`, along with pausing a real fold. **Phase 5a's machine gate is GREEN** end to end, including the CoreMIDI loopback in its own invocation. What is left of 5a is the human gate: Marc recording a fold into a DAW, and a handoff crossing between two real devices. P5-02 is investigated and restated (see 5a below); its export half waits for a free machine. **Phase 4's machine gate is GREEN**, including the two checks it used to skip: the exported MP4 now probes clean in ffprobe, and forty consecutive folds show no leak. What is left of Phase 4 is human and is in `BLOCKERS.md` - AirPlay to a real Apple TV, the Lock Screen banner, the exported-video comparison, cold launch on device, the VoiceOver audit, signing and TestFlight - plus P4-16, the app icon, which is blocked on a skill this machine does not have. Marc is deferring the sign-offs and will say when.
+**Current task:** 5c's remaining features. **All three of 5c's machine-gate items are met** and PhoneFold now builds and runs on all five surfaces. What is left of 5c is hand interaction, spatial audio placement, walk-into-the-core and SharePlay, all of which PLAN puts behind the headset. **5b's machine gate is met**: it builds, the handshake is tested against a mock session and the complication timeline is tested. P5b-04 (wrist haptics), P5b-06 (Fold of the Day) and P5b-07 (Live Activity on the wrist) are real 5b features but are **not** in PLAN's 5b gate and are deferred rather than done. P5b-03 is wired on both sides and all three surfaces build; what it does over a real pairing is unverified and is in `BLOCKERS.md`, along with pausing a real fold. **Phase 5a's machine gate is GREEN** end to end, including the CoreMIDI loopback in its own invocation. What is left of 5a is the human gate: Marc recording a fold into a DAW, and a handoff crossing between two real devices. P5-02 is investigated and restated (see 5a below); its export half waits for a free machine. **Phase 4's machine gate is GREEN**, including the two checks it used to skip: the exported MP4 now probes clean in ffprobe, and forty consecutive folds show no leak. What is left of Phase 4 is human and is in `BLOCKERS.md` - AirPlay to a real Apple TV, the Lock Screen banner, the exported-video comparison, cold launch on device, the VoiceOver audit, signing and TestFlight - plus P4-16, the app icon, which is blocked on a skill this machine does not have. Marc is deferring the sign-offs and will say when.
 **Last updated:** 2026-08-31
 
 **Published 2026-08-31: <https://github.com/bellcheddar/PhoneFold>, public, MIT.** The history was
@@ -376,7 +376,27 @@ unreachable. `FoldSync` is currently a stub with a version string, so this is al
 complication timeline entries generated correctly.
 **Human gate (halt):** paired devices, haptic timing against the audio, battery impact.
 
-### 5c
+### 5c. PhoneFold on Vision Pro
 
-Not decomposed yet, for the same reason 5b was not until 5a was done: the tasks are written
-against what the previous surface turned out to need rather than against a guess.
+The theatre. PLAN: "This is the version people will remember."
+
+**Its gate is unusually small and its human gate is unusually large**, and that shapes the order.
+"Builds for visionOS, renderer runs in the Simulator from the sample provider, immersive space
+lifecycle unit-tested" is all a machine can settle; comfort, scale, hand tracking, spatial audio
+and SharePlay are all "everything else" and need the headset. So the machine-checkable parts come
+first and the rest is built to be *ready* for judgement rather than claimed.
+
+| id | task | depends | status |
+|---|---|---|---|
+| P5c-01 | The visionOS target, and the stage rendering in a volume from the sample provider | — | done: builds, runs, the protein draws in a volume |
+| P5c-02 | Immersive space lifecycle: open, close, and what happens when the system closes it | P5c-01 | done: 5 tests, and the app is driven by them |
+| P5c-03 | Ornament transport, so the stage stays clean | P5c-01 | done |
+| P5c-04 | Hand interaction: pinch-drag to rotate, two-handed pinch to scale | P5c-01 | todo |
+| P5c-05 | Spatial audio placed where the residues are, which the Phase 3 design always intended | P5c-02 | todo |
+| P5c-06 | Look-and-pinch a residue to pin a label and solo its note | P5c-04 | todo |
+| P5c-07 | "Walk into the core" | P5c-02 | todo |
+| P5c-08 | SharePlay, the teaching mode | P5c-02 | todo |
+
+**Machine gate (5c):** builds for visionOS, the renderer runs in the Simulator from the sample
+provider, the immersive space lifecycle is unit-tested.
+**Human gate (halt):** everything else, and PLAN means everything.
