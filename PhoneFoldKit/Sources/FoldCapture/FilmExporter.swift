@@ -26,6 +26,8 @@ public struct FilmExporter {
         public var colourMode: ColourMode = .secondaryStructure
         /// Seconds of tail so the last notes ring out rather than being cut off.
         public var tail: Double = 2.5
+        /// The burned-in caption, or nil for a clean frame.
+        public var caption: FilmOverlay.Caption?
 
         public init() {}
     }
@@ -108,6 +110,9 @@ public struct FilmExporter {
         let stage = try OffscreenStage(size: options.size)
         let writer = try FilmWriter(url: url, size: options.size,
                                     frameRate: options.frameRate, codec: options.codec)
+        if let caption = options.caption {
+            writer.overlay = FilmOverlay(caption: caption, size: options.size)
+        }
         try writer.appendAudio(left: audio.left, right: audio.right)
         let step = 1 / Float(options.frameRate)
         let colourOptions = ColourOptions(residueCount: residues.count, residues: residues)

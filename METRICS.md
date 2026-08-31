@@ -2575,3 +2575,33 @@ Measured: villin HP36 morphing, 3,105 frames at 1920x1080, 51.8 s of picture aga
 sound, **23.9 MB**. trp-cage under the structure-based model, 2,686 frames, 29.5 MB.
 Bitrate scales with the pixel rate rather than being fixed, because the same figure that is
 generous at 1080p is a smear at 4K.
+
+### P4-04, the presets and the caption (2026-08-31)
+
+**A vertical film needed the camera moved, not just the texture resized.** The field of view is
+vertical, so a 16:9 frame is limited by its height and the live stage's distance is already
+right; a 9:16 frame is limited by its width, whose half-angle is `atan(tan(v/2) * aspect)` -
+narrower at 0.5625 than the vertical - so a protein framed for landscape has its sides cut off.
+Standing back by `1/aspect` puts the same protein in the frame, and the figure was checked
+against the geometry rather than tuned by eye: a protein 1.15 across needs
+`0.575 / (tan(21°) × 0.5625)` = 2.66 units where landscape needs 1.5, and 1.5 × 1.78 is 2.67.
+
+Measured, lysozyme at 1080x1920: 1,025 frames, 17.1 s of picture against 17.1 s of sound,
+drift **0.00 s**, 19.3 MB.
+
+**The caption is drawn once and blended per frame.** The text does not change while the film
+plays, so one text layout serves the whole export rather than one per frame - at 3,000 frames
+that is the difference between an export and a wait. It is deliberately not a RealityKit text
+entity: an entity would be *in* the scene, so it would orbit with the protein, be lit by the
+stage's lights and sit at the mercy of the depth buffer. A caption belongs on the film.
+
+Type scales with frame height, so a 4K export is not a 1080p caption at a quarter of the size -
+asserted by comparing the inked fraction of the frame at 1080p and 4K rather than by reading
+the point sizes back.
+
+Core Text rather than `NSAttributedString.draw`, which is AppKit on one platform and UIKit on
+the other and neither in a package that builds for both.
+
+**The confidence is named in the caption, not just printed.** Three of the four engines do not
+report pLDDT, and a bare number under the wrong name is worse than no number - the same reason
+the mmCIF export writes its B-factor column's meaning into the file.

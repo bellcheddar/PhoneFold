@@ -27,6 +27,7 @@ struct Options {
     var still: String?
     var film: String?
     var filmSize = "1080"
+    var caption = true
     var quiet = false
 }
 
@@ -45,6 +46,7 @@ func usage() -> Never {
       --still <file.png>  also render the final frame offscreen at 1920x1080
       --film <file.mp4>   render the whole fold as a film, with its music
       --size <preset>     1080 | vertical | 4k   (default 1080)
+      --no-caption        leave the film clean, with no burned-in caption
       --quiet             print only the summary line
 
     """.utf8))
@@ -71,6 +73,7 @@ while let argument = arguments.first {
     case "--still": options.still = value()
     case "--film": options.film = value()
     case "--size": options.filmSize = value()
+    case "--no-caption": options.caption = false
     case "--quiet": options.quiet = true
     case "-h", "--help": usage()
     default:
@@ -158,6 +161,17 @@ do {
         case "4k": exportOptions.size = .ultraHD
         default: exportOptions.size = .landscape
         }
+        if options.caption {
+            var caption = FilmOverlay.Caption(
+                name: bundle.metadata.name,
+                accession: bundle.metadata.accession,
+                residueCount: bundle.residues.count,
+                confidence: frames.last?.meanPLDDT,
+                confidenceSource: bundle.metadata.provenance.confidenceSource,
+                provenance: bundle.metadata.provenance.isGenerated ? "generated" : nil)
+            caption.mark = "PhoneFold"
+            exportOptions.caption = caption
+        }
         say("rendering \(frames.count) frames at \(exportOptions.size.width)x\(exportOptions.size.height)...")
         let exporter = FilmExporter(options: exportOptions)
         var lastReport = 0
@@ -187,7 +201,29 @@ do {
         // a fixed extent and the camera sits where StageCamera puts it, so a 20-residue
         // miniprotein and a 300-residue one both fill the frame identically to the app.
         _ = try await stage.render()
-        if let png = stage.png() {
+        // The caption goes on the still too, which is how it gets looked at without waiting
+        // for a film.
+        var pixels = stage.readPixels()
+        if options.caption,
+           let overlay = FilmOverlay(caption: FilmOverlay.Caption(
+                name: bundle.metadata.name, accession: bundle.metadata.accession,
+                residueCount: bundle.residues.count, confidence: final.meanPLDDT,
+                confidenceSource: bundle.metadata.provenance.confidenceSource,
+                provenance: bundle.metadata.provenance.isGenerated ? "generated" : nil),
+                size: .landscape) {
+            // The still is RGBA and the overlay is BGRA, so it is blended into a swapped copy
+            // and swapped back - the film writer blends straight into a BGRA pixel buffer.
+            for i in stride(from: 0, to: pixels.count, by: 4) {
+                pixels.swapAt(i, i + 2)
+            }
+            pixels.withUnsafeMutableBufferPointer { raw in
+                overlay.blend(into: raw.baseAddress!, bytesPerRow: 1920 * 4)
+            }
+            for i in stride(from: 0, to: pixels.count, by: 4) {
+                pixels.swapAt(i, i + 2)
+            }
+        }
+        if let png = OffscreenStage.png(pixels: pixels, size: .landscape) {
             try png.write(to: URL(fileURLWithPath: path))
             say("still -> \(path) (1920x1080)")
         }

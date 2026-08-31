@@ -67,6 +67,9 @@ public final class FilmWriter: @unchecked Sendable {
     private var started = false
     private var audioFinished = false
 
+    /// The caption burned into every frame, if there is one. Set before the first append.
+    public var overlay: FilmOverlay?
+
     /// Bits per second for the video track.
     ///
     /// Scaled with the pixel rate rather than fixed, because a preset is a resolution and the
@@ -183,6 +186,10 @@ public final class FilmWriter: @unchecked Sendable {
                 bytes.advanced(by: index + 2).pointee ^= bytes.advanced(by: index).pointee
                 bytes.advanced(by: index).pointee ^= bytes.advanced(by: index + 2).pointee
             }
+        }
+
+        if let overlay, overlay.width == size.width, overlay.height == size.height {
+            overlay.blend(into: bytes, bytesPerRow: stride)
         }
 
         let time = CMTime(value: frameIndex, timescale: frameRate)

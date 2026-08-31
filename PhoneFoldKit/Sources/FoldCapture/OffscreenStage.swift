@@ -142,6 +142,20 @@ public final class OffscreenStage {
                                                               blue: 0.122, alpha: 1))
     }
 
+    /// How much further back the camera must stand for a frame narrower than it is tall.
+    ///
+    /// The field of view is vertical, so a 16:9 frame is wider than it is tall and the vertical
+    /// axis is the limiting one - the distance the live stage uses is already right. A 9:16
+    /// frame is the other way round: its horizontal half-angle is `atan(tan(v/2) * aspect)`,
+    /// which at 0.5625 is narrower than the vertical, so a protein framed for landscape has its
+    /// sides cut off. Standing back by `1/aspect` puts exactly the same protein in the frame.
+    ///
+    /// Checked against the geometry rather than tuned by eye: a protein 1.15 across needs
+    /// `0.575 / (tan(21 degrees) * 0.5625)` = 2.66 units, and 1.5 * (1/0.5625) is 2.67.
+    nonisolated public static func aspectPullback(_ aspect: Float) -> Float {
+        aspect < 1 ? 1 / Swift.max(aspect, 0.05) : 1
+    }
+
     /// Vertical field of view, in degrees.
     ///
     /// **42, because that is what the live stage uses.** Lighting was not the only thing that
@@ -173,7 +187,7 @@ public final class OffscreenStage {
     private func applyTransforms() {
         cameraEntity.transform = Transform(
             scale: .one, rotation: simd_quatf(angle: 0, axis: SIMD3<Float>(0, 1, 0)),
-            translation: SIMD3<Float>(0, 0, camera.distance))
+            translation: SIMD3<Float>(0, 0, camera.distance * Self.aspectPullback(size.aspect)))
         guard let bounds else { return }
         let extent = simd_length(bounds.maximum - bounds.minimum)
         let scale = extent > 0.001 ? Self.proteinExtent / extent : 1
@@ -277,7 +291,11 @@ extension OffscreenStage {
     /// `rgba8Unorm`, so the image is tagged linear rather than sRGB: labelling linear pixels
     /// as sRGB is how a render arrives washed out and nobody can say why.
     public func png() -> Data? {
-        let pixels = readPixels()
+        Self.png(pixels: readPixels(), size: size)
+    }
+
+    /// The same, for pixels a caller has already read and perhaps drawn on.
+    public static func png(pixels: [UInt8], size: Size) -> Data? {
         guard let space = CGColorSpace(name: CGColorSpace.linearSRGB),
               let provider = CGDataProvider(data: Data(pixels) as CFData),
               let image = CGImage(
