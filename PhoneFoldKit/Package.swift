@@ -36,7 +36,8 @@ let package = Package(
         .target(name: "FoldEngine", dependencies: ["FoldCore", "FoldGeometry"]),
         .target(name: "FoldAudio", dependencies: ["FoldCore"]),
         .target(name: "FoldRender", dependencies: ["FoldCore"]),
-        .target(name: "FoldCapture", dependencies: ["FoldCore", "FoldGeometry", "FoldRender"]),
+        .target(name: "FoldCapture",
+                dependencies: ["FoldCore", "FoldGeometry", "FoldRender", "FoldAudio"]),
         .target(name: "FoldSync", dependencies: ["FoldCore"]),
 
         // The allocation harness for PLAN.md's Phase 3 gate. An executable rather than a
@@ -67,7 +68,7 @@ let package = Package(
         .testTarget(name: "FoldRenderTests", dependencies: ["FoldRender", "FoldGeometry"],
                     resources: [.copy("Fixtures")]),
         .testTarget(name: "FoldCaptureTests",
-                    dependencies: ["FoldCapture", "FoldGeometry", "FoldRender"]),
+                    dependencies: ["FoldCapture", "FoldGeometry", "FoldRender", "FoldAudio"]),
         .testTarget(name: "FoldSyncTests", dependencies: ["FoldSync"]),
     ],
     swiftLanguageModes: [.v6]
