@@ -77,7 +77,10 @@ struct MutationTests {
         let buriedConservative = conservative.retainedContactStrength(burial: 1)
         #expect(buriedDrastic < buriedConservative)
         #expect(buriedDrastic < 0.4, "isoleucine to aspartate in the core kept \(buriedDrastic)")
-        #expect(buriedConservative > 0.9, "isoleucine to valine is nearly nothing")
+        // 0.84, not 0.95: isoleucine to valine removes 27 cubic angstroms, which is a real if
+        // modest cavity. This assertion said 0.9 when only hydropathy counted, and the volume
+        // axis is right to disagree with it.
+        #expect(buriedConservative > 0.8, "isoleucine to valine kept \(buriedConservative)")
 
         // Exposed: the same substitution barely matters, which is why burial scales it.
         #expect(drastic.retainedContactStrength(burial: 0) > 0.95)
@@ -86,6 +89,43 @@ struct MutationTests {
             let kept = drastic.retainedContactStrength(burial: burial)
             #expect(kept > 0 && kept <= 1)
         }
+    }
+
+    @Test("volume matters as much as polarity, and hydropathy alone missed it")
+    func volumeIsAnAxisOfItsOwn() {
+        // **Measured, not reasoned.** With hydropathy alone, villin's F11A - taking a
+        // phenylalanine out of the three-phenylalanine core, about as destabilising a
+        // substitution as that protein has - came out as a 5.6% perturbation and changed the
+        // fold by nothing at all. F and A are two points apart on Kyte-Doolittle and a hundred
+        // cubic angstroms apart in size, and cavity creation is what makes F to A drastic.
+        let cavity = Mutation(position: 10, from: .phenylalanine, to: .alanine)
+        #expect(cavity.retainedContactStrength(burial: 1) < 0.55,
+                "F to A in the core kept \(cavity.retainedContactStrength(burial: 1))")
+
+        // The larger of the two axes decides, because a substitution is drastic if it is
+        // drastic on *either*: charge change with little volume change is still drastic.
+        let polar = Mutation(position: 10, from: .isoleucine, to: .asparticAcid)
+        #expect(polar.retainedContactStrength(burial: 1) < 0.4)
+
+        // And a substitution conservative on both stays conservative.
+        let conservative = Mutation(position: 10, from: .isoleucine, to: .leucine)
+        #expect(conservative.retainedContactStrength(burial: 1) > 0.9)
+    }
+
+    @Test("residue volumes are the published ones")
+    func volumesAreCorrect() {
+        // Zamyatnin 1972. Spot-checked at both ends and in the middle rather than taken on
+        // trust, because a transposed digit here silently changes every duet.
+        #expect(abs(AminoAcid.glycine.volume - 60.1) < 0.05)
+        #expect(abs(AminoAcid.tryptophan.volume - 227.8) < 0.05)
+        #expect(abs(AminoAcid.phenylalanine.volume - 189.9) < 0.05)
+        #expect(abs(AminoAcid.alanine.volume - 88.6) < 0.05)
+        // Ordering a structural biologist would expect: glycine smallest, tryptophan largest,
+        // leucine and isoleucine identical.
+        let real = AminoAcid.allCases.filter { $0 != .unknown }
+        #expect(real.min { $0.volume < $1.volume } == .glycine)
+        #expect(real.max { $0.volume < $1.volume } == .tryptophan)
+        #expect(AminoAcid.leucine.volume == AminoAcid.isoleucine.volume)
     }
 
     @Test("glycine and proline are disruptive whatever their hydropathy says")

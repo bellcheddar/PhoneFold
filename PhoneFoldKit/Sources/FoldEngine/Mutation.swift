@@ -104,19 +104,30 @@ public struct Mutation: Sendable, Hashable, CustomStringConvertible {
     /// How much of its native contact energy the substituted residue keeps, 0 to 1.
     ///
     /// **A proxy, and named as one.** The quantity that matters is how much of the residue's
-    /// stabilising interaction survives the substitution, and the thing available on the device
-    /// is the Kyte-Doolittle hydropathy each residue already carries. A buried hydrophobic
-    /// replaced by a polar residue loses most of what it was contributing; a conservative
-    /// substitution loses very little; and a substitution at an exposed position barely matters
-    /// however large the change, which is why burial scales the whole thing.
+    /// stabilising interaction survives the substitution. Two axes, because one is not enough:
     ///
-    /// Glycine and proline are treated as more disruptive than their hydropathy suggests,
-    /// because what they do to a backbone is not about burial at all: glycine adds
+    /// - **Polarity**, from the Kyte-Doolittle hydropathy each residue already carries. A
+    ///   buried hydrophobic replaced by a charged residue loses most of what it contributed.
+    /// - **Volume**, from Zamyatnin's table. This was added after measurement: with hydropathy
+    ///   alone, villin's F11A - removing a phenylalanine from the three-phenylalanine core,
+    ///   which is about as destabilising a substitution as that protein has - came out as a
+    ///   5.6% perturbation and changed the fold by nothing at all. F and A are two points apart
+    ///   on Kyte-Doolittle and a hundred cubic angstroms apart in size, and cavity creation is
+    ///   exactly what makes F to A drastic.
+    ///
+    /// The larger of the two decides, because a substitution is disruptive if it is drastic on
+    /// *either* axis, not only on both.
+    ///
+    /// Burial scales the whole thing: the same substitution at an exposed position barely
+    /// matters. And glycine and proline are treated as more disruptive than either axis
+    /// suggests, because what they do to a backbone is not about packing at all - glycine adds
     /// conformational freedom and proline removes it, and both are common ways to break a
     /// helix. That is a rule of thumb, stated as one.
     public func retainedContactStrength(burial: Double) -> Double {
-        let hydropathyLoss = Double(abs(from.hydropathy - to.hydropathy)) / 9.0   // 4.5 to -4.5
-        var disruption = hydropathyLoss
+        // 4.5 to -4.5 is the full Kyte-Doolittle range; 60.1 to 227.8 the full volume range.
+        let polarity = Double(abs(from.hydropathy - to.hydropathy)) / 9.0
+        let volume = Double(abs(from.volume - to.volume)) / 167.7
+        var disruption = Swift.max(polarity, volume)
         if to == .glycine || to == .proline || from == .glycine || from == .proline {
             disruption = Swift.max(disruption, 0.55)
         }

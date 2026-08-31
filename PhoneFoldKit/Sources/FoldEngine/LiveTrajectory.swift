@@ -86,6 +86,7 @@ public enum LiveTrajectory {
                             seed: UInt64 = 1,
                             steps: Int? = nil,
                             frameCount: Int = 180,
+                            mutation: Mutation? = nil,
                             progress: (@Sendable (Double) -> Void)? = nil,
                             shouldContinue: (@Sendable () -> Bool)? = nil)
         throws -> TrajectoryBundle {
@@ -100,6 +101,9 @@ public enum LiveTrajectory {
             var parameters = StructureBasedModel.Parameters()
             parameters.seed = seed
             parameters.frameCount = frameCount
+            // A substitution perturbs the native contact energies rather than the structure:
+            // the mutant folds toward the same target under a different landscape.
+            parameters.mutation = mutation
             if let steps { parameters.steps = steps }
             let model = StructureBasedModel(native: native, parameters: parameters)
             frames = model.fold(from: start, progress: progress, shouldContinue: shouldContinue)

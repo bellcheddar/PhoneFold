@@ -2791,3 +2791,36 @@ past channel 9, which General MIDI plays as percussion whatever the note says.
 reporting `70 == 70`. Comparing a `UInt8?` against a literal *expression* decomposes into
 something the macro mis-handles; assigning both sides to explicit `Int` locals first passes.
 The values were right the whole time.
+
+### P4-09 continued: two corrections the running found (2026-08-31)
+
+**Hydropathy alone missed the most famous substitution in the protein used to test it.**
+Villin HP36's core is three phenylalanines, and F11A - taking one of them out - is about as
+destabilising a change as that protein has. With a hydropathy-only proxy it came out as a 5.6%
+perturbation and the duet reported **every residue at exactly 0 divergence**: the two folds were
+identical. F and A are two points apart on Kyte-Doolittle and a hundred cubic angstroms apart in
+size, and cavity creation is precisely what makes F to A drastic.
+
+Residue volume (Zamyatnin, Prog. Biophys. Mol. Biol. 1972, 24:107) is now a second axis, and the
+larger of the two decides - because a substitution is drastic if it is drastic on *either*, not
+only on both. A test spot-checks the table at both ends rather than taking it on trust: a
+transposed digit there would silently change every duet.
+
+This also corrected an assertion written under the old proxy: isoleucine to valine now keeps
+0.84 rather than 0.95, because it really does remove 27 cubic angstroms. The volume axis was
+right to disagree with the test.
+
+**And the divergence readout was measured three ways before one of them was honest.**
+
+| Statistic | On villin F11A | Why it is wrong |
+|---|---|---|
+| Final frame only | every residue 0 | Both folds aim at the same structure and reach it; the last frame says they never differed |
+| Largest at any moment | four residues at ±100 | Early in a fold both chains are near zero and a one-frame difference in *when* a contact forms reads as a hundred points |
+| **Mean over the fold** | 34 −8, 3 +7, 4 +7, 30 −6, 33 −5 | How much the two differed *for how long*, which is the question |
+
+The mean is what shipped. The sign is kept, because consistently higher in the wild type is a
+different finding from consistently lower.
+
+Worth noting where the divergence lands: the mutation is at residue 11 and the differences show
+at 3, 4, 30, 33 and 34 - the termini and the C-terminal helix - which is what perturbing a
+packed core residue would be expected to do rather than a local effect at the site itself.

@@ -29,6 +29,7 @@ struct Options {
     var filmSize = "1080"
     var caption = true
     var quiet = false
+    var mutation: String?
 }
 
 func usage() -> Never {
@@ -47,6 +48,7 @@ func usage() -> Never {
       --film <file.mp4>   render the whole fold as a film, with its music
       --size <preset>     1080 | vertical | 4k   (default 1080)
       --no-caption        leave the film clean, with no burned-in caption
+      --mutation <A53T>   fold the wild type and this mutant together as a duet
       --quiet             print only the summary line
 
     """.utf8))
@@ -75,6 +77,7 @@ while let argument = arguments.first {
     case "--size": options.filmSize = value()
     case "--no-caption": options.caption = false
     case "--quiet": options.quiet = true
+    case "--mutation": options.mutation = value()
     case "-h", "--help": usage()
     default:
         guard options.trajectory.isEmpty else { usage() }
@@ -134,12 +137,55 @@ do {
     var frames: [FoldFrame] = []
     for try await frame in sequence { frames.append(frame) }
 
+    // A duet: the same structure folded twice, once with the substituted residue's native
+    // contacts weakened, and the two played together.
+    var duetScore: [ScoreMoment]?
+    var duetSummary = ""
+    if let text = options.mutation {
+        guard options.engine == "simulate" else {
+            let message = "a duet needs --engine simulate: it is the only engine a "
+                + "substitution can perturb\n"
+            FileHandle.standardError.write(Data(message.utf8))
+            exit(1)
+        }
+        let mutation = try Mutation.parse(text, in: reference.residues)
+        guard let last = reference.readouts.last else { exit(1) }
+        let native = last.caPositions.map { SIMD3<Double>(Double($0.x), Double($0.y), Double($0.z)) }
+        say("folding the \(mutation) mutant...")
+        let mutantBundle = try LiveTrajectory.fold(
+            engine: .structureBased, native: native, metadata: reference.metadata,
+            residues: mutation.applied(to: reference.residues),
+            seed: 1, steps: options.steps, frameCount: 180, mutation: mutation)
+        let mutantProvider = try SampleTrajectoryProvider(bundle: mutantBundle)
+        var mutantFrames: [FoldFrame] = []
+        for try await frame in FoldFrameSequence(provider: mutantProvider, configuration: .init(
+            frameRate: 60,
+            secondsPerRawFrame: Float(framePacing.secondsPerReadout(readouts: readoutCount,
+                                                                   style: style)))) {
+            mutantFrames.append(frame)
+        }
+
+        let wildPart = MutationDuet.Part.make(style: style, residues: bundle.residues,
+                                              frames: frames)
+        let mutantPart = MutationDuet.Part.make(style: style,
+                                                residues: mutation.applied(to: bundle.residues),
+                                                frames: mutantFrames)
+        duetScore = MutationDuet.merge(wildType: wildPart, mutant: mutantPart)
+        let divergent = MutationDuet.divergentResidues(wildType: wildPart, mutant: mutantPart,
+                                                       limit: 5)
+        duetSummary = divergent
+            .map { String(format: "%d%+.0f", $0.residue + 1, $0.delta) }
+            .joined(separator: " ")
+        say("duet \(mutation): most divergent residues \(duetSummary)")
+    }
+
     let readouts = frames.count { !$0.isInterpolated }
     let pacing = Sonifier.pacing(readouts: readouts, style: style)
     say("pacing: \(readouts) readouts -> \(pacing.moments) moments of "
         + String(format: "%.2f", pacing.beatsPerMoment) + " beats "
         + "(\(pacing.readoutsPerMoment) readout\(pacing.readoutsPerMoment == 1 ? "" : "s") each)")
-    let score = Sonifier.score(style: style, residues: bundle.residues, frames: frames)
+    let score = duetScore ?? Sonifier.score(style: style, residues: bundle.residues,
+                                            frames: frames)
     let dropped = score.reduce(0) { $0 + $1.droppedContacts }
     let established = score.reduce(0) { $0 + $1.establishedContacts }
     let notes = score.reduce(0) { $0 + $1.notes.count }

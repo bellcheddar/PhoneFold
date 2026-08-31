@@ -152,11 +152,35 @@ public enum MutationDuet {
     /// What an engineer actually wants out of this: not "it sounded wrong" but *where*.
     public static func divergentResidues(wildType: Part, mutant: Part,
                                          limit: Int = 8) -> [(residue: Int, delta: Float)] {
-        guard let a = wildType.confidence.last, let b = mutant.confidence.last else { return [] }
-        let count = Swift.min(a.count, b.count)
+        // **The mean over the whole fold**, and neither of the two obvious alternatives.
+        //
+        // Reading only the final frame reports every residue as identical whenever the two
+        // folds reach the same structure - which is usual, since a Go model aims both at the
+        // same target - while the piece has spent a minute saying otherwise. Measured on
+        // villin F11A: every residue came back at exactly 0.
+        //
+        // Taking the largest difference at any moment goes wrong the other way. Early in a fold
+        // both chains are near zero and a one-frame difference in *when* a contact forms reads
+        // as a hundred points. Measured on the same fold: four residues at a saturated +/-100,
+        // which is timing noise wearing the clothes of a result.
+        //
+        // The mean says how much the two folds differed *for how long*, which is what an
+        // engineer is asking. The sign is kept: consistently higher in the wild type is a
+        // different finding from consistently lower.
+        let moments = Swift.min(wildType.confidence.count, mutant.confidence.count)
+        guard moments > 0 else { return [] }
+        let count = Swift.min(wildType.confidence[0].count, mutant.confidence[0].count)
         var deltas: [(residue: Int, delta: Float)] = []
-        for i in 0..<count where a[i].isFinite && b[i].isFinite {
-            deltas.append((i, a[i] - b[i]))
+        for i in 0..<count {
+            var total: Float = 0
+            var seen: Float = 0
+            for m in 0..<moments {
+                let a = wildType.confidence[m], b = mutant.confidence[m]
+                guard i < a.count, i < b.count, a[i].isFinite, b[i].isFinite else { continue }
+                total += a[i] - b[i]
+                seen += 1
+            }
+            deltas.append((i, seen > 0 ? total / seen : 0))
         }
         // By magnitude, but the sign is kept: a mutation that *raises* confidence somewhere is
         // as interesting as one that lowers it, and reporting only the drops would hide it.

@@ -67,6 +67,30 @@ public enum AminoAcid: Character, CaseIterable, Sendable, Hashable {
         }
     }
 
+    /// Residue volume in cubic angstroms.
+    ///
+    /// Zamyatnin, Prog. Biophys. Mol. Biol. 1972, 24:107-123 - the standard table.
+    ///
+    /// **Hydropathy alone is not enough to describe a substitution**, which measurement made
+    /// plain: F to A reads as a small change on the Kyte-Doolittle scale (2.8 to 1.8) and is
+    /// one of the most destabilising substitutions there is, because it removes a hundred
+    /// cubic angstroms from a packed core. Polarity and volume are different axes and a
+    /// mutation can be drastic on either.
+    public var volume: Float {
+        switch self {
+        case .glycine: 60.1; case .alanine: 88.6; case .serine: 89.0
+        case .cysteine: 108.5; case .asparticAcid: 111.1; case .proline: 112.7
+        case .asparagine: 114.1; case .threonine: 116.1; case .glutamicAcid: 138.4
+        case .valine: 140.0; case .glutamine: 143.8; case .histidine: 153.2
+        case .methionine: 162.9; case .isoleucine: 166.7; case .leucine: 166.7
+        case .lysine: 168.6; case .arginine: 173.4; case .phenylalanine: 189.9
+        case .tyrosine: 193.6; case .tryptophan: 227.8
+        // The mean of the twenty, which is the least wrong thing to say about a residue
+        // whose identity is unknown.
+        case .unknown: 143.9
+        }
+    }
+
     /// True where the Kyte-Doolittle index is positive. The threshold is deliberately zero
     /// rather than a windowed average: this is a per-residue property used for event
     /// classification, not a transmembrane-helix predictor.
