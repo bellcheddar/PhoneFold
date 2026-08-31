@@ -352,6 +352,11 @@ assert last.b_factor.max() > 0, 'the confidence column is empty'
     #
     # The fixture deliberately mixes both identifier kinds - UniProt accessions and PDB entry
     # ids - because the parser tells them apart and the resolver has to serve both.
+    #
+    # `--seconds 4` rather than a smaller frame count, and that distinction was measured. The
+    # piece is paced to a target *duration*, so cutting readouts from 180 to 48 moved this run
+    # by 1.6% (1237 s to 1217 s) while shortening the target from 45 s to 4 s moved it to 271 s.
+    # Folding all five proteins takes 0.1 s; everything else is the frame stream.
     if [[ -n "${PHONEFOLD_GATE_FAST:-}" ]]; then
       skip "batch mode is skipped because PHONEFOLD_GATE_FAST is set"
     elif swift build --package-path PhoneFoldKit --product fold-batch >/dev/null 2>&1; then
@@ -359,7 +364,7 @@ assert last.b_factor.max() > 0, 'the confidence column is empty'
       rm -rf /tmp/pf_gate_batch
       if "$BIN/fold-batch" "$ROOT/Tools/fixtures/batch_five.fasta" \
            --library "$TRAJ_DIR" --styles "$ROOT/Apps/Shared/Resources/Styles" \
-           --engine morph --frames 48 --out /tmp/pf_gate_batch --cif --quiet \
+           --engine morph --seconds 4 --out /tmp/pf_gate_batch --cif --quiet \
            >/tmp/pf_gate_batch.log 2>&1; then
         FOLDED=$(sed -n 's/^\([0-9]*\) folded.*/\1/p' /tmp/pf_gate_batch.log | tail -1)
         CIFS=$(ls /tmp/pf_gate_batch/*.cif 2>/dev/null | wc -l | tr -d ' ')

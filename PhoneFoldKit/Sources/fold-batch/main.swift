@@ -21,6 +21,7 @@ struct Options {
     var style = "fantasy"
     var steps: Int?
     var frames = 180
+    var seconds: Double?
     var cif = false
     var midi = false
     var wav = false
@@ -38,10 +39,14 @@ func usage() -> Never {
                           record is a network fetch.
       --engine <name>     simulate | morph        (default simulate)
       --steps <n>         steps for the structure-based model
-      --frames <n>        frames per protein (default 180). The dominant cost: every frame
-                          re-derives contacts and secondary structure, so halving this roughly
-                          halves the run. The gate uses a small number because it is testing
-                          the orchestration, not the animation
+      --frames <n>        readouts captured per fold (default 180). This is NOT the cost of a
+                          run: the piece is paced to a target duration, so fewer readouts are
+                          simply held on screen for longer. Measured: 180 to 48 moved a
+                          five-protein run by 1.6%
+      --seconds <n>       target duration per protein (default 45). This IS the cost: the frame
+                          stream is 60 a second and each frame re-derives contacts and secondary
+                          structure. A shorter target is a shorter film, not the same film
+                          computed faster
       --style <id>        style profile for audio and film (default fantasy)
       --styles <dir>      where the style profiles live
       --cif               write a multi-model mmCIF per protein
@@ -75,6 +80,7 @@ while index < arguments.count {
     case "--engine": options.engine = value()
     case "--steps": options.steps = Int(value())
     case "--frames": options.frames = Int(value()) ?? 180
+    case "--seconds": options.seconds = Double(value())
     case "--style": options.style = value()
     case "--styles": options.styles = URL(fileURLWithPath: value())
     case "--cif": options.cif = true
@@ -131,10 +137,6 @@ do {
     let engine: FoldingEngine = options.engine == "morph" ? .morph : .structureBased
     let outputDirectory = URL(fileURLWithPath: options.out)
     let wantsOutput = options.cif || options.midi || options.wav || options.film
-    if wantsOutput {
-        try FileManager.default.createDirectory(at: outputDirectory,
-                                                withIntermediateDirectories: true)
-    }
 
     let profiles = try StyleLibrary.profiles(in: options.styles)
     guard let style = profiles[options.style] else {
@@ -157,6 +159,12 @@ do {
         return try await alphaFold.reference(for: identifier)
     }
 
+    let delivery = BatchDelivery(
+        formats: .init(mmCIF: options.cif, midi: options.midi,
+                       wav: options.wav, film: options.film),
+        style: style, directory: outputDirectory,
+        targetSeconds: options.seconds ?? Sonifier.targetSeconds)
+
     let runner = BatchRunner(engine: engine, steps: options.steps,
                              frameCount: options.frames)
     let started = Date()
@@ -168,72 +176,8 @@ do {
             say("[\(index + 1)/\(total)] \(identifier)")
         },
         deliver: { bundle, item in
-            guard wantsOutput else { return }
-            let stem = item.label ?? item.accession
-            let base = outputDirectory.appending(path: stem)
-
-            // The frame stream, paced from the score so picture and sound end together. Built
-            // once and shared by every output, because rebuilding it per format would fold the
-            // same protein three times.
-            let provider = try SampleTrajectoryProvider(bundle: bundle)
-            let readouts = provider.readouts.count
-            let pacing = Sonifier.pacing(readouts: readouts, style: style)
-            let sequence = FoldFrameSequence(provider: provider, configuration: .init(
-                frameRate: 60,
-                secondsPerRawFrame: Float(pacing.secondsPerReadout(readouts: readouts,
-                                                                  style: style))))
-            var frames: [FoldFrame] = []
-            for try await frame in sequence { frames.append(frame) }
-
-            if options.cif {
-                let raw = frames.filter { !$0.isInterpolated }
-                let header = MMCIFExport.Header(
-                    entryID: bundle.metadata.accession ?? stem,
-                    title: bundle.metadata.name,
-                    sequence: bundle.metadata.sequence,
-                    confidenceSource: bundle.metadata.provenance.confidenceSource,
-                    disclosure: bundle.metadata.provenance.disclosure)
-                let traceOnly = bundle.readouts.first?.backbone == nil
-                try MMCIFExport.write(frames: raw, residues: bundle.residues, header: header,
-                                      backboneOnly: traceOnly)
-                    .write(to: base.appendingPathExtension("cif"), atomically: true,
-                           encoding: .utf8)
-            }
-
-            if options.midi || options.wav || options.film {
-                var sonifier = Sonifier(style: style, residues: bundle.residues,
-                                        beatsPerMoment: pacing.beatsPerMoment,
-                                        readoutsPerMoment: pacing.readoutsPerMoment)
-                var score: [ScoreMoment] = []
-                for frame in frames {
-                    if let moment = sonifier.moment(for: frame) { score.append(moment) }
-                }
-                if options.midi {
-                    try MIDIFile.encode(score, style: style)
-                        .write(to: base.appendingPathExtension("mid"))
-                }
-                if options.wav {
-                    let rendered = OfflineRender().render(score, style: style,
-                                                          residueCount: bundle.residues.count)
-                    try OfflineRender.wav(left: rendered.left, right: rendered.right,
-                                          sampleRate: 48_000)
-                        .write(to: base.appendingPathExtension("wav"))
-                }
-            }
-
-            if options.film {
-                var exportOptions = FilmExporter.Options()
-                exportOptions.caption = FilmOverlay.Caption(
-                    name: bundle.metadata.name,
-                    accession: bundle.metadata.accession,
-                    residueCount: bundle.residues.count,
-                    confidence: frames.last?.meanPLDDT,
-                    confidenceSource: bundle.metadata.provenance.confidenceSource,
-                    provenance: bundle.metadata.provenance.isGenerated ? "generated" : nil)
-                _ = try await FilmExporter(options: exportOptions).export(
-                    frames: frames, residues: bundle.residues, style: style,
-                    to: base.appendingPathExtension("mp4"))
-            }
+            // One definition of what a batch writes, shared with Studio. See BatchDelivery.
+            try await delivery.write(bundle, stem: item.label ?? item.accession)
         })
 
     let elapsed = Date().timeIntervalSince(started)

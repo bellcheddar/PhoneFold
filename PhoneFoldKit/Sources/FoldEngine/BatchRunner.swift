@@ -99,11 +99,12 @@ public struct BatchRunner: Sendable {
     ///
     /// `deliver` is where a film gets written. A throw from it fails that one record and the
     /// batch carries on, for the same reason a failed fetch does: the remaining forty records
-    /// are still worth having.
+    /// are still worth having. It is `@Sendable` because Studio starts the batch from the main
+    /// actor, so the closure has to cross into the task.
     public func run(_ input: BatchInput,
                     resolve: Resolver,
                     progress: (@Sendable (Int, Int, String) -> Void)? = nil,
-                    deliver: (TrajectoryBundle, BatchInput.Item) async throws -> Void)
+                    deliver: @Sendable (TrajectoryBundle, BatchInput.Item) async throws -> Void)
         async -> Summary {
 
         var results: [Result] = []
@@ -121,7 +122,7 @@ public struct BatchRunner: Sendable {
 
     private func fold(_ item: BatchInput.Item,
                       resolve: Resolver,
-                      deliver: (TrajectoryBundle, BatchInput.Item) async throws -> Void)
+                      deliver: @Sendable (TrajectoryBundle, BatchInput.Item) async throws -> Void)
         async -> Result {
         do {
             let reference = try await resolve(item.accession)

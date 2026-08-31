@@ -24,10 +24,19 @@ struct PhoneFoldStudioApp: App {
         }
         .defaultSize(width: 1440, height: 900)
         .commands { StudioCommands() }
+
+        // Its own window rather than a sheet on the stage: a batch runs for hours, and a modal
+        // over the stage would make the one surface that is doing something the one you cannot
+        // watch.
+        Window("Batch Fold", id: Self.batchWindow) {
+            BatchWindow()
+        }
+        .defaultSize(width: 620, height: 520)
     }
 
     /// Named so `openWindow` can ask for another one by identifier rather than by guessing.
     static let stageWindow = "stage"
+    static let batchWindow = "batch"
 }
 
 /// One window, and the fold that belongs to it.
@@ -62,6 +71,11 @@ struct StudioCommands: Commands {
                 openWindow(id: PhoneFoldStudioApp.stageWindow)
             }
             .keyboardShortcut("n", modifiers: .command)
+
+            Button("Batch Fold…") {
+                openWindow(id: PhoneFoldStudioApp.batchWindow)
+            }
+            .keyboardShortcut("b", modifiers: [.command, .shift])
         }
 
         CommandGroup(replacing: .appInfo) {

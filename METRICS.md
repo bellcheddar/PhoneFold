@@ -3058,3 +3058,31 @@ The counters row itself is reverted to `ViewThatFits`. P4-15 had replaced it wit
 on the theory that it caused the accessibility overflow; it did not, and the scroll view was
 worse, because it has no intrinsic width to contribute and the enclosing row then sized itself to
 the compute meter alone.
+
+## P5-03 batch mode (2026-08-31, M1 Max, release build, machine shared with another job)
+
+Five records, both identifier kinds, resolved offline from the bundled trajectories, morph
+engine, multi-model mmCIF out. `Tools/fixtures/batch_five.fasta`.
+
+| What was varied | Wall clock | Result |
+|---|---|---|
+| 180 readouts, 45 s target | 1237 s | 5 folded, 0 failed, 0 warnings |
+| 48 readouts, 45 s target | 1217 s | 5 folded, 0 failed, 0 warnings |
+| folding only, no delivery | **0.1 s** | 5 folded |
+| 180 readouts, **4 s target** | **271 s** | 5 folded, 0 failed, 0 warnings |
+
+**The obvious knob was the wrong one, and it was in the code before it was measured.** Cutting
+readouts by 73% changed the run by 1.6%, because `Sonifier.pacing` normalises to a target
+*duration*: fewer readouts are simply held on screen for longer, and the stream is about 2,700
+frames either way. `BatchDelivery` had a `frameCount` property that was assigned and never read,
+which is worse than no knob at all, and a comment asserting it was "the dominant cost".
+
+Isolating the fold settled it: **all five folds take 0.1 s**, so the entire rest of the run is
+the frame stream, each frame re-deriving contacts and secondary structure. Shortening the target
+duration is the only real lever, and it is honest about the trade: a shorter target is a shorter
+film, not the same film computed faster. The gate uses 4 seconds because it is testing the
+orchestration, not the animation.
+
+These numbers were taken while another project's job held about a quarter of the machine, so they
+are an upper bound rather than a clean figure. The 1.6% and the 4.5x are ratios measured under
+the same load, which is what the conclusion rests on.
