@@ -10,10 +10,12 @@ import FoldCore
 /// becomes the control surface." Two scenes showing one fold means the fold cannot belong to
 /// either of them, and a `@StateObject` inside the stage view is owned by that view.
 ///
-/// A singleton rather than an injected graph, because there is genuinely one: PhoneFold plays
-/// one protein at a time, and the external display shows *that* protein rather than another.
-/// The scene delegate that builds the external window has no environment to read from, so it
-/// needs somewhere to reach.
+/// **`shared` on the phone, one per window on the Mac, and the difference is deliberate.** On
+/// iOS there is genuinely one fold: the external display shows *that* protein rather than
+/// another, and the scene delegate that builds the external window has no environment to read
+/// from, so it needs somewhere to reach. On macOS a second window that showed the same protein
+/// would not be multi-window in any useful sense - PLAN.md Phase 5a wants two proteins side by
+/// side - so PhoneFold Studio gives each window its own.
 @MainActor
 final class PhoneFoldModel: ObservableObject {
     static let shared = PhoneFoldModel()
@@ -37,7 +39,7 @@ final class PhoneFoldModel: ObservableObject {
 
     private var observers: Set<AnyCancellable> = []
 
-    private init() {
+    init() {
         observeForActivity()
     }
 

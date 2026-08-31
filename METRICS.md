@@ -3009,3 +3009,19 @@ The first reclaim lands at fold 18, so a twenty-fold window sees only the climb 
 still skipped is the full accessibility audit, and deliberately: VoiceOver rotor order, focus
 escape and gesture conflicts are not things a script can judge, and a check that only asserted
 labels exist would pass an app that is unusable.
+
+## P5-01 PhoneFold Studio (2026-08-31, macOS)
+
+| What | Measured |
+|---|---|
+| Target builds for macOS | yes (`verify_phase.sh 5`, Release) |
+| Window on launch | 1412 × 882, titled "PhoneFold Studio" |
+| File menu | New Fold Window, Close, Close All |
+| Help menu | PhoneFold Studio Help, What PhoneFold Is Not |
+| ⌘N opens a second window | yes — window count 1 → 2, then 2 → 3 |
+| iPhone build still green after the model refactor | yes |
+
+**Not verified: what the window looks like.** `screencapture -l` returns "could not create image
+from window" because this terminal has not been granted Screen Recording. That is Marc's to
+grant in System Settings → Privacy & Security, and until then every macOS check here is
+structural rather than visual.

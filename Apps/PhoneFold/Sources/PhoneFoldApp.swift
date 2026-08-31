@@ -10,7 +10,7 @@ struct PhoneFoldApp: App {
 
     var body: some Scene {
         WindowGroup {
-            StageView()
+            StageView(model: .shared)
                 #if os(macOS)
                 .frame(minWidth: 900, minHeight: 640)
                 #endif

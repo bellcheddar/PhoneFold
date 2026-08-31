@@ -323,7 +323,25 @@ assert last.b_factor.max() > 0, 'the confidence column is empty'
     skip "phase 4: the full accessibility audit is human-verifiable, see BLOCKERS.md"
     ;;
   5)
-    skip "phase $PHASE gate checks not yet implemented"
+    # PLAN.md Phase 5a's machine gate: "builds and tests on macOS". The Studio compiles the
+    # phone's own Sources with its own @main, so this also catches the failure mode that shape
+    # invites: a change to the shared stage that only builds under one of the two entry points.
+    DD=/Users/dellboy/Library/Developer/PhoneFold-DerivedData
+    APP_DIR="$ROOT/Apps/PhoneFold"
+    if [[ -f "$APP_DIR/PhoneFold.xcodeproj/project.pbxproj" ]]; then
+      if (cd "$APP_DIR" && xcodebuild build -project PhoneFold.xcodeproj \
+            -scheme PhoneFoldStudio -configuration Release -destination "platform=macOS" \
+            -derivedDataPath "$DD" CODE_SIGNING_ALLOWED=NO \
+            >/tmp/pf_gate_studio.log 2>&1); then
+        pass "PhoneFold Studio builds for macOS"
+      else
+        fail "PhoneFold Studio build failed - see /tmp/pf_gate_studio.log"
+      fi
+    else
+      fail "the app project is missing; run xcodegen in Apps/PhoneFold"
+    fi
+
+    skip "phase 5: batch mode and the CoreMIDI loopback check arrive with P5-03 and P5-05"
     ;;
   *)
     echo "unknown phase: $PHASE" >&2; exit 2

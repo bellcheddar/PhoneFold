@@ -1,8 +1,11 @@
 # PhoneFold — STATE
 
-**Current phase:** 3 (The score). Phase 0's engines are done and Phase 2's machine gate stays GREEN.
-**Current task:** P4-13. Phase 3's machine gate is GREEN; what remains of it is Marc's ears (BLOCKERS.md) and the Phase 2 sign-off. Marc answered the wizard on 2026-08-30: keep Genie 2 as a third mode, Simulate as the default, gallery references unchanged, and **do all four** of the next-work options - so Phase 3, the Phase 2 sign-off, engine hardening and polish are all in scope. Polish is done (P2-15).
-**Last updated:** 2026-08-30
+**Current phase:** 5 (Fleet). Phases 0, 2, 3 and 4 all hold a GREEN machine gate.
+**Current task:** P5-03 (P5-02 needs an investigation first). **Phase 4's machine gate is GREEN**, including the two checks it used to skip: the exported MP4 now probes clean in ffprobe, and forty consecutive folds show no leak. What is left of Phase 4 is human and is in `BLOCKERS.md` - AirPlay to a real Apple TV, the Lock Screen banner, the exported-video comparison, cold launch on device, the VoiceOver audit, signing and TestFlight - plus P4-16, the app icon, which is blocked on a skill this machine does not have. Marc is deferring the sign-offs and will say when.
+**Last updated:** 2026-08-31
+
+**No git remote.** Everything is committed locally on `main`; nothing has been pushed because
+there is nowhere to push to yet.
 
 Status vocabulary: `todo` / `doing` / `blocked` / `done`.
 A task must be small enough that one loop iteration can finish it, build, test and commit.
@@ -299,3 +302,37 @@ launch on device, and signing and TestFlight. Those are the phase's human halt.
 | id | task | depends | status |
 |---|---|---|---|
 | P4-14 | Genie 2 divergence: find the root cause, not a workaround | — | done: missing zero-CoM projection; 6/6 seeds now complete |
+
+
+---
+
+## Phase 5: Fleet (Mac, Watch, Vision Pro)
+
+PLAN's build order is **Mac, then Watch, then Vision Pro**: the Mac is the most useful and the
+least risky, and Vision Pro needs hardware Marc must be present for.
+
+**The stage is shared, not copied.** `Apps/PhoneFold/Sources` builds for macOS already, so
+PhoneFold Studio compiles the same files with its own `@main` and its own Mac-only additions
+rather than forking the UI. A second copy of `StageView` would be free to drift from the first
+with nothing to notice it had.
+
+### 5a. PhoneFold Studio (macOS)
+
+| id | task | depends | status |
+|---|---|---|---|
+| P5-01 | The Studio target: native macOS, own `@main`, menu bar, multi-window, keyboard shortcuts | — | done |
+| P5-02 | Higher residue cap (~640). **Investigate first**: PLAN names the fp16 model variant from Phase 0, and `Models/` holds only Genie2Step_L64 and the SSE classifier | P5-01 | todo |
+| P5-03 | Batch mode: a multi-record FASTA or a list of accessions in, a film per protein out, headless | P5-01 | todo |
+| P5-04 | ProRes and 4K export, plus an image-sequence export for grading | P5-01 | todo |
+| P5-05 | CoreMIDI virtual source, so a DAW can record the fold live | P5-01 | todo |
+| P5-06 | Drag and drop PDB and mmCIF: superpose against the prediction, per-residue RMSD | P5-01 | todo |
+| P5-07 | Handoff: start a fold on the phone, continue on the Mac | P5-01 | todo |
+
+**Machine gate (5a):** builds and tests on macOS, batch mode processes a 5-record FASTA
+headlessly, the CoreMIDI source appears and emits valid events to a loopback client.
+**Human gate (halt):** Marc records a fold into a DAW and confirms the MIDI is musically usable.
+
+### 5b and 5c
+
+Not decomposed yet. They are decomposed when 5a's gate is green, so the tasks are written
+against what the Studio actually turned out to need rather than against a guess.

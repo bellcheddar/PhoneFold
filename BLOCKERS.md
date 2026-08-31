@@ -772,3 +772,18 @@ see METRICS.md).
 - [ ] Turn on VoiceOver and drive a whole fold by ear: choose a protein, start it, change the
       style mid-piece, scrub the timeline, and export a film
 - [ ] Check focus can leave the stage view in both directions
+
+
+## Phase 5: macOS screenshots need Screen Recording permission (2026-08-31)
+
+Every iOS check in this project is confirmed by screenshot - the raw-frame bug, the wrapped
+style row and the accessibility layout were all found that way, and `simctl io screenshot` needs
+no permission. On macOS `screencapture -l <window>` returns "could not create image from window"
+because the terminal running these commands has not been granted Screen Recording.
+
+So PhoneFold Studio's checks are structural: it builds, it launches, its window is 1412 × 882
+and correctly titled, its menus carry the right items, and ⌘N genuinely opens another window.
+What the stage *looks like* inside that window has not been seen.
+
+- [ ] Grant Screen Recording to the terminal in System Settings → Privacy & Security, so macOS
+      work can be checked the same way iOS work is

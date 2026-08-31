@@ -12,12 +12,21 @@ import UIKit
 
 /// The Aurora Stage: a deep indigo ground, the protein, and the readouts beneath it.
 struct StageView: View {
-    // Observed rather than owned: the fold belongs to `PhoneFoldModel`, because an external
-    // display scene shows the same one and a `@StateObject` here would be owned by this view.
-    @ObservedObject private var model = PhoneFoldModel.shared
-    @ObservedObject private var library = PhoneFoldModel.shared.library
-    @ObservedObject private var player = PhoneFoldModel.shared.player
-    @ObservedObject private var runner = PhoneFoldModel.shared.runner
+    // Observed rather than owned. The fold belongs to a `PhoneFoldModel` held above this view:
+    // on iOS the shared one, because an external display scene shows the same fold; on macOS
+    // one per window, because two windows showing the same protein is not multi-window. Either
+    // way a `@StateObject` here would tie the fold's lifetime to this view's.
+    @ObservedObject private var model: PhoneFoldModel
+    @ObservedObject private var library: TrajectoryLibrary
+    @ObservedObject private var player: FoldPlayer
+    @ObservedObject private var runner: FoldRunner
+
+    init(model: PhoneFoldModel) {
+        self.model = model
+        library = model.library
+        player = model.player
+        runner = model.runner
+    }
     @State private var selection: TrajectoryLibrary.Entry?
     @State private var meshDiagnostic = ""
     @State private var accession = ""

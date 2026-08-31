@@ -121,3 +121,44 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.mdeller.phonefold.widgets
         CODE_SIGN_STYLE: Automatic
         SKIP_INSTALL: YES
+
+  # PLAN.md Phase 5a. Native macOS, not Catalyst, and the same stage as the phone rather than a
+  # fork of it: this target compiles Apps/PhoneFold/Sources with its own @main.
+  PhoneFoldStudio:
+    type: application
+    supportedDestinations: [macOS]
+    sources:
+      - path: Sources
+        # PhoneFoldApp.swift carries the phone's @main. Two of those in one target is a link
+        # error, and the Studio's own entry point is in its own directory.
+        excludes:
+          - PhoneFoldApp.swift
+      - path: ../PhoneFoldStudio-macOS/Sources
+      - path: ../Shared/Sources
+      - path: Resources
+        buildPhase: resources
+      - path: ../../Models/Genie2Step_L64.mlpackage
+        buildPhase: resources
+      - path: ../Shared/Resources/Styles
+        buildPhase: resources
+        type: folder
+      - path: ../Shared/Resources/Notes
+        buildPhase: resources
+        type: folder
+    dependencies:
+      - package: PhoneFoldKit
+        products: [FoldCore, FoldGeometry, FoldEngine, FoldRender, FoldAudio, FoldCapture]
+    info:
+      path: PhoneFoldStudio-Info.plist
+      properties:
+        CFBundleDisplayName: PhoneFold Studio
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        NSHumanReadableCopyright: "2026 Marc C. Deller"
+        ITSAppUsesNonExemptEncryption: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.mdeller.phonefold.studio
+        CODE_SIGN_ENTITLEMENTS: PhoneFold-macOS.entitlements
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.education
+        ENABLE_HARDENED_RUNTIME: YES
+        CODE_SIGN_STYLE: Automatic
