@@ -966,3 +966,16 @@ surface to synthesise a drag against.
       the only guess in the placement
 - [ ] Check that a 20-residue peptide and a 300-residue domain both sound like they fill the
       volume, since the scale is derived from the protein's own extent
+
+- [ ] Stand inside a protein. `RoomScale` derives x2.6 - about three metres across - as the
+      smallest scale at which the hydrophobic core has closed around a person, from two
+      fractions measured on the bundled structures and one stated number: half a metre of
+      personal space. The measurements are not in doubt; the half-metre is a guess about a body
+      and is the dial to turn
+- [ ] Say whether three metres of protein around your head is wonderful or unpleasant, and
+      whether the 2.5-second ramp in is comfortable. The protein comes to you rather than you
+      being moved, deliberately - visionOS gives an app no way to move the wearer and it should
+      not - but a large object arriving around your head is its own thing
+- [ ] Check the hydrophobicity colouring reads from inside. Walking in switches to it and
+      switches back on the way out, on the grounds that a core you cannot see the
+      hydrophobicity of is just the middle of something

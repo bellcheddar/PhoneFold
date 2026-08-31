@@ -46,6 +46,14 @@ struct VisionControlView: View {
                 .disabled(immersion.isSettling)
             }
 
+            // Only while there is a room to be inside. An ornament would have been the tidier
+            // home for this, and an ImmersiveSpace has no window to hang one from: the first
+            // build put it there, it compiled, it ran, and the control simply was not in the
+            // room. The window stays open in the shared space beside it, so it goes here.
+            if immersion == .open {
+                WalkIntoTheCoreControls()
+            }
+
             Text("Gallery").font(.headline)
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 8) {
@@ -78,12 +86,22 @@ struct VisionControlView: View {
         .task {
             // PLAN's 5c gate asks that "the renderer runs in the Simulator from the sample
             // provider", and there is no way to press a button in the visionOS simulator from
-            // outside. This opens the volume on the first gallery entry so the gate can see the
+            // outside - `simctl` has no input injection for any platform. This starts the first
+            // gallery entry and opens whichever scene was asked for, so the gate can see the
             // protein actually drawing rather than only the app launching.
-            guard ProcessInfo.processInfo.environment["PHONEFOLD_VISION_AUTOSTART"] == "1",
-                  let first = library.entries.first else { return }
+            //
+            //     SIMCTL_CHILD_PHONEFOLD_VISION_AUTOSTART=immersive \
+            //     SIMCTL_CHILD_PHONEFOLD_VISION_WALK_IN=1 xcrun simctl launch <udid> <id>
+            //
+            // `1` still means the volume, which is what it meant when only the volume existed.
+            let requested = ProcessInfo.processInfo.environment["PHONEFOLD_VISION_AUTOSTART"]
+            guard let requested, let first = library.entries.first else { return }
             start(first)
-            openWindow(id: PhoneFoldVisionApp.volume)
+            switch requested {
+            case "immersive": await toggleImmersion()
+            case "1", "volume": openWindow(id: PhoneFoldVisionApp.volume)
+            default: break
+            }
         }
     }
 

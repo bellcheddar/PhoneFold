@@ -20,6 +20,16 @@ struct FoldCanvas: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @ObservedObject var player: FoldPlayer
     @Binding var diagnostic: String
+    /// How big the protein stands in the room. Passed in rather than owned, because only the
+    /// immersive space has any business changing it and it has to survive the view redrawing.
+    var roomScale: RoomScale = RoomScale()
+    /// Where the stage sits, in metres, relative to the scene's origin.
+    ///
+    /// **Zero everywhere except an immersive space, where zero is the floor.** A window or a
+    /// volume gives RealityKit content a bounded box with the origin in the middle of it; an
+    /// `ImmersiveSpace` puts the origin on the floor at the wearer's feet, so a stage left at
+    /// zero is a protein sunk into the carpet and out of view unless you look down.
+    var stagePlacement: SIMD3<Float> = .zero
 
     @State private var stage = StageContent()
     @State private var lastDrag: CGSize = .zero
@@ -49,6 +59,12 @@ struct FoldCanvas: View {
         }
         .onChange(of: reduceMotion, initial: true) { _, value in
             stage.reduceMotion = value || player.reduceMotion
+        }
+        .onChange(of: roomScale, initial: true) { _, scale in
+            stage.roomScale = scale
+        }
+        .onChange(of: stagePlacement, initial: true) { _, placement in
+            stage.root.position = placement
         }
         // The stage is the one thing in the app with no text of its own. Merged into a single
         // element so VoiceOver reads the protein rather than nothing, and `updatesFrequently`
@@ -371,6 +387,15 @@ final class StageContent {
     private var outlineIndices: [UInt32] = []
     private var clock: Task<Void, Never>?
     private var lastBounds: (minimum: SIMD3<Float>, maximum: SIMD3<Float>)?
+    /// How big the protein stands in the room. 1 is the stage's ordinary framing.
+    ///
+    /// PLAN.md Phase 5c's "walk into the core". visionOS only in practice, because it is the
+    /// only surface where the viewer has a body in the same space as the protein - on a phone
+    /// growing the protein past the frame just crops it.
+    var roomScale = RoomScale() {
+        didSet { if roomScale != oldValue { applyProteinTransform() } }
+    }
+
     /// The box a hand has to pinch, and when it needs rebuilding. See `InputTargetShape`.
     ///
     /// visionOS only, because it is the only surface where a gesture has to *hit* something
@@ -487,7 +512,7 @@ final class StageContent {
     private func eyeInMeshSpace() -> SIMD3<Float> {
         guard let bounds = lastBounds else { return SIMD3<Float>(0, 0, camera.distance) }
         let extent = simd_length(bounds.maximum - bounds.minimum)
-        let scale = extent > 0.001 ? 1.15 / extent : 1
+        let scale = framingScale(for: extent)
         let centre = (bounds.maximum + bounds.minimum) * 0.5
         let rotation = proteinRotation()
         let eyeInRoot = SIMD3<Float>(0, 0, camera.distance)
@@ -503,10 +528,17 @@ final class StageContent {
     /// surface where the picture and the listener share a space.
     var onStageTransformChanged: ((simd_quatf, Float) -> Void)?
 
+    /// The stage normalises every protein to the same size so the framing does not depend on
+    /// whether it is 20 residues or 300, then `roomScale` grows it into the room.
+    private func framingScale(for extent: Float) -> Float {
+        let framed = extent > 0.001 ? RoomScale.framedExtent / extent : 1
+        return framed * roomScale.multiplier
+    }
+
     private func applyProteinTransform() {
         guard let bounds = lastBounds else { return }
         let extent = simd_length(bounds.maximum - bounds.minimum)
-        let scale = extent > 0.001 ? 1.15 / extent : 1
+        let scale = framingScale(for: extent)
         let centre = (bounds.maximum + bounds.minimum) * 0.5
         let rotation = proteinRotation()
         protein.transform = Transform(scale: SIMD3<Float>(repeating: scale),

@@ -394,7 +394,7 @@ first and the rest is built to be *ready* for judgement rather than claimed.
 | P5c-04 | Hand interaction: pinch-drag to rotate, two-handed pinch to scale | P5c-01 | done: targeted gestures + the collision box they need (8 tests); a headset needed to confirm delivery |
 | P5c-05 | Spatial audio placed where the residues are, which the Phase 3 design always intended | P5c-02 | done: `SpatialStage` (8 tests), the sound turns with the stage, a volume sounds from the volume; hearing it is Marc's |
 | P5c-06 | Look-and-pinch a residue to pin a label and solo its note | P5c-04 | todo |
-| P5c-07 | "Walk into the core" | P5c-02 | todo |
+| P5c-07 | "Walk into the core" | P5c-02 | done: `RoomScale` from two measured fractions (5 tests), verified at both scales in the simulator; comfort is Marc's |
 | P5c-08 | SharePlay, the teaching mode | P5c-02 | todo |
 
 **Machine gate (5c):** builds for visionOS, the renderer runs in the Simulator from the sample

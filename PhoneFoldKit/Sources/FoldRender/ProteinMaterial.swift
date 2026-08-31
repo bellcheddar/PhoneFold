@@ -66,6 +66,12 @@ public enum ProteinMaterial {
             // protein is a worse picture than a coloured one and a far better one than none.
             material.color = .init(tint: .init(red: 0.42, green: 0.55, blue: 0.65, alpha: 1))
         }
+        // **Both faces, so the structure still reads from inside it.** PLAN.md Phase 5c asks
+        // for "walk into the core", and a back-face-culled tube seen from within the structure
+        // shows the far side of the protein as holes: the near wall of each far tube is
+        // culled, so you look through them. It costs nothing here - the tube is a closed
+        // surface, so from outside no back face is ever visible to shade.
+        material.faceCulling = .none
         return material
     }
 }

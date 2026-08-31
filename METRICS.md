@@ -3532,3 +3532,60 @@ and the sound has to agree with the picture or the two are describing different 
 **The one guess:** how far in front the volume sits. A volume is placed by the person wearing
 the headset and the app is not told where it ended up, so 1.0 m is arm's length and nothing
 more. In `BLOCKERS.md`.
+
+## P5c-07, walking into the core, and two things only the headset simulator showed (2026-08-31)
+
+PLAN: "Scale the protein up until you are standing inside it as the hydrophobic core packs
+around you. Absurd, memorable, and **scientifically legible**."
+
+### How big does it have to be? Measured, not chosen
+
+"Legible" is the word that turns this from taste into arithmetic. Two fractions, measured on
+the ten bundled structures of fifty residues or more, final frame, alpha carbons:
+
+| | median | mean | range |
+|---|---|---|---|
+| How far the hydrophobic core reaches, as a fraction of the structure's own radius | **0.40** | 0.41 | 0.0 - 0.6 |
+| The furthest alpha carbon from the centroid, as a fraction of the bounding-box diagonal | **0.42** | 0.43 | 0.37 - 0.51 |
+
+The core fraction comes from binning residues by distance from the centroid and taking the mean
+Kyte-Doolittle hydropathy per bin. The profile is unambiguous - lysozyme runs +3.8, +1.4, +0.3,
++0.4, +0.1, then negative to the surface; myoglobin +3.3, +2.0, +0.7, +0.6, then negative - and
+the crossing is where the core ends. The 0.0 is **proinsulin**, which is a disulphide-linked
+precursor rather than a globular domain and genuinely has no hydrophobic core in this sense: a
+real answer rather than a failed measurement. The radius-to-diagonal ratio is tight at 0.37 to
+0.51 because a folded protein is roughly globular whatever it is made of.
+
+**A first version of the core statistic had to be thrown away.** It looked for where a *running*
+mean of hydropathy crossed the whole-protein mean and took the last crossing, which returned
+1.00 for eight of thirteen structures - a running mean converges on the overall mean by
+construction, so the last crossing is always at the end. A statistic reading exactly 1.00 for
+most of its inputs is an artefact, not a finding.
+
+From those two numbers and a stated half-metre of personal space, the scale at which the core
+has closed around a person falls out at **x2.6**, about three metres of protein. Nothing about
+it is chosen. At the stage's ordinary framing the structure's radius is already 0.48 m - so in
+an immersive space you are at its surface before anything is scaled - but its core is 0.19 m
+across, a grapefruit at arm's length.
+
+### Two platform facts the simulator gave up only when asked properly
+
+- **An `ImmersiveSpace`'s origin is the floor at the wearer's feet.** A window or a volume gives
+  RealityKit content a bounded box with the origin in the middle; an immersive space does not.
+  The first run opened the space, the button correctly changed to "Leave the concert hall", and
+  the room was **empty** - the protein was sunk into the carpet, out of view unless you looked
+  down. Nothing errors, nothing logs.
+- **An ornament in an `ImmersiveSpace` does not appear**, because an ornament hangs off a window
+  and an immersive space has none. PLAN asks for "ornament-based transport rather than an
+  overlay, so the stage stays clean", which is right for the volume and impossible in the room.
+  It compiled, it ran, and the control was simply not there. The walk control moved to the
+  control window, which stays open in the shared space beside it.
+
+Also: `SimpleMaterial.faceCulling = .none`, or from inside the structure the near wall of every
+far tube is culled and you look straight through the protein you are standing in. It costs
+nothing from outside - the tube is a closed surface, so no back face is ever visible there.
+
+**Measured:** all five surfaces build; the concert hall renders in the simulator at both scales
+(screenshots taken); 5 `RoomScaleTests` plus the full package suite.
+**Not measured:** whether three metres of protein around your head is wonderful or unpleasant,
+and whether half a metre of personal space is the right number. Both are in `BLOCKERS.md`.
