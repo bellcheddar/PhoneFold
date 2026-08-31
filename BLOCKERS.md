@@ -892,8 +892,16 @@ same self-match trap as the pgrep one. The probe was removed rather than left in
 
 Both ends are wired and all three surfaces build. The phone hosts, publishes its state rate
 limited to a whole percent of progress, and acts on every command; the Watch shows what it is
-told and sends commands, including the Crown as a stream of scrub positions. Ten tests cover the
-handshake against a mock session, which is what PLAN's gate asks for.
+told and sends commands, including the Crown as a stream of scrub positions. Twenty tests cover
+the handshake and the cue channel against a mock session, which is what PLAN's gate asks for.
+
+**Corrected 2026-08-31.** The paragraph above was written when it was not yet true. The phone's
+half existed as two stored properties and a comment and was *never constructed*: nothing
+activated a session, published a state or handled a command, so the wrist would have shown "not
+reachable" for ever and its buttons would have sent into a session with no host - and the
+complication would have had nothing to store, because the state it stores only ever arrives from
+the phone. Every part of 5b existed except the line that starts it. It is wired now, and the
+checks below are unchanged, because none of them was ever going to pass.
 
 None of that proves a command crosses. A paired Watch is the only way to see the rest.
 
@@ -905,3 +913,33 @@ None of that proves a command crosses. A paired Watch is the only way to see the
       progress updates. That interaction is the one most likely to be wrong: the wrist shows the
       phone's progress *and* the Crown's position, and only one of them can win while scrubbing
 - [ ] Relaunch the Watch app mid-fold and confirm the handshake fills it in unprompted
+
+- [ ] Feel the haptics: the fold should begin with a `.start`, tick through its contacts and
+      arrive on a `.success`, in time with the music coming out of the phone. `WristHaptics`
+      decides which moments get one and is tested (9 tests), but the two things only a wrist
+      settles are whether a third of a second between transients is enough to read them as
+      separate events, and whether the buzz lands close enough to the note it belongs to -
+      `sendMessage` latency sits between the phone's audio and the wrist's actuator and cannot
+      be measured from here
+
+## Phase 5c: the pinch needs a headset, or a simulator that will take a drag (2026-08-31)
+
+`FoldCanvas` now aims its drag and magnify gestures with `targetedToAnyEntity()` on visionOS and
+the stage installs the collision box they need, which is the difference between the protein
+turning by hand and the gesture never firing at all - see METRICS.md, P5c-04. The box's sizing
+policy is tested (8 tests), the app builds and draws in the simulator, and all five surfaces
+still build.
+
+What is not established is that visionOS *delivers* the targeted gesture. It could not be from
+here: `simctl` has no input injection, and `Simulator.app` opened against the `simctl`-booted
+visionOS device reported zero windows and then timed out on an Apple Event, so there was no
+surface to synthesise a drag against.
+
+- [ ] Pinch and drag the protein in the volume and confirm it turns, in the direction the hand
+      moves, at a sensible rate. The sensitivity is the phone's, in points per radian, and there
+      is no reason to expect a headset's points to be worth the same as a phone's - this is the
+      number most likely to need changing
+- [ ] Two-handed pinch and confirm it scales rather than fighting the system's own window resize
+- [ ] Check the pinch box does not extend noticeably beyond the protein. It is padded to a
+      minimum of 0.5 A on a degenerate axis, which is invisible on a folded structure and might
+      not be on a fully extended chain

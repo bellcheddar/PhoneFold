@@ -34,14 +34,18 @@ public final class RemoteLink: Sendable {
     private let onCommand: (@Sendable (FoldRemote.Command) -> Void)?
     /// Called on the remote when the phone says what it is doing.
     private let onState: (@Sendable (FoldRemote.State) -> Void)?
+    /// Called on the remote when the phone marks a moment worth feeling.
+    private let onCue: (@Sendable (FoldRemote.Cue) -> Void)?
 
     public init(role: Role, transport: any FoldRemote.Transport,
                 onCommand: (@Sendable (FoldRemote.Command) -> Void)? = nil,
-                onState: (@Sendable (FoldRemote.State) -> Void)? = nil) {
+                onState: (@Sendable (FoldRemote.State) -> Void)? = nil,
+                onCue: (@Sendable (FoldRemote.Cue) -> Void)? = nil) {
         self.role = role
         self.transport = transport
         self.onCommand = onCommand
         self.onState = onState
+        self.onCue = onCue
     }
 
     /// The last state the host published, or the remote was told.
@@ -60,6 +64,17 @@ public final class RemoteLink: Sendable {
         storage.withLock { $0.state = state }
         guard transport.isReachable else { return }
         transport.update(state)
+    }
+
+    /// Mark a moment for the wrist to feel. Only the host does this.
+    ///
+    /// **Dropped when unreachable, and never re-sent.** A cue is a thing that happened at a
+    /// moment; unlike the state there is nothing to catch up on, and a buzz delivered when the
+    /// Watch comes back would be for a contact that formed a minute ago. The handshake
+    /// deliberately re-sends state and deliberately does not re-send this.
+    public func cue(_ cue: FoldRemote.Cue) {
+        guard role == .host, transport.isReachable else { return }
+        transport.send(cue)
     }
 
     // MARK: - The remote side
@@ -98,6 +113,13 @@ public final class RemoteLink: Sendable {
             guard let command = FoldRemote.Command.from(payload: payload) else { return }
             onCommand?(command)
         case .remote:
+            // A cue first, and it is tested that a state cannot be read as one: all three
+            // kinds arrive through the same two delegate callbacks, and each decoder is
+            // written to refuse the others rather than to guess.
+            if let cue = FoldRemote.Cue.from(payload: payload) {
+                onCue?(cue)
+                return
+            }
             guard let state = FoldRemote.State.from(payload: payload) else { return }
             storage.withLock { $0.state = state }
             onState?(state)

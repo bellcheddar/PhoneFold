@@ -14,6 +14,7 @@ struct RemoteLinkTests {
     final class MockTransport: FoldRemote.Transport, @unchecked Sendable {
         private struct Log {
             var commands: [FoldRemote.Command] = []
+            var cues: [FoldRemote.Cue] = []
             var states: [FoldRemote.State] = []
             var reachable = true
         }
@@ -25,11 +26,15 @@ struct RemoteLinkTests {
         func send(_ command: FoldRemote.Command) {
             log.withLock { $0.commands.append(command) }
         }
+        func send(_ cue: FoldRemote.Cue) {
+            log.withLock { $0.cues.append(cue) }
+        }
         func update(_ state: FoldRemote.State) {
             log.withLock { $0.states.append(state) }
         }
 
         var commands: [FoldRemote.Command] { log.withLock { $0.commands } }
+        var cues: [FoldRemote.Cue] { log.withLock { $0.cues } }
         var states: [FoldRemote.State] { log.withLock { $0.states } }
     }
 
@@ -175,6 +180,105 @@ struct RemoteLinkTests {
                 == .scrub(1))
         #expect(FoldRemote.Command.from(payload: ["command": "scrub", "value": -0.3])
                 == .scrub(0))
+    }
+
+    // MARK: - Cues
+
+    /// The rule that makes three payload kinds safe on two delegate callbacks: each decoder
+    /// refuses the other two rather than guessing. Without it a state would arrive on the
+    /// wrist as a buzz, or a scrub as one.
+    @Test("a cue, a command and a state cannot be mistaken for each other")
+    func payloadKindsAreDistinct() {
+        for cue in FoldRemote.Cue.allCases {
+            #expect(FoldRemote.Cue.from(payload: cue.payload) == cue)
+            #expect(FoldRemote.Command.from(payload: cue.payload) == nil)
+            #expect(FoldRemote.State.from(payload: cue.payload) == nil)
+        }
+        #expect(FoldRemote.Cue.from(payload: Self.state(0.5).payload) == nil)
+        #expect(FoldRemote.Cue.from(payload: FoldRemote.Command.pause.payload) == nil)
+        #expect(FoldRemote.Cue.from(payload: ["cue": "explode"]) == nil)
+    }
+
+    @Test("cues go from the phone to the wrist and never the other way")
+    func cuesAreHostToRemote() {
+        let hostTransport = MockTransport()
+        let remoteTransport = MockTransport()
+        let host = RemoteLink(role: .host, transport: hostTransport)
+        let remote = RemoteLink(role: .remote, transport: remoteTransport)
+
+        host.cue(.contact)
+        #expect(hostTransport.cues == [.contact])
+        remote.cue(.contact)
+        #expect(remoteTransport.cues.isEmpty, "a remote does not mark moments")
+    }
+
+    /// Unlike the state, a cue is a thing that happened at a moment. There is nothing to catch
+    /// up on, and a buzz on reconnection would be for a contact that formed a minute ago.
+    @Test("a cue is dropped when the wrist is away and is not re-sent on reconnection")
+    func cuesAreNotResent() {
+        let transport = MockTransport()
+        let host = RemoteLink(role: .host, transport: transport)
+        transport.setReachable(false)
+        host.reachabilityChanged(to: false)
+        host.cue(.contact)
+        #expect(transport.cues.isEmpty)
+
+        transport.setReachable(true)
+        host.reachabilityChanged(to: true)
+        #expect(transport.cues.isEmpty, "the handshake re-sends state, never a moment")
+    }
+
+    @Test("the wrist feels a cue and does not mistake it for a state")
+    func remoteReceivesCue() {
+        let transport = MockTransport()
+        let felt = Mutex<[FoldRemote.Cue]>([])
+        let stateSeen = Mutex(0)
+        let remote = RemoteLink(role: .remote, transport: transport,
+                                onState: { _ in stateSeen.withLock { $0 += 1 } },
+                                onCue: { cue in felt.withLock { $0.append(cue) } })
+        remote.received(payload: FoldRemote.Cue.finished.payload)
+        #expect(felt.withLock { $0 } == [.finished])
+        #expect(stateSeen.withLock { $0 } == 0)
+        #expect(remote.state == nil, "a cue is not a state and must not become one")
+    }
+
+    @Test("a host ignores a cue arriving from the wrist")
+    func hostIgnoresCue() {
+        let transport = MockTransport()
+        let commandSeen = Mutex(0)
+        let host = RemoteLink(role: .host, transport: transport,
+                              onCommand: { _ in commandSeen.withLock { $0 += 1 } })
+        host.received(payload: FoldRemote.Cue.began.payload)
+        #expect(commandSeen.withLock { $0 } == 0)
+    }
+
+    // MARK: - What is worth sending
+
+    /// A fold publishes sixty states a second and the wrist can use about one.
+    @Test("progress below a whole per cent is not worth a message")
+    func progressIsFiltered() {
+        let first = Self.state(0.500)
+        #expect(first.isWorthSending(after: nil), "the first state always goes")
+        #expect(!Self.state(0.5005).isWorthSending(after: first))
+        #expect(Self.state(0.52).isWorthSending(after: first))
+    }
+
+    /// And the other half: a style change is one message and must never be filtered as a
+    /// small change, because its progress did not move at all.
+    @Test("anything that is not progress goes immediately")
+    func nonProgressChangesAlwaysSend() {
+        let first = Self.state(0.5)
+        var restyled = first
+        restyled.styleID = "surf"
+        #expect(restyled.isWorthSending(after: first))
+
+        var paused = first
+        paused.isPlaying = false
+        #expect(paused.isWorthSending(after: first))
+
+        var renamed = first
+        renamed.title = "Ubiquitin"
+        #expect(renamed.isWorthSending(after: first))
     }
 
     @Test("a state missing a required field is refused rather than half-built")

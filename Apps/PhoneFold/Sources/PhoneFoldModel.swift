@@ -62,8 +62,169 @@ final class PhoneFoldModel: ObservableObject {
     /// The last state sent to the wrist, for the same rate limit the Live Activity uses.
     private var lastPublishedToWatch: FoldRemote.State?
 
+    /// Which moments of the fold the wrist is told to feel. See `WristHaptics`.
+    private var haptics = WristHaptics()
+    /// The last history sample the haptics have already considered, so a reading is never
+    /// counted twice: `history` republishes the whole buffer ten times a second.
+    private var lastHapticFrame: Int?
+    /// So the arrival cue fires once rather than on every publication after the fold ends.
+    private var hasSentArrival = false
+    /// `@Published` republishes on every set, not only on a change, so the start of a fold is
+    /// detected as a transition rather than as a value.
+    private var wasPlayingForHaptics = false
+
+    /// Ends a scrub the wrist started but never finished. See `handle(_:)`.
+    private var scrubTimeout: Task<Void, Never>?
+
     init() {
         observeForActivity()
+        connectWatch()
+    }
+
+    // MARK: - The wrist
+
+    /// Bring up the phone's half of the link.
+    ///
+    /// **This was the missing half.** `watchLink` and `watchTransport` were declared with the
+    /// comment above them and never constructed, so the phone never activated its session:
+    /// the Watch app came up, showed "not reachable" for ever, its buttons sent commands into
+    /// a session with no host, and the complication had nothing to store because the state it
+    /// stores only ever arrives from the phone. Every part of 5b existed except the line that
+    /// starts it.
+    private func connectWatch() {
+        #if canImport(WatchConnectivity)
+        guard let transport = WatchConnectivityTransport() else { return }
+        let link = RemoteLink(role: .host, transport: transport,
+                              onCommand: { [weak self] command in
+                                  // Off the WatchConnectivity delegate queue and onto the main
+                                  // actor, because everything a command touches - the player,
+                                  // the gallery selection - lives there.
+                                  Task { @MainActor in self?.handle(command) }
+                              })
+        transport.attach(link)
+        watchTransport = transport
+        watchLink = link
+        observeForWatch()
+        #endif
+    }
+
+    /// Do what the wrist asked.
+    private func handle(_ command: FoldRemote.Command) {
+        switch command {
+        case .play: player.resume()
+        case .pause: player.pause()
+        case .scrub(let value):
+            player.scrub(to: value)
+            armScrubTimeout()
+        case .style(let id):
+            // Ignored rather than defaulted if the phone has no such style, for the same
+            // reason an unknown command is ignored: a Watch newer than the phone.
+            guard player.styles[id] != nil else { return }
+            player.styleID = id
+        case .colourMode(let mode):
+            guard let mode = ColourMode(rawValue: mode) else { return }
+            player.colourMode = mode
+        case .fold(let id):
+            // Not started here: `StageView` owns the gallery selection and the accession
+            // field, and a model reaching into those would be two things deciding what plays.
+            requestedGalleryID = id
+        }
+    }
+
+    /// Hand the stage back to the live fold when the Crown stops.
+    ///
+    /// **A timeout on the phone rather than an "I have finished scrubbing" message from the
+    /// wrist**, because that message can be lost: `sendMessage` is dropped outright when the
+    /// other device is not reachable, and a Watch that goes out of range mid-scrub would leave
+    /// the phone holding one frozen frame with no way back short of relaunching. A timeout
+    /// cannot be lost. The same argument is why `StageCamera` closes an abandoned drag on its
+    /// own clock rather than trusting `onEnded`.
+    private func armScrubTimeout() {
+        scrubTimeout?.cancel()
+        scrubTimeout = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(1200))
+            guard !Task.isCancelled else { return }
+            await MainActor.run { self?.player.endScrub() }
+        }
+    }
+
+    /// Tell the wrist what the fold is doing.
+    ///
+    /// Subscribed to the sixty-a-second publishers deliberately, and filtered by
+    /// `isWorthSending` rather than by a timer: a style change has to go immediately and a
+    /// progress tick of a thousandth never has to go at all.
+    private func observeForWatch() {
+        Publishers.Merge4(
+            player.$progress.map { _ in () },
+            player.$isPlaying.map { _ in () },
+            player.$styleID.map { _ in () },
+            player.$colourMode.map { _ in () }
+        )
+        .sink { [weak self] in self?.publishToWatch() }
+        .store(in: &observers)
+
+        // The moments, from the same history the HUD reads. Ten publications a second, and
+        // `WristHaptics` decides which of them are worth a buzz.
+        player.$history
+            .sink { [weak self] history in self?.markMoments(in: history) }
+            .store(in: &observers)
+
+        player.$isPlaying
+            .sink { [weak self] isPlaying in
+                guard let self, isPlaying, !wasPlayingForHaptics else {
+                    self?.wasPlayingForHaptics = isPlaying
+                    return
+                }
+                wasPlayingForHaptics = true
+                haptics.reset()
+                lastHapticFrame = nil
+                hasSentArrival = false
+                watchLink?.cue(haptics.began(at: Date.timeIntervalSinceReferenceDate))
+            }
+            .store(in: &observers)
+    }
+
+    /// Tell the wrist about the moment the newest frame is, if it is one.
+    ///
+    /// **`history.latest`, never `history.samples.last`.** The retained series is decimated as
+    /// a fold lengthens - the stride doubles each time the buffer fills - so a count taken
+    /// from it would quietly represent fewer and fewer frames as the fold went on, and the
+    /// burst threshold would be measuring something different at the end than at the start.
+    /// `latest` is the newest frame whether or not the decimation gate kept it.
+    ///
+    /// The threshold is therefore per frame, which is what `newContacts` is: contacts formed
+    /// between one frame and the one before it.
+    private func markMoments(in history: FoldHistory) {
+        guard let watchLink, let newest = history.latest else { return }
+        guard newest.frameIndex != lastHapticFrame else { return }
+        lastHapticFrame = newest.frameIndex
+        let now = Date.timeIntervalSinceReferenceDate
+        if let cue = haptics.contacts(newest.newContacts, at: now) { watchLink.cue(cue) }
+        if newest.progress >= 0.999, !hasSentArrival {
+            hasSentArrival = true
+            watchLink.cue(haptics.finished(at: now))
+        }
+    }
+
+    private func publishToWatch() {
+        guard let watchLink else { return }
+        let sample = player.history.samples.last
+        let state = FoldRemote.State(
+            title: player.title,
+            isPlaying: player.isPlaying,
+            progress: player.progress,
+            meanConfidence: sample.map { Double($0.meanConfidence) },
+            confidenceLabel: player.confidenceSource.displayName,
+            styleID: player.styleID,
+            colourMode: player.colourMode.rawValue,
+            // Sent rather than known: the Watch depends on neither FoldAudio nor FoldRender,
+            // so the only way it can offer the right five styles is to be told them.
+            styles: player.styles.mapValues(\.name),
+            colourModes: Dictionary(uniqueKeysWithValues:
+                ColourMode.allCases.map { ($0.rawValue, $0.displayName) }))
+        guard state.isWorthSending(after: lastPublishedToWatch) else { return }
+        lastPublishedToWatch = state
+        watchLink.publish(state)
     }
 
     /// Mirror the run into the Live Activity.

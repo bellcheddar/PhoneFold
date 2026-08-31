@@ -3273,3 +3273,72 @@ pinch-drag to the entity. `simctl` has no input injection, and `Simulator.app` o
 a `simctl`-booted visionOS device reported zero windows and then timed out on an Apple Event,
 so there was no surface to synthesise a drag against either. In `BLOCKERS.md` with the other
 headset items.
+
+## P5b-03, the half that was never built (2026-08-31)
+
+`PhoneFoldModel` carried `watchLink`, `watchTransport` and `lastPublishedToWatch`, with a
+careful comment above them about `canImport(WatchConnectivity)` against `os(iOS)` - and **not
+one of the three was ever assigned**. `init()` called `observeForActivity()` and nothing else.
+`grep -rn watchLink Apps/` returns the declaration and no other line.
+
+What that means in practice, which is worth writing down because none of it shows in a build:
+
+| | |
+|---|---|
+| The phone never activated a `WCSession` | so the Watch's own session had no counterpart and `isReachable` was false for ever |
+| No state was ever published | so the wrist's Now Playing screen had nothing to show, and `FoldComplicationStore` had nothing to save - the complication's data only ever arrives from the phone |
+| No command was ever handled | so every button on the wrist sent into a session with no host |
+| `requestedGalleryID` was consumed by `StageView` and set by nobody | the one line of evidence that would have shown it: a `@Published` property with a reader and no writer |
+
+All ten of the 5b handshake tests passed throughout, because they test `RemoteLink` against a
+mock transport - correctly, that is what PLAN's gate asks for - and `RemoteLink` was never the
+part that was missing. The gap was one construction site in the app, below the level any of the
+package's tests can see.
+
+Now built: `connectWatch()` on the main actor, commands routed to the player, and state
+published through `State.isWorthSending(after:)` rather than on a timer - a fold publishes sixty
+states a second and the wrist can use about one, but a **style change has to go immediately**
+and its progress has not moved at all, so the filter compares everything but progress exactly
+and progress at one per cent.
+
+**A scrub is ended by a timeout on the phone, not by a message from the wrist.** `sendMessage`
+is dropped outright when the other device is unreachable, so an "I have stopped turning the
+Crown" message can be lost - and a Watch that goes out of range mid-scrub would leave the phone
+holding one frozen frame with no way back short of relaunching. A timeout cannot be lost. Same
+argument as `StageCamera.inputTimeout`, which closes an abandoned drag on its own clock rather
+than trusting `onEnded`.
+
+## P5b-04, the wrist haptics (2026-08-31)
+
+PLAN: "Wrist haptics of the fold, the phone keeping the audio."
+
+**The moments cannot travel in the state.** State goes by `updateApplicationContext`, which the
+system coalesces so only the newest survives - a hundred contacts forming would arrive as one
+state saying "some contacts have formed by now". A moment that is coalesced has not been
+delayed, it has been deleted. So cues are messages, and `FoldRemote.Cue` is a third payload kind
+crossing the same two delegate callbacks as commands and states. Each decoder refuses the other
+two rather than guessing, and that is tested in both directions.
+
+**And the rate limit is on the phone.** `WKInterfaceDevice.play` queues rather than drops, so an
+unfiltered stream of contacts arrives as one continuous buzz that outlasts the fold. Filtering
+on the Watch would still have paid for every message.
+
+`WristHaptics` (9 tests) decides. Two rules in it are not obvious and both fail silently:
+
+- **A suppressed burst does not move the clock.** If it did, a fold forming contacts
+  continuously would push the window forward on every rejected reading and buzz exactly once,
+  which looks identical to the feature being switched off. Measured in the test: a full second
+  of contacts at a 0.35 s floor gives three buzzes, not one.
+- **Arrival is never rate limited.** The heaviest burst in a fold is the one immediately before
+  it arrives, so the window is almost always still open at the end - rate limiting the arrival
+  would swallow precisely the cue the feature exists for, and only on the folds that end most
+  emphatically.
+
+**The counts come from `history.latest`, never `history.samples.last`.** The retained series is
+decimated as a fold lengthens - the stride doubles each time the buffer fills - so a count taken
+from it would represent fewer and fewer frames as the fold went on, and the burst threshold
+would be measuring something different at the end than at the start. `latest` is the newest
+frame whether or not the decimation gate kept it.
+
+**Measured:** 40 tests across FoldSync and FoldRender pass; all five surfaces build.
+**Not measured:** anything a wrist can feel. In `BLOCKERS.md`.

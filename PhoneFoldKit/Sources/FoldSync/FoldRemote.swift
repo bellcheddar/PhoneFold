@@ -66,6 +66,37 @@ public enum FoldRemote {
         }
     }
 
+    /// A moment in the fold, sent to the wrist so it can be felt.
+    ///
+    /// PLAN.md Phase 5b: "Wrist haptics of the fold, the phone keeping the audio."
+    ///
+    /// **A message rather than part of the state**, and that is forced rather than chosen: the
+    /// state travels as application context, which the system coalesces so that only the newest
+    /// survives. A moment that is coalesced has not been delayed, it has been deleted. A cue is
+    /// a thing that happened at a time, so it goes by the immediate channel or not at all - and
+    /// "not at all" is the right answer when the wrist is out of range, because a buzz for a
+    /// contact that formed a minute ago is worse than no buzz.
+    ///
+    /// Which moments deserve one is `WristHaptics`; this is only the vocabulary.
+    public enum Cue: String, Sendable, Equatable, Codable, CaseIterable {
+        /// The fold has started.
+        case began
+        /// A burst of contacts has formed.
+        case contact
+        /// The fold has arrived.
+        case finished
+
+        public var payload: [String: Any] { ["cue": rawValue] }
+
+        /// Nil for anything unrecognised, and - just as importantly - nil for a command or a
+        /// state. All three cross the same delegate callbacks, and a decoder that guessed
+        /// would turn a scrub into a buzz.
+        public static func from(payload: [String: Any]) -> Cue? {
+            guard let cue = payload["cue"] as? String else { return nil }
+            return Cue(rawValue: cue)
+        }
+    }
+
     /// What the phone tells the wrist about the fold it is playing.
     ///
     /// Sent as **application context** rather than as messages: context is coalesced by the
@@ -121,6 +152,28 @@ public enum FoldRemote {
             return info
         }
 
+        /// How much the fold has to move before the wrist is told again.
+        ///
+        /// One per cent. The Watch shows a whole-number percentage, so anything finer is a
+        /// message that cannot change what is on the screen.
+        public static let progressGranularity = 0.01
+
+        /// Whether this state is worth sending, given the last one that was.
+        ///
+        /// **A fold publishes sixty states a second and the wrist can use about one.**
+        /// `updateApplicationContext` coalesces, so the stale ones are not *delivered* - but
+        /// they are still marshalled, still cross the process boundary, and WCSession still
+        /// throttles a caller that floods it, which silently delays the updates that matter.
+        /// Everything except progress is compared exactly: a style change is one message and
+        /// it must never be dropped as insignificant.
+        public func isWorthSending(after previous: State?) -> Bool {
+            guard let previous else { return true }
+            var comparable = self
+            comparable.progress = previous.progress
+            guard comparable == previous else { return true }
+            return abs(progress - previous.progress) >= Self.progressGranularity
+        }
+
         public static func from(payload: [String: Any]) -> State? {
             guard let title = payload["title"] as? String,
                   let isPlaying = payload["isPlaying"] as? Bool,
@@ -142,12 +195,16 @@ public enum FoldRemote {
         /// transport that silently does nothing.
         var isReachable: Bool { get }
         func send(_ command: Command)
+        /// A moment, from the phone to the wrist. The same immediate channel as a command,
+        /// travelling the other way, and for the same reason: both are things that happened.
+        func send(_ cue: Cue)
         func update(_ state: State)
     }
 
     /// What a side of the link does with what arrives.
     public protocol Receiver: AnyObject, Sendable {
         func received(_ command: Command)
+        func received(_ cue: Cue)
         func received(_ state: State)
     }
 }

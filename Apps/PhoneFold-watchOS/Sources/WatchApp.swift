@@ -1,4 +1,5 @@
 import SwiftUI
+import WatchKit
 import FoldCore
 import FoldSync
 
@@ -37,6 +38,11 @@ final class WatchModel: ObservableObject {
         let link = RemoteLink(role: .remote, transport: transport,
                               onState: { [weak self] state in
                                   Task { @MainActor in self?.apply(state) }
+                              },
+                              onCue: { cue in
+                                  // No `self`, and nothing stored: a cue changes nothing the
+                                  // wrist displays. It is felt and then it is over.
+                                  Task { @MainActor in WristHapticPlayer.play(cue) }
                               })
         transport.attach(link)
         self.transport = transport
@@ -63,6 +69,28 @@ final class WatchModel: ObservableObject {
         // button that flips its own state optimistically will disagree with the phone the
         // moment a command does not arrive, and the disagreement is invisible.
         refreshReachability()
+    }
+}
+
+/// Turning a moment into something you can feel.
+///
+/// PLAN.md Phase 5b: "Wrist haptics of the fold, the phone keeping the audio." The phone
+/// decides which moments deserve one - see `WristHaptics`, which is where the rate limit and
+/// the burst threshold live and where they are tested. By the time a cue reaches here the
+/// decision has been made, so this plays every one it is given.
+///
+/// **The three haptics are chosen to be told apart without looking.** `.start` and `.success`
+/// are two-part patterns the wrist reads as bracketing something; `.click` is a single
+/// transient. A fold therefore feels like a beginning, a rhythm and an arrival, which is the
+/// shape of the piece the phone is playing.
+@MainActor
+enum WristHapticPlayer {
+    static func play(_ cue: FoldRemote.Cue) {
+        switch cue {
+        case .began: WKInterfaceDevice.current().play(.start)
+        case .contact: WKInterfaceDevice.current().play(.click)
+        case .finished: WKInterfaceDevice.current().play(.success)
+        }
     }
 }
 

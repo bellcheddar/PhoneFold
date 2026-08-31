@@ -51,6 +51,14 @@ public final class WatchConnectivityTransport: NSObject, FoldRemote.Transport, @
         session.sendMessage(command.payload, replyHandler: nil, errorHandler: nil)
     }
 
+    /// A moment, phone to wrist. The same immediate channel as a command and dropped in the
+    /// same way when the other device is not there: a buzz that arrives late is a buzz for
+    /// something that is no longer happening.
+    public func send(_ cue: FoldRemote.Cue) {
+        guard session.isReachable else { return }
+        session.sendMessage(cue.payload, replyHandler: nil, errorHandler: nil)
+    }
+
     public func update(_ state: FoldRemote.State) {
         // `updateApplicationContext` throws when the session is not activated. That is not
         // worth surfacing: the handshake re-sends on reachability, so a state lost here is
