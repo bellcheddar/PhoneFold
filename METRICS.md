@@ -2824,3 +2824,30 @@ different finding from consistently lower.
 Worth noting where the divergence lands: the mutation is at residue 11 and the differences show
 at 3, 4, 30, 33 and 34 - the termini and the C-terminal helix - which is what perturbing a
 packed core residue would be expected to do rather than a local effect at the site itself.
+
+### P4-17, the duet in the app (2026-08-31)
+
+A mutation field, a Duet button, and a readout naming the residues where the two folds
+diverged and in which direction.
+
+**The conductor plays a prepared score rather than bypassing the sonifier.** A duet is two folds
+merged, so it cannot be written a frame at a time from either one - but the sonifier still runs
+as the *clock*, deciding when a moment falls, and the merged moment is substituted for the one
+it would have written. Substituting rather than bypassing keeps the picture and the sound on the
+one timeline that the whole pacing rule exists to hold together.
+
+**The field only appears for the structure-based engine.** A substitution perturbs native
+contact energies and a morph has none to perturb: it would produce two identical folds and a
+duet in perfect unison, which would look like a working feature and be nothing of the kind.
+Offering the control there and quietly doing nothing is worse than not offering it.
+
+**Two folds share one progress bar**, each taking half. Two runs of 0 to 100 look like the app
+starting over.
+
+**The stage shows the wild type.** A duet is an auditory comparison, and two proteins
+superimposed would be a second thing to read at once. PLAN.md's description of the feature is
+entirely about sound - "same key, two channels, pLDDT delta driving dissonance" - and nothing in
+it asks for both structures on screen.
+
+And starting a plain fold clears any prepared duet, or the next run would play the previous
+comparison over a single protein.

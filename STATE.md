@@ -1,7 +1,7 @@
 # PhoneFold — STATE
 
 **Current phase:** 3 (The score). Phase 0's engines are done and Phase 2's machine gate stays GREEN.
-**Current task:** P4-17, then P4-10. Phase 3's machine gate is GREEN; what remains of it is Marc's ears (BLOCKERS.md) and the Phase 2 sign-off. Marc answered the wizard on 2026-08-30: keep Genie 2 as a third mode, Simulate as the default, gallery references unchanged, and **do all four** of the next-work options - so Phase 3, the Phase 2 sign-off, engine hardening and polish are all in scope. Polish is done (P2-15).
+**Current task:** P4-10. Phase 3's machine gate is GREEN; what remains of it is Marc's ears (BLOCKERS.md) and the Phase 2 sign-off. Marc answered the wizard on 2026-08-30: keep Genie 2 as a third mode, Simulate as the default, gallery references unchanged, and **do all four** of the next-work options - so Phase 3, the Phase 2 sign-off, engine hardening and polish are all in scope. Polish is done (P2-15).
 **Last updated:** 2026-08-30
 
 Status vocabulary: `todo` / `doing` / `blocked` / `done`.
@@ -275,7 +275,7 @@ that already exists, and because three of the four gate criteria are about them.
 | P4-08 | Accessibility: VoiceOver, Reduce Motion, Reduce Transparency, colour-blind-safe palette | — | done |
 | P4-15 | Dynamic Type: the stage's fixed point sizes do not scale | P4-08 | todo |
 | P4-09 | Mutation duet: two folds in one key, confidence delta driving dissonance | P3-09 | done |
-| P4-17 | Wire the duet into the app: a mutation field, two-fold playback, the divergence readout | P4-09 | todo |
+| P4-17 | Wire the duet into the app: a mutation field, two-fold playback, the divergence readout | P4-09 | done |
 | P4-10 | External display scene, `AVRoutePickerView`, connect and disconnect mid-fold | — | todo |
 | P4-11 | Live Activity and Dynamic Island | — | todo |
 | P4-12 | Privacy manifest, no analytics | — | done |

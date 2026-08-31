@@ -47,6 +47,13 @@ final class ScoreConductor: @unchecked Sendable {
     /// log written as the music plays, and this is it: what was heard, not a second scoring of
     /// the same frames.
     private var played: [ScoreMoment] = []
+    /// A score computed up front, played in place of the one the sonifier would write.
+    ///
+    /// A duet is two folds merged, so it cannot be written a frame at a time from one of them.
+    /// The sonifier still runs - it is the clock that decides *when* a moment falls, and the
+    /// animation is paced from the same rule - but the moment that is played comes from here.
+    /// Substituting rather than bypassing keeps the picture and the sound on one timeline.
+    private var prepared: [ScoreMoment] = []
     private let lock = NSLock()
 
     private(set) var style: StyleProfile
@@ -119,12 +126,18 @@ final class ScoreConductor: @unchecked Sendable {
 
     /// Score one frame. Interpolated frames are ignored, as the mapping requires.
     func receive(_ frame: FoldFrame) {
-        guard let moment = lock.withLock({ sonifier.moment(for: frame) }) else { return }
+        guard let written = lock.withLock({ sonifier.moment(for: frame) }) else { return }
         let positions = frame.backbone.map(\.ca)
         lock.withLock {
+            let moment = prepared.isEmpty ? written : prepared.removeFirst()
             waiting.append((moment, positions))
             played.append(moment)
         }
+    }
+
+    /// Hand the conductor a score to play instead of writing one.
+    func prepare(_ moments: [ScoreMoment]) {
+        lock.withLock { prepared = moments }
     }
 
     /// The score as it was written, for export.

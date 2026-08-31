@@ -3,6 +3,7 @@ import simd
 import SwiftUI
 import FoldCore
 import FoldEngine
+import FoldAudio
 
 /// Runs a fold on this device and hands the result to the player.
 ///
@@ -18,6 +19,15 @@ final class FoldRunner: ObservableObject {
         case fetching(accession: String)
         case folding(progress: Double)
         case failed(String)
+
+        /// Whether a run is under way, so a control that would start a second one can be
+        /// disabled rather than quietly cancelling the first.
+        var isBusy: Bool {
+            switch self {
+            case .fetching, .folding: true
+            case .idle, .failed: false
+            }
+        }
     }
 
     @Published private(set) var state: State = .idle
@@ -129,6 +139,104 @@ final class FoldRunner: ObservableObject {
     }
 
     /// Fold `reference` with the chosen engine and play the result.
+    /// Fold a wild type and a mutant, and play them together.
+    ///
+    /// PLAN.md's mutation duet. Two folds rather than one, so it costs twice - which is why it
+    /// is a deliberate act with a field to fill in rather than something the app does by
+    /// default.
+    ///
+    /// Only the structure-based engine: a substitution perturbs native contact energies, and a
+    /// morph has none to perturb - it would produce two identical folds and a duet in unison,
+    /// which would look like a working feature and be nothing of the kind.
+    func runDuet(reference: ReferenceStructure, mutationText: String, style: StyleProfile,
+                 seed: UInt64 = 1, into player: FoldPlayer) {
+        cancel()
+        let mutation: Mutation
+        do {
+            mutation = try Mutation.parse(mutationText, in: reference.residues)
+        } catch {
+            state = .failed("\(error)")
+            return
+        }
+        state = .folding(progress: 0)
+
+        let metadata = TrajectoryMetadata(
+            name: "\(reference.name) and \(mutation)",
+            sequence: reference.sequence, accession: reference.accession,
+            provenance: FoldingEngine.structureBased.provenance,
+            sourceModel: "on-device", blocksPerReadout: 1, recycles: 1,
+            generated: ISO8601DateFormatter().string(from: Date()),
+            notes: FoldingEngine.structureBased.provenance.disclosure)
+        let residues = reference.residues
+        let native = reference.caPositions
+        let steps = Self.stepsForCompleteFold
+
+        // Both folds share one progress bar, each taking half of it: two folds reported as two
+        // runs of 0 to 100 look like the app started over.
+        let report: @Sendable (Double, Double) -> Void = { [weak self] base, fraction in
+            Task { @MainActor in
+                guard let self, case .folding = self.state else { return }
+                self.state = .folding(progress: base + fraction / 2)
+            }
+        }
+
+        task = Task.detached(priority: .userInitiated) { [weak self] in
+            do {
+                let wildBundle = try LiveTrajectory.fold(
+                    engine: .structureBased, native: native, metadata: metadata,
+                    residues: residues, seed: seed, steps: steps, frameCount: 180,
+                    progress: { report(0, $0) }, shouldContinue: { !Task.isCancelled })
+                if Task.isCancelled { return }
+                let mutantBundle = try LiveTrajectory.fold(
+                    engine: .structureBased, native: native, metadata: metadata,
+                    residues: mutation.applied(to: residues), seed: seed, steps: steps,
+                    frameCount: 180, mutation: mutation,
+                    progress: { report(0.5, $0) }, shouldContinue: { !Task.isCancelled })
+                if Task.isCancelled { return }
+
+                let wildProvider = try SampleTrajectoryProvider(bundle: wildBundle)
+                let mutantProvider = try SampleTrajectoryProvider(bundle: mutantBundle)
+                let pacing = Sonifier.pacing(readouts: wildProvider.readouts.count, style: style)
+                let seconds = Float(pacing.secondsPerReadout(
+                    readouts: wildProvider.readouts.count, style: style))
+                let configuration = FoldFrameSequence.Configuration(
+                    frameRate: 60, secondsPerRawFrame: seconds)
+
+                func frames(_ provider: SampleTrajectoryProvider) async throws -> [FoldFrame] {
+                    var all: [FoldFrame] = []
+                    for try await frame in FoldFrameSequence(provider: provider,
+                                                             configuration: configuration) {
+                        all.append(frame)
+                    }
+                    return all
+                }
+                let wildFrames = try await frames(wildProvider)
+                let mutantFrames = try await frames(mutantProvider)
+                if Task.isCancelled { return }
+
+                let wildPart = MutationDuet.Part.make(style: style, residues: residues,
+                                                      frames: wildFrames)
+                let mutantPart = MutationDuet.Part.make(
+                    style: style, residues: mutation.applied(to: residues),
+                    frames: mutantFrames)
+                let merged = MutationDuet.merge(wildType: wildPart, mutant: mutantPart)
+                let divergence = MutationDuet.divergentResidues(wildType: wildPart,
+                                                                mutant: mutantPart)
+
+                await MainActor.run { [weak self] in
+                    self?.state = .idle
+                    player.prepareDuet(merged, divergence: divergence)
+                    // The stage shows the wild type: a duet is an auditory comparison, and two
+                    // proteins superimposed would be a second thing to read at once.
+                    player.play(wildProvider)
+                }
+            } catch {
+                guard !Task.isCancelled else { return }
+                await MainActor.run { [weak self] in self?.state = .failed("\(error)") }
+            }
+        }
+    }
+
     func run(reference: ReferenceStructure, engine: FoldingEngine,
              seed: UInt64 = 1, into player: FoldPlayer) {
         cancel()

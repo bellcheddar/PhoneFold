@@ -294,3 +294,73 @@ struct ExportControls: View {
         }
     }
 }
+
+/// The duet row: a substitution, and where the two folds diverged.
+///
+/// Only shown for the structure-based engine. A substitution perturbs native contact energies,
+/// and a morph has none to perturb - it would produce two identical folds and a duet in unison,
+/// which would look like a working feature and be nothing of the kind. Offering the field there
+/// and quietly doing nothing would be worse than not offering it.
+struct DuetControls: View {
+    @Binding var mutation: String
+    let divergence: [(residue: Int, delta: Float)]
+    let isBusy: Bool
+    let onFold: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                TextField("Mutation, e.g. F11A", text: $mutation)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 12, design: .monospaced))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Capsule().fill(Color.white.opacity(0.08)))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: 220)
+                    #if os(iOS)
+                    .textInputAutocapitalization(.characters)
+                    .autocorrectionDisabled()
+                    #endif
+                    .accessibilityLabel("Mutation")
+                    .accessibilityHint("A substitution in the usual notation, such as F11A")
+                    .onSubmit(onFold)
+
+                Button(action: onFold) {
+                    Label("Duet", systemImage: "person.2")
+                        .font(.system(size: 12, weight: .semibold))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Capsule().fill(mutation.isEmpty || isBusy
+                                                   ? Color.white.opacity(0.08)
+                                                   : Color(hex: 0x2B5CE6)))
+                        .foregroundStyle(.white)
+                }
+                .buttonStyle(.plain)
+                .disabled(mutation.isEmpty || isBusy)
+                .accessibilityHint("Folds the wild type and this mutant together")
+
+                Spacer(minLength: 0)
+            }
+
+            // **What an engineer came for.** Not "it sounded wrong" but which residues, and in
+            // which direction: a mutation that *raises* confidence somewhere is as interesting
+            // as one that lowers it, so the sign is shown.
+            if divergence.isEmpty {
+                Text("Folds the wild type and a mutant together. Where the two agree the mutant "
+                     + "sings in unison; where they diverge it is pushed toward a tritone.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color(hex: 0x6B7C93))
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text("Most divergent: " + divergence.prefix(5)
+                    .map { String(format: "%d %+.0f", $0.residue + 1, $0.delta) }
+                    .joined(separator: "   "))
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(Color(hex: 0xFCB900))
+                    .lineLimit(1)
+            }
+        }
+    }
+}

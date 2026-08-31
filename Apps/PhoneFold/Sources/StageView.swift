@@ -19,6 +19,7 @@ struct StageView: View {
     @State private var generationSeed: UInt64 = 3
     /// What the last export did, shown under the controls rather than in an alert: a
     /// modal for "saved it" interrupts a fold that is still playing.
+    @State private var mutation = ""
     @State private var midiMessage = ""
     @State private var midiDocument = MIDIDocument(data: Data())
     @State private var isExportingMIDI = false
@@ -69,6 +70,14 @@ struct StageView: View {
                               onExportMIDI: exportMIDI)
                     .padding(.horizontal, 20)
                     .padding(.top, 6)
+                // Only for the structure-based engine: a morph has no contact energies for a
+                // substitution to perturb, so the field would do nothing there.
+                if runner.engine == .structureBased {
+                    DuetControls(mutation: $mutation, divergence: player.duetDivergence,
+                                 isBusy: runner.state.isBusy, onFold: foldDuet)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 6)
+                }
                 ExportControls(preset: $film.preset, state: film.state,
                                canExport: player.exportProvider != nil,
                                onExport: exportFilm, onCancel: film.cancel)
@@ -282,6 +291,29 @@ struct StageView: View {
         isExportingMIDI = true
     }
 
+    /// Fold the wild type and a mutant together.
+    private func foldDuet() {
+        guard let entry = selection,
+              let style = player.orderedStyles.first(where: { $0.id == player.styleID })
+                  ?? player.orderedStyles.first else { return }
+        do {
+            let provider = try library.provider(for: entry)
+            guard let final = provider.readouts.last else { return }
+            let reference = ReferenceStructure(
+                accession: provider.metadata.accession ?? entry.id,
+                name: provider.metadata.name,
+                sequence: provider.metadata.sequence,
+                caPositions: final.caPositions.map {
+                    SIMD3<Double>(Double($0.x), Double($0.y), Double($0.z))
+                },
+                pLDDT: final.confidence)
+            runner.runDuet(reference: reference, mutationText: mutation, style: style,
+                           into: player)
+        } catch {
+            print("could not start the duet: \(error)")
+        }
+    }
+
     /// Render the fold that is on screen as a film and put it in Photos.
     private func exportFilm() {
         guard let provider = player.exportProvider,
@@ -312,6 +344,9 @@ struct StageView: View {
                     SIMD3<Double>(Double($0.x), Double($0.y), Double($0.z))
                 },
                 pLDDT: final.confidence)
+            // A plain fold is not a duet: anything prepared for one must go, or the next run
+            // would play the previous comparison over a single protein.
+            player.clearDuet()
             runner.run(reference: reference, engine: runner.engine, into: player)
         } catch {
             print("could not load \(entry.displayName): \(error)")

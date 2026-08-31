@@ -105,6 +105,10 @@ final class FoldPlayer: ObservableObject {
     }
     /// What the music is doing, for the HUD.
     @Published private(set) var audioDiagnostic = ""
+    /// Where a duet's two folds diverged most, for the readout. Empty unless one is playing.
+    @Published var duetDivergence: [(residue: Int, delta: Float)] = []
+    /// A merged duet score to play in place of scoring the live fold.
+    private var preparedScore: [ScoreMoment]?
 
     /// The style profiles that shipped in the bundle, loaded once.
     ///
@@ -205,6 +209,7 @@ final class FoldPlayer: ObservableObject {
             let made = ScoreConductor(style: style, residues: residues, readouts: readouts)
             do {
                 try made.start()
+                if let preparedScore { made.prepare(preparedScore) }
                 conductor = made
                 pace = ScoreConductor.secondsPerReadout(style: style, readouts: readouts)
                 audioDiagnostic = "\(style.name), \(made.pacing.moments) bars, "
@@ -379,6 +384,19 @@ final class FoldPlayer: ObservableObject {
             confidence: frame.metrics.meanConfidence,
             confidenceSource: provider?.confidenceSource ?? .pLDDT,
             progress: frame.progress)
+    }
+
+    /// Play this score instead of writing one from the fold. Set before `play`.
+    func prepareDuet(_ moments: [ScoreMoment],
+                     divergence: [(residue: Int, delta: Float)]) {
+        preparedScore = moments
+        duetDivergence = divergence
+    }
+
+    /// Back to writing the score from the fold on screen.
+    func clearDuet() {
+        preparedScore = nil
+        duetDivergence = []
     }
 
     /// The trajectory currently on screen, for an export to re-render from.
