@@ -161,14 +161,16 @@ targets:
       - path: ../Shared/Sources
       - path: Resources
         buildPhase: resources
-      # PLAN.md Phase 5a: "Studio raises the cap; the phone does not." Two length buckets
-      # here against the phone's one - 34 and 37 MB - because a Mac can spare the bundle and
-      # the minutes a longer trajectory takes, and a phone can spare neither.
+      # PLAN.md Phase 5a: "Studio raises the cap; the phone does not." Three length buckets
+      # here against the phone's one - 34, 37 and 51 MB - because a Mac can spare 122 MB of
+      # bundle and the minutes a 256-residue trajectory takes, and a phone can spare neither.
       # `Genie2Sampler.bundledLengths` probes for these rather than being told, so nothing has
-      # to know which app it is compiled into, and adding the 256 bucket is one line here.
+      # to know which app it is compiled into.
       - path: ../../Models/Genie2Step_L64.mlpackage
         buildPhase: resources
       - path: ../../Models/Genie2Step_L128.mlpackage
+        buildPhase: resources
+      - path: ../../Models/Genie2Step_L256.mlpackage
         buildPhase: resources
       - path: ../Shared/Resources/Styles
         buildPhase: resources
@@ -209,6 +211,10 @@ targets:
     sources:
       - path: ../PhoneFold-watchOS/Sources
       - path: ../PhoneFold-watchOS/Assets.xcassets
+        buildPhase: resources
+      # The Watch app is its own binary and Apple wants a manifest per binary, not per app.
+      # It reaches the same app group the phone writes, so it declares the same two reasons.
+      - path: ../PhoneFold-watchOS/PrivacyInfo.xcprivacy
         buildPhase: resources
       # The Fold of the Day, baked by Tools/make_fold_of_the_day.py. 228 kB for six folds of
       # ninety frames, which is the whole reason the wrist needs no engine and no phone.

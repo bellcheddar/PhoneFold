@@ -19,6 +19,9 @@ public final class Genie2Sampler: @unchecked Sendable {
         case modelMissing
         case modelFailed(String)
         case wrongLength(expected: Int, asked: Int)
+        /// No model was exported for this length. Distinct from `wrongLength`, which is a
+        /// model that exists disagreeing with the caller: this is a length nobody built.
+        case lengthUnavailable(Int, available: [Int])
         /// The reverse process produced something that is not a chain. Named specifically,
         /// because "inconsistent trajectory" three layers downstream says nothing about which
         /// of a dozen possible causes it was.
@@ -30,30 +33,69 @@ public final class Genie2Sampler: @unchecked Sendable {
             case .modelFailed(let m): "Genie 2 could not run: \(m)"
             case .wrongLength(let expected, let asked):
                 "This Genie 2 export generates \(expected) residues, not \(asked)."
+            case .lengthUnavailable(let asked, let available):
+                available.isEmpty
+                    ? "This build has no Genie 2 model at all."
+                    : "This build generates "
+                        + available.map(String.init).joined(separator: ", ")
+                        + " residues, not \(asked)."
             case .degenerateOutput(let reason): "Genie 2 produced no usable backbone: \(reason)"
             }
         }
     }
 
     /// The exported model is compiled for a fixed length; a different one needs a new export.
-    public static let residues = 64
+    ///
+    /// **A model *is* a length.** The export bakes Genie 2's static features in as constants
+    /// for one chain length, so there is no padding or masking to be done at run time: asking
+    /// for 100 residues from the 128 model would generate a 128-residue protein, which is a
+    /// different protein from the one asked for. This engine is unconditional - there is no
+    /// target sequence - so the length is not a detail of the request, it *is* the request.
+    /// Lengths are therefore offered as the buckets that exist rather than rounded to them.
+    public let residues: Int
+
+    /// Every length an export has ever been made for. Not what this app ships - see
+    /// `bundledLengths`.
+    public static let candidateLengths = [64, 128, 256]
+
+    /// The default, and the only one the phone carries.
+    public static let defaultLength = 64
+
+    /// The lengths this build actually has a model for.
+    ///
+    /// **Probed, not declared.** PhoneFold Studio bundles the larger buckets and the phone
+    /// bundles only 64 - PLAN's "Studio raises the cap; the phone does not" - so a hard-coded
+    /// list would offer the phone a model it does not have and fail at the moment somebody
+    /// pressed the button. The `exists` closure is what makes that testable without a bundle.
+    public static func bundledLengths(
+        exists: (String) -> Bool = { name in
+            Bundle.main.url(forResource: name, withExtension: "mlmodelc") != nil
+        }
+    ) -> [Int] {
+        candidateLengths.filter { exists("Genie2Step_L\($0)") }
+    }
 
     private let model: MLModel
     public let schedule: Genie2Schedule
 
-    public init(model: MLModel, timesteps: Int = 1000) {
+    public init(model: MLModel, residues: Int = Genie2Sampler.defaultLength,
+                timesteps: Int = 1000) {
         self.model = model
+        self.residues = residues
         self.schedule = Genie2Schedule(timesteps: timesteps)
     }
 
     /// Load the model that ships in the app bundle.
-    public static func bundled(configuration: MLModelConfiguration = .init()) throws
+    public static func bundled(residues: Int = defaultLength,
+                               configuration: MLModelConfiguration = .init()) throws
         -> Genie2Sampler {
         // `.mlpackage` is compiled to `.mlmodelc` at build time, so that is what is in the
         // bundle; asking for the package name would find nothing.
-        guard let url = Bundle.main.url(forResource: "Genie2Step_L64", withExtension: "mlmodelc")
-        else { throw Failure.modelMissing }
-        return Genie2Sampler(model: try MLModel(contentsOf: url, configuration: configuration))
+        guard let url = Bundle.main.url(forResource: "Genie2Step_L\(residues)",
+                                        withExtension: "mlmodelc")
+        else { throw Failure.lengthUnavailable(residues, available: bundledLengths()) }
+        return Genie2Sampler(model: try MLModel(contentsOf: url, configuration: configuration),
+                             residues: residues)
     }
 
     // MARK: - Multi-array plumbing
@@ -171,7 +213,7 @@ public final class Genie2Sampler: @unchecked Sendable {
                            shouldContinue: (@Sendable () -> Bool)?,
                            observe: ((Int, [SIMD3<Double>]) -> Void)? = nil)
         throws -> [[SIMD3<Double>]] {
-        let n = Self.residues
+        let n = residues
         var rng = SplitMix64(seed: seed)
 
         // Pure noise, and the frames that go with it.

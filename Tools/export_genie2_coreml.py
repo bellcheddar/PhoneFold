@@ -468,6 +468,41 @@ def main() -> int:
             return 1
         print(f"converted in {time.time()-t0:.1f} s")
 
+        # **The converted model against the eager one, before it is saved.**
+        #
+        # Everything upstream of here is checked - the six op rewrites against the unpatched
+        # model, then the trace against eager on an unseen input, which comes back exactly
+        # 0.000e+00. None of that says anything about the *conversion*: fp16 casting and
+        # ninety-five MIL optimisation passes happen after the trace, and they are the part
+        # most likely to change an answer. Without this the pipeline verifies everything except
+        # the artefact it ships.
+        print("checking the converted model against eager ...", flush=True)
+        try:
+            prediction = mlmodel.predict({
+                "trans": trans.numpy().astype(np.float32),
+                "rots": rots.numpy().astype(np.float32),
+                "timesteps": timesteps.numpy().astype(np.int32)})["z"]
+        except Exception as exc:
+            print(f"PREDICTION FAILED: {type(exc).__name__}: {exc}", file=sys.stderr)
+            return 1
+        eager = reference.numpy()
+        if prediction.shape != eager.shape:
+            print(f"SHAPE MISMATCH: Core ML {prediction.shape} vs eager {eager.shape}",
+                  file=sys.stderr)
+            return 1
+        if not np.isfinite(prediction).all():
+            print("Core ML produced non-finite values", file=sys.stderr)
+            return 1
+        drift = float(np.abs(prediction - eager).max())
+        rel = float(np.sqrt(((prediction - eager) ** 2).mean())
+                    / np.sqrt((eager ** 2).mean()))
+        print(f"Core ML vs eager: max |diff| {drift:.3e}, relative RMS {rel*100:.4f}%")
+        # fp16 has about three decimal digits; a percent or so of relative RMS is the cast and
+        # is expected. Ten per cent is a different network.
+        if rel > 0.10:
+            print(f"CONVERSION CHANGED THE MODEL: {rel*100:.2f}% relative RMS", file=sys.stderr)
+            return 1
+
         args.out.mkdir(parents=True, exist_ok=True)
         path = args.out / f"Genie2Step_L{length}.mlpackage"
         mlmodel.save(str(path))

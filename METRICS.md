@@ -3799,3 +3799,35 @@ Keying out the flat background is the obvious approach and it fringes, because t
 shaded and their dark faces sit near the background colour. Measured: corner alpha 0, protein
 alpha 255, full range in between. `OffscreenStage` gained a background parameter for this and
 nothing else.
+
+## P5-02, the Genie 2 length buckets (2026-08-31)
+
+PLAN 5a asks for a "higher residue cap (~640) using the unpalettised fp16 model variant from
+Phase 0". That variant belongs to the **ESMFold** exports, which are dropped, and 640 was
+ESMFold's length bucket rather than a property of anything that shipped. The real cap is Genie
+2's, and it was 64 because there was one exported model. A model *is* a length: the export
+bakes Genie 2's static features in as constants, so there is no padding or masking at run time.
+
+| bucket | size | conversion | Core ML vs eager |
+|---|---|---|---|
+| 64 | 33.8 MB | (2026-08-28) | — |
+| 128 | 37.3 MB | 908.9 s | passed the check |
+| 256 | 51.0 MB | 938.7 s | **3.41% relative RMS**, max abs 8.96e-02 |
+
+The size scales gently rather than with N², which is what makes bundling three of them
+reasonable at all - the parameters are the same 15.73 M and only the baked features grow.
+
+**The exporter was verifying everything except the artefact it ships.** It checked the six op
+rewrites against the unpatched model and the trace against eager - exactly `0.000e+00` on an
+unseen input - and then saved the converted model without ever comparing it. fp16 casting and
+ninety-five MIL optimisation passes all happen *after* the trace, and they are the part most
+likely to change an answer. It now predicts on the reference inputs before saving and refuses
+above 10% relative RMS. 3.41% is the fp16 cast, and it sits alongside the 7.5 to 9.2% the
+quaternion-sign rewrite already costs, which the network was shown to be robust to.
+
+**Lengths are offered, not rounded.** Genie 2 is unconditional - there is no target sequence -
+so the length is not a detail of the request, it *is* the request: serving 128 to somebody who
+asked for 100 generates a different protein and calls it theirs. `Genie2Sampler.bundledLengths`
+probes the bundle rather than declaring a list, so the phone offers one length because it
+carries one model and the Studio offers three because it carries three, and nothing has to know
+which app it is compiled into. The picker appears only when there is a choice.

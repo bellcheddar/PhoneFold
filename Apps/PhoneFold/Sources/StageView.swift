@@ -132,7 +132,10 @@ struct StageView: View {
                             selection = nil
                         }
                     } else {
-                        GenerateControls(seed: $generationSeed, state: runner.state) {
+                        GenerateControls(seed: $generationSeed,
+                                         length: $runner.generativeLength,
+                                         lengths: runner.generativeLengths,
+                                         state: runner.state) {
                             generationSeed &+= 1
                             runner.generate(seed: generationSeed, into: player)
                         }
@@ -268,6 +271,18 @@ struct StageView: View {
             let override = ProcessInfo.processInfo.environment["PHONEFOLD_ENGINE"]
                 .flatMap(FoldingEngine.init(rawValue:))
             if let override { runner.engine = override }
+            // The same argument as `PHONEFOLD_ENGINE` and `PHONEFOLD_TRAJECTORY`, and the
+            // reason App Store screenshots can show more than one picture: `simctl` cannot
+            // touch a simulator, so a control that is only reachable by tapping is a control
+            // no capture can ever put in a state other than its default.
+            if let mode = ProcessInfo.processInfo.environment["PHONEFOLD_COLOUR"]
+                .flatMap(ColourMode.init(rawValue:)) {
+                player.colourMode = mode
+            }
+            if let style = ProcessInfo.processInfo.environment["PHONEFOLD_STYLE"],
+               player.styles[style] != nil {
+                player.styleID = style
+            }
             // `PHONEFOLD_ACCESSION` folds a downloaded structure straight from launch, which
             // is the only way to exercise the fetch path without typing into a simulator.
             if let wanted = ProcessInfo.processInfo.environment["PHONEFOLD_ACCESSION"],

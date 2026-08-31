@@ -49,7 +49,7 @@ struct Genie2SamplerTests {
     /// a plausible-looking structure built from the wrong numbers rather than an error.
     @Test("Multi-array writes and reads agree, whatever the strides")
     func multiArrayRoundTrips() throws {
-        let n = Genie2Sampler.residues
+        let n = Genie2Sampler.defaultLength
         let array = try MLMultiArray(shape: [1, NSNumber(value: n), 3], dataType: .float32)
         let original = (0..<n).map { SIMD3<Double>(Double($0), Double($0) * 2, Double($0) * 3) }
         Genie2Sampler.fill(array, residues: n, columns: 3) { residue, column in
@@ -74,7 +74,7 @@ struct Genie2SamplerTests {
         }
         let frames = try sampler.sample(seed: 5, frameCount: 24)
         #expect(frames.count >= 2)
-        #expect(frames.allSatisfy { $0.count == Genie2Sampler.residues })
+        #expect(frames.allSatisfy { $0.count == sampler.residues })
         for frame in frames {
             for p in frame { #expect(p.x.isFinite && p.y.isFinite && p.z.isFinite) }
         }
@@ -131,5 +131,51 @@ extension Genie2SamplerTests {
         #expect(throws: Genie2Sampler.Failure.self) {
             _ = try sampler.sample(seed: 1, frameCount: 24, attempts: 1)
         }
+    }
+}
+
+/// PLAN.md Phase 5a asks for a "higher residue cap... Studio raises the cap; the phone does
+/// not." A model is a length - the export bakes Genie 2's static features in as constants - so
+/// what that means in practice is which buckets a build ships, and this is the part of it that
+/// does not need a model on disk.
+@Suite("Which Genie 2 lengths a build has")
+struct Genie2LengthTests {
+
+    @Test("a build offers only the lengths it actually shipped")
+    func probesRatherThanDeclares() {
+        // The phone: one model.
+        #expect(Genie2Sampler.bundledLengths { $0 == "Genie2Step_L64" } == [64])
+        // The Studio: all of them, in ascending order whatever order they were found in.
+        #expect(Genie2Sampler.bundledLengths { _ in true } == Genie2Sampler.candidateLengths)
+        #expect(Genie2Sampler.bundledLengths { $0.hasSuffix("L256") || $0.hasSuffix("L64") }
+                == [64, 256])
+    }
+
+    /// The failure that matters: a build with no model at all must say so rather than offering
+    /// a length and failing when somebody presses the button.
+    @Test("a build with no model offers nothing and says so")
+    func noModelAtAll() {
+        #expect(Genie2Sampler.bundledLengths { _ in false }.isEmpty)
+        let failure = Genie2Sampler.Failure.lengthUnavailable(128, available: [])
+        #expect(failure.description.contains("no Genie 2 model"))
+    }
+
+    /// And the message names what *is* available, because "128 is not available" without
+    /// saying what is leaves the reader no better off.
+    @Test("an unavailable length is refused by name, listing what there is")
+    func unavailableNamesTheAlternatives() {
+        let failure = Genie2Sampler.Failure.lengthUnavailable(192, available: [64, 128])
+        #expect(failure.description.contains("64, 128"))
+        #expect(failure.description.contains("192"))
+    }
+
+    /// **Not rounded up.** Genie 2 is unconditional - there is no target sequence - so the
+    /// length is not a detail of the request, it is the request. Quietly serving 128 to
+    /// somebody who asked for 100 generates a different protein and calls it theirs.
+    @Test("the default is the one length every build has")
+    func defaultIsUniversal() {
+        #expect(Genie2Sampler.candidateLengths.contains(Genie2Sampler.defaultLength))
+        #expect(Genie2Sampler.defaultLength == Genie2Sampler.candidateLengths.min())
+        #expect(Genie2Sampler.candidateLengths == Genie2Sampler.candidateLengths.sorted())
     }
 }

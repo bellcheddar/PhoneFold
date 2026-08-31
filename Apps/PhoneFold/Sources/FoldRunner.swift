@@ -95,6 +95,21 @@ final class FoldRunner: ObservableObject {
     ///   which is now fixed: all six of the first six seeds complete, and seeds 1 and 2 give
     ///   3.86 A CA-CA spacing like the rest. There is no longer a reason to start at 3, and
     ///   leaving it there would quietly preserve a workaround for a bug that has gone.
+    /// The lengths this build can generate, ascending. See `Genie2Sampler.bundledLengths`.
+    ///
+    /// PLAN.md Phase 5a: "Studio raises the cap; the phone does not." In practice a build ships
+    /// the models it ships, so this is probed rather than declared - the phone offers one
+    /// length because it carries one model, and the Studio offers three because it carries
+    /// three. Nothing needs to know which app it is.
+    let generativeLengths = Genie2Sampler.bundledLengths()
+
+    /// How many residues to generate. One of `generativeLengths` and nothing else.
+    ///
+    /// **Not rounded to the nearest bucket.** Genie 2 is unconditional - there is no target
+    /// sequence - so the length is not a detail of the request, it is the request. Serving 128
+    /// to someone who asked for 100 generates a different protein and calls it theirs.
+    @Published var generativeLength = Genie2Sampler.defaultLength
+
     func generate(seed: UInt64 = 1, into player: FoldPlayer) {
         cancel()
         subject = "Generated backbone"
@@ -105,14 +120,15 @@ final class FoldRunner: ObservableObject {
                 self.state = .folding(progress: fraction)
             }
         }
+        let length = generativeLength
         task = Task.detached(priority: .userInitiated) { [weak self] in
             do {
-                let sampler = try Genie2Sampler.bundled()
+                let sampler = try Genie2Sampler.bundled(residues: length)
                 let frames = try sampler.sample(seed: seed, frameCount: 180,
                                                 progress: report,
                                                 shouldContinue: { !Task.isCancelled })
                 if Task.isCancelled { return }
-                let n = Genie2Sampler.residues
+                let n = sampler.residues
                 let metadata = TrajectoryMetadata(
                     name: "Generated \(n) residues, seed \(seed)",
                     sequence: String(repeating: "A", count: n),
@@ -444,6 +460,9 @@ struct AccessionField: View {
 /// becomes a re-roll and shows which draw is on screen.
 struct GenerateControls: View {
     @Binding var seed: UInt64
+    /// How many residues to generate, and the lengths this build has a model for.
+    @Binding var length: Int
+    let lengths: [Int]
     let state: FoldRunner.State
     let onGenerate: () -> Void
 
@@ -456,6 +475,17 @@ struct GenerateControls: View {
                 .padding(.vertical, 6)
                 .background(Capsule().fill(Color(hex: 0x2B5CE6)))
                 .foregroundStyle(.white)
+            // PLAN.md Phase 5a: "Studio raises the cap; the phone does not." Shown only when
+            // there is a choice, which on the phone there is not: one model, one length, and a
+            // picker with a single option is a control that teaches nothing.
+            if lengths.count > 1 {
+                Picker("Residues", selection: $length) {
+                    ForEach(lengths, id: \.self) { Text("\($0)").tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .fixedSize()
+                .accessibilityLabel("How many residues to generate")
+            }
             Text("seed \(seed)")
                 .scaledFont(11, design: .monospaced, relativeTo: .caption)
                 .foregroundStyle(Color(hex: 0x6B7C93))
