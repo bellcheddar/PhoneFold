@@ -2,7 +2,7 @@
 
 > **Fold a protein on your phone's Neural Engine, and listen to it happen.**
 
-![swift](https://img.shields.io/badge/swift-6.3.3-F05138?logo=swift&logoColor=white) ![xcode](https://img.shields.io/badge/xcode-26.6-1575F9?logo=xcode&logoColor=white) ![iOS](https://img.shields.io/badge/iOS-18%2B-000000?logo=apple&logoColor=white) ![macOS](https://img.shields.io/badge/macOS-15%2B-000000?logo=apple&logoColor=white) ![Core ML](https://img.shields.io/badge/Core%20ML-Neural%20Engine-0A84FF?logo=apple&logoColor=white) ![RealityKit](https://img.shields.io/badge/RealityKit-LowLevelMesh-467FF7) ![AVFoundation](https://img.shields.io/badge/AVFoundation-spatial%20audio-467FF7) ![ActivityKit](https://img.shields.io/badge/ActivityKit-Live%20Activity-467FF7) ![dependencies](https://img.shields.io/badge/dependencies-Apple%20frameworks%20only-00897B) ![swift-testing](https://img.shields.io/badge/swift--testing-479%20passing-30B0C7) ![models](https://img.shields.io/badge/models-Genie%202%20%C2%B7%20ESMFold%20%C2%B7%20FoldingDiff-9b51e0) ![data](https://img.shields.io/badge/data-RCSB%20PDB%20%C2%B7%20AlphaFold%20DB%20%C2%B7%20UniProt-9b51e0) ![phase](https://img.shields.io/badge/phase-5%20of%205%20(Fleet)-fcb900) ![licence](https://img.shields.io/badge/licence-MIT-1C244B) ![author](https://img.shields.io/badge/author-Marc%20C.%20Deller%2C%20D.Phil.-1C244B)
+![swift](https://img.shields.io/badge/swift-6.3.3-F05138?logo=swift&logoColor=white) ![xcode](https://img.shields.io/badge/xcode-26.6-1575F9?logo=xcode&logoColor=white) ![iOS](https://img.shields.io/badge/iOS-18%2B-000000?logo=apple&logoColor=white) ![macOS](https://img.shields.io/badge/macOS-15%2B-000000?logo=apple&logoColor=white) ![Core ML](https://img.shields.io/badge/Core%20ML-Neural%20Engine-0A84FF?logo=apple&logoColor=white) ![RealityKit](https://img.shields.io/badge/RealityKit-LowLevelMesh-467FF7) ![AVFoundation](https://img.shields.io/badge/AVFoundation-spatial%20audio-467FF7) ![ActivityKit](https://img.shields.io/badge/ActivityKit-Live%20Activity-467FF7) ![dependencies](https://img.shields.io/badge/dependencies-Apple%20frameworks%20only-00897B) ![swift-testing](https://img.shields.io/badge/swift--testing-530%20passing%20%C2%B7%205%20gated-30B0C7) ![models](https://img.shields.io/badge/models-Genie%202%20%C2%B7%20ESMFold%20%C2%B7%20FoldingDiff-9b51e0) ![data](https://img.shields.io/badge/data-RCSB%20PDB%20%C2%B7%20AlphaFold%20DB%20%C2%B7%20UniProt-9b51e0) ![phase](https://img.shields.io/badge/phase-5%20of%205%20(Fleet)-fcb900) ![licence](https://img.shields.io/badge/licence-MIT-1C244B) ![author](https://img.shields.io/badge/author-Marc%20C.%20Deller%2C%20D.Phil.-1C244B)
 
 <table>
 <tr>
@@ -82,7 +82,12 @@ xcodebuild -project Apps/PhoneFold/PhoneFold.xcodeproj -scheme PhoneFold \
   -destination "platform=iOS Simulator,name=iPhone 17" \
   -derivedDataPath ~/Library/Developer/PhoneFold-DerivedData build
 
-swift test --package-path PhoneFoldKit          # 479 tests, 79 suites
+swift test --package-path PhoneFoldKit          # 535 tests, 86 suites
+
+# The five CoreMIDI tests are skipped in that run and say so: they fail when 86 suites
+# share one process, which is the harness rather than the code (serially the whole suite
+# passes). The phase gate runs them in their own invocation, for real:
+PHONEFOLD_COREMIDI_TESTS=1 swift test --package-path PhoneFoldKit --filter MIDISourceTests
 bash Tools/verify_phase.sh 4                    # the phase's machine gate
 ```
 

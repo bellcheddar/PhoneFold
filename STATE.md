@@ -1,7 +1,7 @@
 # PhoneFold — STATE
 
 **Current phase:** 5 (Fleet). Phases 0, 2, 3 and 4 all hold a GREEN machine gate.
-**Current task:** Phase 5a is code complete. The CoreMIDI full-run failure is resolved: it was 86 suites in one process, not the machine load nor the code, and the retry added on that wrong diagnosis is removed. Next is 5b, the Watch. P5-02 is investigated and restated (see 5a below); its export half waits for a free machine. **Phase 4's machine gate is GREEN**, including the two checks it used to skip: the exported MP4 now probes clean in ffprobe, and forty consecutive folds show no leak. What is left of Phase 4 is human and is in `BLOCKERS.md` - AirPlay to a real Apple TV, the Lock Screen banner, the exported-video comparison, cold launch on device, the VoiceOver audit, signing and TestFlight - plus P4-16, the app icon, which is blocked on a skill this machine does not have. Marc is deferring the sign-offs and will say when.
+**Current task:** P5b-02, the watchOS target. **Phase 5a's machine gate is GREEN** end to end, including the CoreMIDI loopback in its own invocation. What is left of 5a is the human gate: Marc recording a fold into a DAW, and a handoff crossing between two real devices. P5-02 is investigated and restated (see 5a below); its export half waits for a free machine. **Phase 4's machine gate is GREEN**, including the two checks it used to skip: the exported MP4 now probes clean in ffprobe, and forty consecutive folds show no leak. What is left of Phase 4 is human and is in `BLOCKERS.md` - AirPlay to a real Apple TV, the Lock Screen banner, the exported-video comparison, cold launch on device, the VoiceOver audit, signing and TestFlight - plus P4-16, the app icon, which is blocked on a skill this machine does not have. Marc is deferring the sign-offs and will say when.
 **Last updated:** 2026-08-31
 
 **Published 2026-08-31: <https://github.com/bellcheddar/PhoneFold>, public, MIT.** The history was
@@ -352,7 +352,30 @@ and is deferred while another project's job has the machine; the Swift half does
 headlessly, the CoreMIDI source appears and emits valid events to a loopback client.
 **Human gate (halt):** Marc records a fold into a DAW and confirms the MIDI is musically usable.
 
-### 5b and 5c
+### 5b. PhoneFold on Apple Watch
 
-Not decomposed yet. They are decomposed when 5a's gate is green, so the tasks are written
-against what the Studio actually turned out to need rather than against a guess.
+The conductor. It runs no inference and should never try to.
+
+**PLAN's gate names the design.** "Connectivity handshake unit-tested with a mock session" is
+not a testing note, it is a constraint on the architecture: `WCSession` cannot be constructed in
+a test, so the transport has to sit behind a protocol from the first line or the gate is
+unreachable. `FoldSync` is currently a stub with a version string, so this is all new.
+
+| id | task | depends | status |
+|---|---|---|---|
+| P5b-01 | `FoldRemote`: the message vocabulary and a `Transport` protocol, so the handshake is testable against a mock | — | done: 10 tests against a mock session, plus the real `WCSession` conformance |
+| P5b-02 | The watchOS app target, three screens at most. Watch apps die of ambition | P5b-01 | doing |
+| P5b-03 | Transport remote: play, pause, style, colour mode, with the Digital Crown scrubbing the timeline | P5b-02 | todo |
+| P5b-04 | Wrist haptics of the fold, the phone keeping the audio | P5b-02 | todo |
+| P5b-05 | Complication: the last fold's mean confidence as a progress ring, tap to open the remote | P5b-02 | todo |
+| P5b-06 | Fold of the Day: one precomputed short trajectory, playable on the Watch with no phone | P5b-02 | todo |
+| P5b-07 | Live Activity mirrored on the wrist | P4-11, P5b-02 | todo |
+
+**Machine gate (5b):** builds, the connectivity handshake unit-tested with a mock session,
+complication timeline entries generated correctly.
+**Human gate (halt):** paired devices, haptic timing against the audio, battery impact.
+
+### 5c
+
+Not decomposed yet, for the same reason 5b was not until 5a was done: the tasks are written
+against what the previous surface turned out to need rather than against a guess.

@@ -3201,3 +3201,19 @@ feature is verified working system-wide from a separate process.
 So the suite is `.enabled(if:)` on `PHONEFOLD_COREMIDI_TESTS`, which `verify_phase.sh 5` sets for
 its own invocation. Skipped rather than deleted or quietly passed: a skipped test prints its
 reason, and the gate still runs them for real.
+
+## Phase 5a machine gate: GREEN (2026-08-31)
+
+```
+PASS  no #if os / canImport in FoldCore, FoldEngine, FoldGeometry
+PASS  no human-verifiable criterion ticked by an agent
+PASS  swift build (macOS)
+PASS  swift test (macOS)                     535 tests, 86 suites, 705 s parallel
+PASS  PhoneFold Studio builds for macOS
+PASS  batch mode: 5 records folded headlessly, 5 mmCIF written
+PASS  the CoreMIDI virtual source emits valid events to a loopback client
+```
+
+Parallel is 2.4x faster than serial: 705 s against 1714 s. That is why the CoreMIDI suite was
+isolated into its own invocation rather than the whole suite being run with `--no-parallel`,
+which would have cost seventeen minutes on every gate to work around five tests.
