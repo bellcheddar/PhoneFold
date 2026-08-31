@@ -111,6 +111,8 @@ Every number in `METRICS.md` was measured on this machine, and the entries that 
 - **Genie 2 diverged on half its seeds** because the sampler centred the coordinates it recorded and never the ones it fed back in. The centre of mass random-walked to 114 Å on a chain whose radius of gyration is 11 Å, far outside anything the network saw in training, and the posterior mean's `1/sqrt(alpha_t)` factor amplified the resulting nonsense at every later step. Projecting it out each step takes 3 of 6 seeds failing to 6 of 6 passing, and tightens CA-CA spacing from 3.86 to 3.94 Å down to 3.85 to 3.86 Å
 - **Twenty consecutive folds cannot tell a cache from a leak.** The footprint sawtooths, climbing to about 400 MB by fold 17 and being reclaimed to 260 MB by fold 26, so a twenty-fold window sees only the climb. Over forty folds the second half sits 47 to 60 MB *below* the first
 - **A destabilising mutation does not necessarily fold less completely.** Weakening villin's most buried residue produced a *higher* final native fraction than the wild type. The duet is therefore presented as a comparison of two folds rather than as a stability prediction, which would be a claim about free energy that nothing here computes
+- **A gesture that compiles on five platforms works on four.** On visionOS a SwiftUI gesture attached to a `RealityView` receives nothing unless the pinch ray hits an entity carrying `InputTargetComponent` and a `CollisionComponent`. The phone's drag and pinch had been compiling into the Vision Pro target for days and looked done; with no collision geometry in the scene they were not a coarser gesture, they were no gesture at all, and nothing about that shows in a build, a screenshot, or the code reading correctly everywhere else
+- **Ten passing tests can sit above a feature that was never switched on.** The phone's half of the Watch link existed as two stored properties and a comment and was never constructed, so nothing activated a session, published a state or handled a command. Every handshake test passed throughout, correctly - they test the link against a mock transport, and the link was never the missing part. The gap was one construction site in the app, below the level any package test can see
 
 ## 🧭 Project state
 
@@ -121,8 +123,8 @@ Phases 0 to 4 hold a green machine gate. Phase 5 is in progress.
 | 0 to 3 | Engines, stage, score | Gate green |
 | 4 | Exports, accessibility, the lecture theatre, iPhone ship | Gate green |
 | 5a | PhoneFold Studio (macOS) | Gate green |
-| 5b | Apple Watch | Gate met: builds, handshake and complication timeline tested |
-| 5c | Vision Pro | Gate met: builds, renders in a volume, lifecycle tested |
+| 5b | Apple Watch | Gate met: builds, handshake and complication timeline tested. Remote and haptics wired; a paired Watch confirms them |
+| 5c | Vision Pro | Gate met: builds, renders in a volume, lifecycle tested. Hand interaction wired; a headset confirms it |
 
 `PLAN.md` is the specification and is read-only. `STATE.md` is the task ledger, `METRICS.md` holds only measured numbers, and `BLOCKERS.md` holds what needs a human and a piece of hardware.
 
@@ -145,8 +147,8 @@ Roadmap for PhoneFold, in dependency order. Completed items keep their detail: t
 - [x] **ProRes, 4K and image-sequence export** for anyone who wants to grade the result. ProRes needs a QuickTime container, takes no bitrate, and carries uncompressed audio: each of those fails quietly if missed, and an MP4 holding ProRes writes without complaint and then will not open
 - [x] **Drag and drop PDB and mmCIF** to superpose a prediction against an experimental structure with per-residue RMSD. The one analytical concession, because on a Mac it is expected. Matching residues by number is necessary and not sufficient: AlphaFold P00698 against 1LYZ matches all 129 by number and returns 18.11 Å, because a UniProt entry includes the signal peptide and a crystal structure of the mature protein does not. Comparing the residue *names* catches it and derives the 18-residue shift, after which the answer is 0.54 Å
 - [x] **Handoff**, so a fold started on the phone continues on the Mac. It carries what to fold rather than the fold, and a missing field yields nothing rather than a default: a continuation that quietly substitutes the default engine starts something else and looks like it worked. Crossing between two real devices is still unconfirmed
-- [ ] **Apple Watch.** A transport remote with the Digital Crown scrubbing the timeline, wrist haptics of the fold while the phone plays the audio, and a standalone Fold of the Day
-- [ ] **Vision Pro.** Volume mode on a desk, an immersive concert hall at room scale, and SharePlay so a department can stand inside the same protein
+- [ ] **Apple Watch.** A transport remote with the Digital Crown scrubbing the timeline, wrist haptics of the fold while the phone plays the audio, and a standalone Fold of the Day. The remote and the haptics are built: moments travel as messages rather than in the state, because the state channel coalesces and a coalesced moment has not been delayed, it has been deleted. The rate limit lives on the phone, since the Watch's haptic engine queues rather than drops and an unfiltered stream of contacts is one continuous buzz. Fold of the Day is still a placeholder that says so
+- [ ] **Vision Pro.** Volume mode on a desk, an immersive concert hall at room scale, and SharePlay so a department can stand inside the same protein. The volume, the immersive space's lifecycle, the ornament transport and hand interaction are built; spatial audio placement, look-and-pinch, walk-into-the-core and SharePlay are not
 - [ ] **The app icon**, which is blocked on a house-style skill this machine does not have
 - [ ] **The human gates.** AirPlay to a real Apple TV, the Lock Screen banner, a VoiceOver audit driven by ear, cold launch on device, and a fold recorded into a DAW to confirm the MIDI is musically usable
 
