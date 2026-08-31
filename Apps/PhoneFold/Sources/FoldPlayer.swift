@@ -136,6 +136,74 @@ final class FoldPlayer: ObservableObject {
         (try? StyleLibrary.bundled()) ?? [:]
     private var conductor: ScoreConductor?
 
+    /// Where the protein is standing, for the spatial audio. See `SpatialStage`.
+    ///
+    /// **Stored as well as forwarded**, because a conductor only exists while something is
+    /// playing: a headset that sets the placement before starting a fold, or between folds,
+    /// would otherwise set it into nothing and the next piece would come out of its head.
+    private(set) var spatialStage = SpatialStage() {
+        didSet {
+            guard spatialStage != oldValue else { return }
+            conductor?.setSpatialStage(spatialStage)
+        }
+    }
+
+    /// How the sound is placed relative to the listener.
+    ///
+    /// PLAN.md Phase 5c wants two different things and they are genuinely different. In the
+    /// concert hall the protein is at room scale *around* you, which is the Phase 3 design and
+    /// the default. In a volume it is on a desk in front of you, and audio arriving from inside
+    /// your own skull for an object you are looking at over there is wrong in a way that is
+    /// hard to name and impossible to ignore.
+    enum SpatialPlacement: Equatable {
+        /// The protein wrapped around the listener, at the Phase 3 scale.
+        case aroundTheListener
+        /// The protein at `span` metres wide, `distance` metres in front.
+        case inAVolume(distance: Float, span: Float)
+    }
+
+    /// Set by visionOS and by nothing else: it is the only surface where the picture and the
+    /// listener share a space, so it is the only one that can be wrong about this.
+    var spatialPlacement: SpatialPlacement = .aroundTheListener {
+        didSet { if spatialPlacement != oldValue { rebuildSpatialStage() } }
+    }
+
+    /// The stage's live rotation and the protein's width, pushed in by `FoldCanvas`.
+    ///
+    /// Identity and zero everywhere but visionOS, which is what keeps the default placement
+    /// bit-for-bit the one that has been listened to.
+    private var proteinAttitude = simd_quatf(angle: 0, axis: SIMD3<Float>(0, 1, 0))
+    private var proteinExtent: Float = 0
+
+    func stageTransformChanged(attitude: simd_quatf, extent: Float) {
+        guard attitude != proteinAttitude || extent != proteinExtent else { return }
+        proteinAttitude = attitude
+        proteinExtent = extent
+        rebuildSpatialStage()
+    }
+
+    private func rebuildSpatialStage() {
+        switch spatialPlacement {
+        case .aroundTheListener:
+            spatialStage = SpatialStage(
+                angstromsPerMetre: FoldAudioEngine.angstromsPerMetre,
+                attitude: proteinAttitude)
+        case .inAVolume(let distance, let span):
+            // Before the first frame there is no extent, and dividing by it would put every
+            // note in the same place. The Phase 3 scale is the sane thing to hold until the
+            // protein has a size.
+            guard proteinExtent > 0.001 else {
+                spatialStage = SpatialStage(
+                    angstromsPerMetre: FoldAudioEngine.angstromsPerMetre,
+                    attitude: proteinAttitude)
+                return
+            }
+            spatialStage = .inAVolume(distance: distance, span: span,
+                                      proteinExtent: proteinExtent,
+                                      attitude: proteinAttitude)
+        }
+    }
+
     /// Whether PhoneFold appears as a MIDI device that a DAW can record.
     ///
     /// PLAN.md Phase 5a. Off until asked for: creating a virtual endpoint puts the app in every
@@ -264,6 +332,7 @@ final class FoldPlayer: ObservableObject {
             audioDiagnostic = ""
         }
         conductor?.midi = midiSource
+        conductor?.setSpatialStage(spatialStage)
         self.conductor = conductor
 
         let engine = FoldEngine(configuration: .init(

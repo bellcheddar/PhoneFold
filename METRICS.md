@@ -3494,3 +3494,41 @@ Also added: `PHONEFOLD_WATCH_SCREEN` and `PHONEFOLD_WATCH_AUTOPLAY`. watchOS has
 injection at all, so the third page of a vertical `TabView` is unreachable from a script - and
 without a way to reach it the Fold of the Day could have been built, bundled and shipped
 without anything outside a wrist ever seeing it draw.
+
+## P5c-05, spatial audio placed where the residues are (2026-08-31)
+
+PLAN: "Spatial audio finally does what the Phase 3 design always intended: notes arrive from
+where their residues actually are."
+
+**Phase 3 had already done most of it**, and the temptation was to tick this off. Each note is
+already placed at its residue's live coordinate through `AVAudioEnvironmentNode` with HRTF, at
+20 angstroms to the metre, with the listener at the origin so the protein wraps around them.
+Two things were genuinely missing, and neither is audible as a fault - both just make the sound
+subtly disagree with the picture:
+
+- **The stage turns and the sound did not.** `FoldCanvas` rotates the protein entity; the audio
+  used raw coordinates. A residue visibly on your left arrived from wherever it happened to
+  start. On a phone that is a curiosity; on a headset, where the picture and the listener share
+  a space, it is the whole illusion coming apart.
+- **A volume is somewhere.** The Phase 3 placement puts the listener *inside* the protein, which
+  is right for the concert hall and wrong for an object on a desk: audio from inside your own
+  skull for something you are looking at over there is hard to name and impossible to ignore.
+
+`SpatialStage` is the placement as a value type, with 8 tests, and the first of them is the one
+that matters: **the default is bit-for-bit the Phase 3 placement**. Nothing on this machine can
+hear any of this, so the surfaces where the sound was already right were left alone and visionOS
+is the only one that sets anything.
+
+| | |
+|---|---|
+| Concert hall | `aroundTheListener`, 20 Å/m, now carrying the stage's live rotation |
+| Volume | `inAVolume(distance: 1.0, span: 0.6)`, scaled from the protein's own extent |
+| Everywhere else | unchanged: origin, 20 Å/m, identity rotation |
+
+The volume scale is derived from the protein rather than fixed, so a 20-residue peptide and a
+300-residue domain both fill the volume - which is what the stage already does to the picture,
+and the sound has to agree with the picture or the two are describing different objects.
+
+**The one guess:** how far in front the volume sits. A volume is placed by the person wearing
+the headset and the app is not told where it ended up, so 1.0 m is arm's length and nothing
+more. In `BLOCKERS.md`.

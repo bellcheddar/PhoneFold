@@ -130,6 +130,14 @@ struct FoldCanvas: View {
             }
         .onAppear {
             stage.updateForConditions()
+            #if os(visionOS)
+            // PLAN.md Phase 5c: "spatial audio finally does what the Phase 3 design always
+            // intended". The half that was missing is that the stage turns and the sound did
+            // not, so a residue visibly on your left arrived from wherever it started.
+            stage.onStageTransformChanged = { [player] attitude, extent in
+                player.stageTransformChanged(attitude: attitude, extent: extent)
+            }
+            #endif
             stage.startClock()
             #if os(macOS)
             stage.installScrollMonitor()
@@ -144,6 +152,7 @@ struct FoldCanvas: View {
         }
         .onDisappear {
             stage.stopClock()
+            stage.onStageTransformChanged = nil
             #if os(macOS)
             stage.removeScrollMonitor()
             #endif
@@ -489,6 +498,11 @@ final class StageContent {
     /// separately, the two drift apart and the halo lights the wrong side of the protein.
     private func proteinRotation() -> simd_quatf { camera.subjectRotation }
 
+    /// Told whenever the protein's orientation or size changes, so the spatial audio can
+    /// follow it. Set by `FoldCanvas` on visionOS and left nil everywhere else: it is the only
+    /// surface where the picture and the listener share a space.
+    var onStageTransformChanged: ((simd_quatf, Float) -> Void)?
+
     private func applyProteinTransform() {
         guard let bounds = lastBounds else { return }
         let extent = simd_length(bounds.maximum - bounds.minimum)
@@ -499,6 +513,9 @@ final class StageContent {
                                       rotation: rotation,
                                       translation: rotation.act(-(centre + camera.target) * scale))
         refreshOutline()
+        // After the transform, not before: the sound follows the picture, and reporting the
+        // rotation the picture is about to have would put them a frame apart.
+        onStageTransformChanged?(rotation, extent)
     }
 
     /// Keep the box a pinch has to hit in step with the protein it is meant to be.

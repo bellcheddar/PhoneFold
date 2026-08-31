@@ -955,3 +955,14 @@ surface to synthesise a drag against.
       wrist settles: whether six seconds is the right length for something you look at while
       walking, and whether a `.click` per contact burst under a fold that forms 553 to 2,131
       contacts reads as a rhythm or as noise. `WristHaptics`' burst threshold is the dial
+
+- [ ] Listen to the spatial audio in both places, which is the whole of what P5c-05 changed and
+      none of which can be heard from this machine:
+- [ ] In the concert hall, turn the stage and check the sound turns with it. Before this the
+      picture rotated and the sound stayed put
+- [ ] In a volume, check the fold sounds like it is coming from the volume rather than from
+      inside your head - and say whether 1.0 m is right. A volume is placed by the wearer and
+      the app is not told where it ended up, so that number is arm's length and a guess; it is
+      the only guess in the placement
+- [ ] Check that a 20-residue peptide and a 300-residue domain both sound like they fill the
+      volume, since the scale is derived from the protein's own extent

@@ -238,6 +238,12 @@ final class ScoreConductor: @unchecked Sendable {
 
     // MARK: - What it measured about itself
 
+    /// Where the protein is, in the listener's world. See `SpatialStage`.
+    ///
+    /// Passed straight through: the conductor owns the engine, and the surface that knows where
+    /// the protein is standing - which is only ever visionOS - has no other way to reach it.
+    func setSpatialStage(_ stage: SpatialStage) { engine.setStage(stage) }
+
     var soundingVoices: Int { engine.soundingVoices }
     var hapticsAvailability: FoldHaptics.Availability { haptics.availability }
     var starvedBeats: Int { engine.starvedBeats }

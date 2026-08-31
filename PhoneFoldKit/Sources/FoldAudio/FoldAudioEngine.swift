@@ -105,6 +105,10 @@ public final class FoldAudioEngine: @unchecked Sendable {
         var positions: [SIMD3<Float>] = []
         var counter = 0
         var droppedForPolyphony = 0
+        /// Where the protein is, in the listener's world. Inside the lock with the coordinates
+        /// it applies to, because the two are read together and a stage that changed between
+        /// them would place one note of a chord somewhere else.
+        var stage = SpatialStage()
     }
     private let state = Mutex(Scheduling())
 
@@ -291,6 +295,21 @@ public final class FoldAudioEngine: @unchecked Sendable {
         }
     }
 
+    /// Where the protein is, in the listener's world.
+    ///
+    /// PLAN.md Phase 5c: in the concert hall, "spatial audio finally does what the Phase 3
+    /// design always intended: notes arrive from where their residues actually are."
+    ///
+    /// **Default unchanged, and deliberately so.** The default is the protein wrapped around
+    /// the listener at 20 angstroms to the metre - the Phase 3 design, which has been listened
+    /// to. What it does not do is turn: the stage rotates the protein and the sound stays put,
+    /// so on a headset a residue you can see on your left arrives from somewhere else. That
+    /// only matters where the picture and the listener share a space, which is visionOS, so
+    /// that is the surface that sets this and nothing else changes. Nobody here can hear it.
+    public func setStage(_ stage: SpatialStage) {
+        state.withLock { $0.stage = stage }
+    }
+
     /// Start whatever is due at `time`, in seconds from the start of playback.
     ///
     /// Called from the scheduler, never from the audio thread: it allocates nothing, but it
@@ -301,7 +320,8 @@ public final class FoldAudioEngine: @unchecked Sendable {
             scheduling.clock.advance(to: time, into: &scheduling.due)
             for scheduled in scheduling.due {
                 starting.append((scheduled, Self.position(of: scheduled.note,
-                                                          in: scheduling.positions)))
+                                                          in: scheduling.positions,
+                                                          stage: scheduling.stage)))
             }
             scheduling.due.removeAll(keepingCapacity: true)
         }
@@ -314,15 +334,16 @@ public final class FoldAudioEngine: @unchecked Sendable {
     /// physically is. A note whose residue has no coordinate - a chain shorter than the score
     /// thinks, a frame not yet delivered - is placed at the centre rather than dropped.
     static func position(of note: NoteEvent,
-                         in coordinates: [SIMD3<Float>]) -> SIMD3<Float> {
+                         in coordinates: [SIMD3<Float>],
+                         stage: SpatialStage = SpatialStage()) -> SIMD3<Float> {
         var total = SIMD3<Float>.zero
         var count: Float = 0
         for index in note.spatialResidues where coordinates.indices.contains(index) {
             total += coordinates[index]
             count += 1
         }
-        guard count > 0 else { return .zero }
-        return total / count / angstromsPerMetre
+        guard count > 0 else { return stage.centre }
+        return stage.place(total / count)
     }
 
     private func start(_ scheduled: ScheduledNote, at position: SIMD3<Float>) {
