@@ -30,6 +30,8 @@ struct ScoreControls: View {
                           systemImage: isSoundOn ? "speaker.wave.2.fill" : "speaker.slash.fill")
                         .labelStyle(.titleAndIcon)
                         .font(.system(size: 12, weight: .semibold))
+                        .lineLimit(1)
+                        .fixedSize()
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
                         .background(Capsule().fill(isSoundOn
@@ -42,33 +44,54 @@ struct ScoreControls: View {
                 .accessibilityHint("Turns the music for this fold on or off")
                 .accessibilityAddTraits(isSoundOn ? [.isSelected] : [])
 
-                ForEach(styles) { style in
-                    Button {
-                        styleID = style.id
-                    } label: {
-                        Text(style.name)
-                            .font(.system(size: 12, weight: .semibold))
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(
-                                Capsule().fill(styleID == style.id
-                                               ? Color(hex: 0x2B5CE6)
-                                               : Color.white.opacity(0.08)))
-                            .foregroundStyle(isSoundOn ? .white : Color.white.opacity(0.35))
+                // **The five styles scroll rather than share the width.** Measured on an
+                // iPhone 17: five style capsules beside the sound toggle, the route picker and
+                // the MIDI button in one fixed row left each label about forty points, and
+                // SwiftUI's answer to that is to wrap the text rather than to shrink anything -
+                // so "Fantasy" rendered one letter per line and clipped, and Pop, Rock and Surf
+                // each broke across two. Scrolling keeps every style one tap away, which is the
+                // point of being able to change it while the piece is playing.
+                ScrollView(.horizontal) {
+                    HStack(spacing: 8) {
+                        ForEach(styles) { style in
+                            Button {
+                                styleID = style.id
+                            } label: {
+                                Text(style.name)
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .lineLimit(1)
+                                    .fixedSize()
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(
+                                        Capsule().fill(styleID == style.id
+                                                       ? Color(hex: 0x2B5CE6)
+                                                       : Color.white.opacity(0.08)))
+                                    .foregroundStyle(isSoundOn
+                                                     ? .white : Color.white.opacity(0.35))
+                            }
+                            .buttonStyle(.plain)
+                            // Not hidden when the sound is off: a control that vanishes takes
+                            // its meaning with it, and the style is still what the piece would
+                            // be.
+                            .disabled(!isSoundOn)
+                            // **Selection is carried by colour alone**, which VoiceOver cannot
+                            // see and a colour-blind user may not either. `isSelected` makes it
+                            // a trait, so it is spoken as "selected" and shown by Differentiate
+                            // Without Color.
+                            .accessibilityLabel("\(style.name) style")
+                            .accessibilityHint(style.summary)
+                            .accessibilityAddTraits(styleID == style.id ? [.isSelected] : [])
+                        }
                     }
-                    .buttonStyle(.plain)
-                    // Not hidden when the sound is off: a control that vanishes takes its
-                    // meaning with it, and the style is still what the piece would be.
-                    .disabled(!isSoundOn)
-                    // **Selection is carried by colour alone**, which VoiceOver cannot see and
-                    // a colour-blind user may not either. `isSelected` makes it a trait, so it
-                    // is spoken as "selected" and shown by Differentiate Without Color.
-                    .accessibilityLabel("\(style.name) style")
-                    .accessibilityHint(style.summary)
-                    .accessibilityAddTraits(styleID == style.id ? [.isSelected] : [])
+                    // Room for the capsules' shadows and the focus ring, which a scroll view
+                    // clips to its bounds.
+                    .padding(.vertical, 2)
                 }
-
-                Spacer(minLength: 0)
+                .scrollIndicators(.hidden)
+                // The scroll view is the only thing here that may be squeezed. Everything else
+                // keeps its intrinsic width, which is what stopped the wrapping.
+                .layoutPriority(-1)
 
                 // Where the music goes. Next to the sound controls rather than in a menu,
                 // because on a phone in a lecture theatre it is the first thing wanted.
@@ -78,6 +101,8 @@ struct ScoreControls: View {
                     Button(action: onExportMIDI) {
                         Label("MIDI", systemImage: "square.and.arrow.up")
                             .font(.system(size: 12, weight: .semibold))
+                            .lineLimit(1)
+                            .fixedSize()
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
                             .background(Capsule().fill(Color.white.opacity(0.08)))
