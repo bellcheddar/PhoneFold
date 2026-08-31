@@ -143,9 +143,23 @@ struct StageView: View {
                 .padding(.horizontal, 20)
                 .padding(.top, 6)
                 .padding(.bottom, 6)
-                FoldCanvas(player: player, diagnostic: $meshDiagnostic)
+                // **In an overlay on `Color.clear`, and that is load-bearing.** A `RealityView`
+                // reports an intrinsic width of its own - measured at 451.33 points on a
+                // 402-point phone - and as a direct child of this stack it handed that ideal to
+                // every sibling: the header, the HUD and the gallery all laid out at 451.33 and
+                // lost their side padding off both edges, while the stack itself still measured
+                // 402. Proved by substitution: replacing this one view with `Color.clear` put
+                // every row back to exactly 402.
+                //
+                // `Color.clear` has no intrinsic size and takes whatever it is offered, and an
+                // overlay never influences what it is drawn on, so the canvas now fits the
+                // stage instead of the stage fitting the canvas.
+                Color.clear
                     .measured("canvas")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .overlay {
+                        FoldCanvas(player: player, diagnostic: $meshDiagnostic)
+                    }
                     .overlay {
                         switch runner.state {
                         case .folding(let fraction):
@@ -293,8 +307,17 @@ struct StageView: View {
                 // overlay added to diagnose the stuck drag could never appear in the one
                 // place it was needed. Env-gated is already opt-in enough.
                 if Diagnostics.isEnabled {
+                    // Wrapped, and that is not cosmetic. The diagnostic is one long
+                    // unbroken monospaced line, and an unwrapped `Text` reports its full
+                    // length as its ideal width - which made the whole control column wider
+                    // than the phone and pushed every row off both edges. A debug overlay that
+                    // breaks the layout it exists to diagnose is worse than no overlay: it
+                    // sent this session chasing a clipping bug that only existed while the
+                    // overlay was on.
                     Text(player.diagnostic + "  " + meshDiagnostic)
                         .scaledFont(10, design: .monospaced, relativeTo: .caption)
+                        .lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
                         .foregroundStyle(Color(hex: 0xFCB900))
                 }
                 // Whatever this trajectory's claim is, stated. A generated protein has never

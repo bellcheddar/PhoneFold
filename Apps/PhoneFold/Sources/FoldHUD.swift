@@ -85,32 +85,40 @@ struct FoldHUD: View {
 
     // MARK: - Counters
 
-    /// The counter strip: the readings scroll, the compute meter stays put.
+    /// The counter strip, laid out for whatever width it is given.
     ///
-    /// **`ViewThatFits` was making the whole app wider than the phone, and this is the fix.**
-    /// It was introduced to avoid a scroll view clipping the last counter mid-value - "H/E/C
-    /// 45/1" reads as a layout fault rather than a reading - by dropping the meter onto a second
-    /// line when one row would not fit. The trap is that `ViewThatFits` measures each candidate
-    /// at its *ideal* size, a scroll view's ideal size is its whole content, and when no
-    /// candidate fits it uses the last one at that ideal. At the largest accessibility text size
-    /// neither candidate fitted, so this view reported 465.67 points on a 402-point screen, the
-    /// stage grew to match and was centred, and the entire app bled off both edges. Measured:
-    /// the root view's own `GeometryReader` read 465.67 while `UIScreen.main.bounds` read 402,
-    /// and a red border on the root was not visible on any edge.
+    /// **`ViewThatFits` over a plain row, and this was re-established the hard way.** A scroll
+    /// view was tried here and made things worse: it has no intrinsic width to contribute, so
+    /// the enclosing row sized itself to the meter alone, and the readings drew from outside the
+    /// row's own bounds - "RG" appeared half off the left edge of the screen while its container
+    /// measured a correctly padded 362 points. Neither `.layoutPriority` nor
+    /// `.defaultScrollAnchor(.leading)` moved it, because the frame was right and only the
+    /// content's position was wrong.
     ///
-    /// A plain row with a scrolling half and a pinned half cannot do that: the scrolling half
-    /// accepts whatever width is left. It is the same shape as every other control row here.
+    /// The original arrangement is correct and is restored: one row when it fits, the meter
+    /// dropped to a second line when it does not, and nothing truncated either way. A reading
+    /// cut in half - "H/E/C 45/1" - is worse than no reading, because it looks like a layout
+    /// fault and cannot be trusted.
+    ///
+    /// The overflow at accessibility text sizes that prompted the scroll view had a different
+    /// cause, found later and fixed at its source: three `fixedSize` labels that drop to
+    /// icon-only (`AdaptiveLabelStyle`), and a `RealityView` handing its own intrinsic width to
+    /// every sibling (see `StageView`).
     private var counters: some View {
-        HStack(alignment: .top, spacing: 0) {
-            countersRow
-                // The only part that may be squeezed. The meter keeps its intrinsic width.
-                .layoutPriority(-1)
-            Spacer(minLength: 12)
-            computeMeter
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: 0) {
+                countersRow
+                Spacer(minLength: 12)
+                computeMeter
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                countersRow
+                computeMeter
+            }
         }
     }
 
-    /// The five readings, scrolling.
+    /// The five readings.
     ///
     /// **This row was making the whole app wider than the phone.** `fixedSize(horizontal: true)`
     /// is right for the numbers themselves - without it "7.5 Å" wraps mid-value and reads as a
@@ -123,7 +131,7 @@ struct FoldHUD: View {
     ///
     /// Scrolling keeps the numbers unwrapped and lets the row give back the width.
     private var countersRow: some View {
-        ControlRow(spacing: 14) {
+        HStack(alignment: .top, spacing: 14) {
             if let now = scrubbed ?? history.latest {
                 counter("Rg", String(format: "%.1f Å", now.radiusOfGyration))
                 counter("Compact", String(format: "%.2f", now.compactness),
@@ -138,8 +146,7 @@ struct FoldHUD: View {
             }
         }
         // Every counter on one line: without this the values wrap mid-number and "7.5 Å"
-        // becomes two lines, which reads as a layout fault rather than a reading. Inside a
-        // scrolling row it costs nothing, because the row can now be narrower than its content.
+        // becomes two lines, which reads as a layout fault rather than a reading.
         .lineLimit(1)
         .fixedSize(horizontal: true, vertical: false)
     }

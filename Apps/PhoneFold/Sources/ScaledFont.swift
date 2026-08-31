@@ -66,6 +66,12 @@ struct ControlRow<Content: View>: View {
                 .padding(.vertical, 2)
         }
         .scrollIndicators(.hidden)
+        // **Always shows its first item.** These rows carry live values - the readings update
+        // every frame - and a scroll view whose content changes width can settle somewhere
+        // other than the start, which put the "RG" label half off the left edge of the screen
+        // while its container measured a correctly padded 362 points. The frame was right and
+        // the scroll offset was not.
+        .defaultScrollAnchor(.leading)
         // **Takes the width it is offered rather than the width it wants.** Without this a
         // scroll view reports its *content* width as its ideal width, that ideal travels up
         // through every enclosing stack, and the whole control column ends up wider than the
@@ -83,13 +89,20 @@ extension View {
     /// stack takes the widest ideal its children report, so an overflowing column says nothing
     /// about *which* child overflowed it - and three rounds of plausible fixes to the wrong
     /// child produced pixel-identical screenshots.
+    /// **Reports every change, not just the first layout.** It used `onAppear`, which fires
+    /// once - so a row that is empty when the view first appears and full once the fold has
+    /// produced readouts reported its empty width for ever. That sent a real investigation
+    /// after a counters row "measured at 0 points", which was simply the size it had before
+    /// there was anything to count.
     func measured(_ name: String) -> some View {
         background(
             Diagnostics.isEnabled
                 ? AnyView(GeometryReader { proxy in
-                    Color.clear.onAppear {
-                        Diagnostics.log.notice("\(name) \(proxy.size.width)")
-                    }
+                    Color.clear
+                        .onAppear { Diagnostics.log.notice("\(name) \(proxy.size.width)") }
+                        .onChange(of: proxy.size.width) { _, width in
+                            Diagnostics.log.notice("\(name) \(width)")
+                        }
                 })
                 : AnyView(Color.clear))
     }
