@@ -886,3 +886,22 @@ same self-match trap as the pgrep one. The probe was removed rather than left in
 - [ ] Play a fold on the phone, pause it mid-piece, wait, and resume. Check the picture and the
       sound resume together, that progress continues rather than jumping, and that there is no
       click on the first note back
+
+
+## Phase 5b: the remote needs a paired Watch (2026-08-31)
+
+Both ends are wired and all three surfaces build. The phone hosts, publishes its state rate
+limited to a whole percent of progress, and acts on every command; the Watch shows what it is
+told and sends commands, including the Crown as a stream of scrub positions. Ten tests cover the
+handshake against a mock session, which is what PLAN's gate asks for.
+
+None of that proves a command crosses. A paired Watch is the only way to see the rest.
+
+- [ ] Pair the Watch simulator with the phone simulator, or use real devices, and check a fold
+      started on the phone appears on the wrist within a second or two
+- [ ] Press pause on the wrist and confirm the phone's fold actually holds, picture and sound
+      together, rather than ending
+- [ ] Turn the Crown and confirm the timeline follows without the ring fighting the phone's own
+      progress updates. That interaction is the one most likely to be wrong: the wrist shows the
+      phone's progress *and* the Crown's position, and only one of them can win while scrubbing
+- [ ] Relaunch the Watch app mid-fold and confirm the handshake fills it in unprompted

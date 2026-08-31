@@ -49,7 +49,8 @@ targets:
         type: folder
     dependencies:
       - package: PhoneFoldKit
-        products: [FoldCore, FoldGeometry, FoldEngine, FoldRender, FoldAudio, FoldCapture]
+        products: [FoldCore, FoldGeometry, FoldEngine, FoldRender, FoldAudio, FoldCapture,
+                   FoldSync]
       # iOS only, and filtered rather than conditioned: PhoneFold is one target for two
       # platforms, and a macOS build that tries to embed an iOS app extension fails outright.
       - target: PhoneFoldWidgets
@@ -152,7 +153,8 @@ targets:
         type: folder
     dependencies:
       - package: PhoneFoldKit
-        products: [FoldCore, FoldGeometry, FoldEngine, FoldRender, FoldAudio, FoldCapture]
+        products: [FoldCore, FoldGeometry, FoldEngine, FoldRender, FoldAudio, FoldCapture,
+                   FoldSync]
     info:
       path: PhoneFoldStudio-Info.plist
       properties:

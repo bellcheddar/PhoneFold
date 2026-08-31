@@ -228,6 +228,15 @@ struct StageView: View {
             .dynamicTypeSize(...DynamicTypeSize.accessibility3)
         }
         .preferredColorScheme(.dark)
+        // A fold the wrist asked for. Handled here rather than in the model because this view
+        // owns the gallery selection and the accession field, and two places deciding what is
+        // playing is how they come to disagree.
+        .onChange(of: model.requestedGalleryID) { _, requested in
+            guard let requested,
+                  let entry = library.entries.first(where: { $0.id == requested }) else { return }
+            model.requestedGalleryID = nil
+            start(entry)
+        }
         .onContinueUserActivity(FoldHandoff.activityType) { activity in
             guard let payload = FoldHandoff.from(userInfo: activity.userInfo) else { return }
             continueFold(payload)

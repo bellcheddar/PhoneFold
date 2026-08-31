@@ -2,6 +2,8 @@ import Foundation
 import SwiftUI
 import Combine
 import FoldCore
+import FoldRender
+import FoldSync
 
 /// The one fold the app is playing, owned above any scene.
 ///
@@ -38,6 +40,27 @@ final class PhoneFoldModel: ObservableObject {
     let activity = FoldActivityController()
 
     private var observers: Set<AnyCancellable> = []
+
+    /// The Watch, when there is one. PLAN.md Phase 5b: the wrist is a remote, so the phone is
+    /// the host and the only source of truth.
+    ///
+    /// **`canImport` here, and `os(iOS)` for ActivityKit, and the difference is real.**
+    /// WatchConnectivity does not exist on macOS at all, so `canImport` is false and the guard
+    /// works. ActivityKit *does* import on macOS and then marks every symbol unavailable, which
+    /// is why that one needs an explicit platform test. Reaching for the same idiom in both
+    /// places is how the second one took eight compile errors to notice.
+    private var watchLink: RemoteLink?
+    #if canImport(WatchConnectivity)
+    private var watchTransport: WatchConnectivityTransport?
+    #endif
+
+    /// A fold the wrist asked for, which only `StageView` can actually start: it owns the
+    /// gallery selection and the accession field, and a model reaching into those would be two
+    /// things deciding what is playing.
+    @Published var requestedGalleryID: String?
+
+    /// The last state sent to the wrist, for the same rate limit the Live Activity uses.
+    private var lastPublishedToWatch: FoldRemote.State?
 
     init() {
         observeForActivity()
