@@ -3363,3 +3363,32 @@ compile `FoldEngine` first. Under load the ordering changes and the accident sto
 quiet machine and fails on a busy one is not noise to be re-run until it agrees: the two runs
 were both telling the truth about different orderings of the same undeclared edge. Declaring it
 makes both orderings correct.
+
+## P5b-07, the Live Activity on the wrist (2026-08-31)
+
+PLAN: "Live Activity mirrored on the wrist."
+
+**Half of this was already free, and that is what makes the other half easy to miss.** watchOS
+puts a running Live Activity into the Smart Stack whether or not the app says anything: with no
+declaration the feature *appears* to work, showing the iPhone Lock Screen banner squeezed onto a
+watch face. `supplementalActivityFamilies([.small])` is what buys a layout designed for a wrist,
+and `@Environment(\.activityFamily)` is what lets the banner tell which one it is being asked
+for.
+
+Three details that are not guesses:
+
+- `ActivityFamily` is `@available(iOS 18.0, *)` and **unavailable on watchOS, visionOS and
+  macOS** - it is declared by the *iPhone's* widget extension, which is the only target that has
+  it, and the deployment target here is already 18.0.
+- `activityFamily` arrives in the environment, so the banner had to become a `View` rather than
+  stay a `@ViewBuilder` method on the `WidgetConfiguration`, which has no environment to read.
+  `detail` and `tint` became statics because the Dynamic Island closure still needs them.
+- `.medium` is deliberately not listed. It is the iPhone banner and is what the unannotated body
+  already is; naming it would claim two designs where there is one.
+
+The wrist card carries the protein and the progress and nothing else. The Lock Screen gets a
+metre of distance and a glance of a second or two; a Smart Stack card is read at arm's length in
+less, often while the arm is still moving - and the confidence already has a place on the wrist,
+in the complication, which is a different question asked at a different time.
+
+**Measured:** builds. **Not measured:** what it looks like on a wrist. In `BLOCKERS.md`.

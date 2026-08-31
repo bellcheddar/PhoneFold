@@ -370,7 +370,7 @@ unreachable. `FoldSync` is currently a stub with a version string, so this is al
 | P5b-04 | Wrist haptics of the fold, the phone keeping the audio | P5b-02 | done: `FoldRemote.Cue`, `WristHaptics` (9 tests), the wrist plays them; feeling them is Marc's (BLOCKERS.md) |
 | P5b-05 | Complication: the last fold's mean confidence as a progress ring, tap to open the remote | P5b-02 | done: 7 timeline tests, widget extension builds |
 | P5b-06 | Fold of the Day: one precomputed short trajectory, playable on the Watch with no phone | P5b-02 | todo |
-| P5b-07 | Live Activity mirrored on the wrist | P4-11, P5b-02 | todo |
+| P5b-07 | Live Activity mirrored on the wrist | P4-11, P5b-02 | done: `.small` supplemental family and a wrist layout; seeing it is Marc's (BLOCKERS.md) |
 
 **Machine gate (5b):** builds, the connectivity handshake unit-tested with a mock session,
 complication timeline entries generated correctly.

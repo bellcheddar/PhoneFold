@@ -943,3 +943,9 @@ surface to synthesise a drag against.
 - [ ] Check the pinch box does not extend noticeably beyond the protein. It is padded to a
       minimum of 0.5 A on a degenerate axis, which is invisible on a folded structure and might
       not be on a fully extended chain
+
+- [ ] Look at the Live Activity on the wrist. It reaches the Smart Stack whether or not the app
+      declares anything, so the check is not "does it appear" - it is whether what appears is the
+      wrist layout (a capacity gauge and two lines) or the iPhone Lock Screen banner squeezed
+      onto a watch face, which is what the system falls back to and which is why the missing
+      declaration would have been invisible
