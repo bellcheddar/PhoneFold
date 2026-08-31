@@ -19,15 +19,18 @@ public struct NoteEvent: Sendable, Hashable {
     public let beatOffset: Double
     /// How long it sounds, in beats.
     public let duration: Double
+    /// Which fold this note belongs to, in a duet. `.solo` for every ordinary piece.
+    public let part: DuetPart
 
     public init(voice: Voice, note: MIDINote, residue: Int, partner: Int? = nil,
-                beatOffset: Double = 0, duration: Double = 1) {
+                beatOffset: Double = 0, duration: Double = 1, part: DuetPart = .solo) {
         self.voice = voice
         self.note = note
         self.residue = residue
         self.partner = partner
         self.beatOffset = beatOffset
         self.duration = duration
+        self.part = part
     }
 
     /// The residues whose coordinates place this note. One for a texture note, two for a

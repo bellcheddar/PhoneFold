@@ -23,11 +23,13 @@ public enum MIDIFile {
     /// A coarser division would quantise the flurry onto the beat and lose the run.
     public static let ticksPerQuarter = 480
 
-    /// One channel per voice, so a DAW can give each its own instrument. Channel 9 is skipped:
-    /// it is General MIDI's drum channel and anything landing there would be played as
-    /// percussion whatever the note said.
-    public static func channel(for voice: Voice) -> UInt8 {
-        UInt8(voice.slot)
+    /// One channel per voice, so a DAW can give each its own instrument.
+    ///
+    /// A duet puts its two folds on separate channels - PLAN.md's "two channels" - by offsetting
+    /// the mutant past channel 9, which is General MIDI's drum channel: anything landing there
+    /// would be played as percussion whatever the note said.
+    public static func channel(for voice: Voice, part: DuetPart = .solo) -> UInt8 {
+        UInt8(voice.slot) + part.channelOffset
     }
 
     // MARK: - Writing
@@ -78,6 +80,7 @@ public enum MIDIFile {
     /// One note on its way into a track, before overlaps are resolved.
     struct PendingNote {
         var voice: Voice
+        var part: DuetPart
         var pitch: UInt8
         var velocity: UInt8
         var start: Int
@@ -99,7 +102,8 @@ public enum MIDIFile {
     static func resolveOverlaps(_ notes: [PendingNote]) -> [PendingNote] {
         var byKey: [Int: [Int]] = [:]
         for (index, note) in notes.enumerated() {
-            byKey[Int(channel(for: note.voice)) << 8 | Int(note.pitch), default: []].append(index)
+            byKey[Int(channel(for: note.voice, part: note.part)) << 8 | Int(note.pitch),
+                  default: []].append(index)
         }
         var resolved = notes
         for indices in byKey.values {
@@ -137,29 +141,38 @@ public enum MIDIFile {
             for note in moment.notes {
                 let onset = tick + Int((note.beatOffset * Double(ticksPerQuarter)).rounded())
                 let length = Swift.max(Int((note.duration * Double(ticksPerQuarter)).rounded()), 1)
-                pending.append(PendingNote(voice: note.voice, pitch: note.note.pitch,
+                pending.append(PendingNote(voice: note.voice, part: note.part,
+                                           pitch: note.note.pitch,
                                            velocity: note.note.velocity,
                                            start: onset, end: onset + length))
             }
             tick += Int((moment.beats * Double(ticksPerQuarter)).rounded())
         }
 
-        var voiceEvents: [Voice: [Event]] = [:]
+        // One track per voice *per part*, so a duet opens in a DAW as two labelled groups of
+        // five rather than as five tracks with two proteins tangled in each.
+        struct Line: Hashable { let part: DuetPart; let voice: Voice }
+        var lineEvents: [Line: [Event]] = [:]
         for note in resolveOverlaps(pending) {
-            let channel = channel(for: note.voice)
-            voiceEvents[note.voice, default: []].append(Event(
+            let line = Line(part: note.part, voice: note.voice)
+            let channel = channel(for: note.voice, part: note.part)
+            lineEvents[line, default: []].append(Event(
                 tick: note.start, priority: 1,
                 bytes: [0x90 | channel, note.pitch, note.velocity]))
-            voiceEvents[note.voice, default: []].append(Event(
+            lineEvents[line, default: []].append(Event(
                 tick: note.end, priority: 0,
                 bytes: [0x80 | channel, note.pitch, 0x40]))
         }
 
         // A stable track order, so the same score writes the same bytes every time.
-        let voices = Voice.allCases.filter { voiceEvents[$0]?.isEmpty == false }
         var tracks = [track(named: style.name, events: conductor)]
-        for voice in voices {
-            tracks.append(track(named: voice.rawValue, events: voiceEvents[voice] ?? []))
+        for part in DuetPart.allCases {
+            for voice in Voice.allCases {
+                let line = Line(part: part, voice: voice)
+                guard let events = lineEvents[line], !events.isEmpty else { continue }
+                let name = part == .solo ? voice.rawValue : "\(part.rawValue) \(voice.rawValue)"
+                tracks.append(track(named: name, events: events))
+            }
         }
 
         let header = chunk("MThd", bigEndian(1, bytes: 2)                // format 1

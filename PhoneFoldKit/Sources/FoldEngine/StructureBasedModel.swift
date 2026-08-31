@@ -30,6 +30,8 @@ public struct StructureBasedModel: Sendable {
         public var dihedralStiffness: Double = 1
         /// Depth of a native contact's well.
         public var epsilon: Double = 1
+        /// A point substitution to represent, or nil for the wild type.
+        public var mutation: Mutation?
         /// Radius of the non-native repulsion.
         public var nonNativeSigma: Double = 4
         /// Two residues are a native contact below this separation, in angstroms.
@@ -92,6 +94,14 @@ public struct StructureBasedModel: Sendable {
     private let dihedralAngle: [Double]
     // Native contacts and their equilibrium separations, and everything else.
     private let nativeI: [Int32], nativeJ: [Int32], nativeSigma: [Double]
+    /// Per-contact multiplier on `epsilon`, 1 everywhere in a wild-type fold.
+    ///
+    /// This is how a substitution is represented: the native structure is kept and the
+    /// interactions the substituted residue makes are weakened, which is what structure-based
+    /// models have done since Clementi, Nymeyer and Onuchic. The mutant then folds toward the
+    /// same target less well rather than toward a different one - which is honest, because
+    /// nothing on this device can predict what a mutant's structure would be.
+    private let nativeStrength: [Double]
     private let otherI: [Int32], otherJ: [Int32]
 
     public var residueCount: Int { native.count }
@@ -133,6 +143,25 @@ public struct StructureBasedModel: Sendable {
             }
         }
         nativeI = ni; nativeJ = nj; nativeSigma = ns; otherI = oi; otherJ = oj
+
+        if let mutation = parameters.mutation, mutation.position >= 0, mutation.position < n {
+            // Burial from the residue's own contact count, which the map above already has -
+            // no surface-area calculation, and the same measure the model itself is built on.
+            var contactsAt = 0
+            for index in 0..<ni.count
+            where Int(ni[index]) == mutation.position || Int(nj[index]) == mutation.position {
+                contactsAt += 1
+            }
+            let retained = mutation.retainedContactStrength(
+                burial: Mutation.burial(contactCount: contactsAt))
+            nativeStrength = (0..<ni.count).map { index in
+                let touches = Int(ni[index]) == mutation.position
+                    || Int(nj[index]) == mutation.position
+                return touches ? retained : 1
+            }
+        } else {
+            nativeStrength = [Double](repeating: 1, count: ni.count)
+        }
     }
 
     // MARK: - Geometry
@@ -225,7 +254,7 @@ public struct StructureBasedModel: Sendable {
             let r2 = simd_dot(dv, dv)
             let s2 = nativeSigma[index] * nativeSigma[index] / r2
             let s10 = s2 * s2 * s2 * s2 * s2, s12 = s10 * s2
-            let g = dv * -(p.epsilon * 60 * (s10 - s12) / r2)
+            let g = dv * -(p.epsilon * nativeStrength[index] * 60 * (s10 - s12) / r2)
             f[i] -= g
             f[j] += g
         }

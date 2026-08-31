@@ -2737,3 +2737,57 @@ that is not on the list is rejected at submission, which is a long way from here
 Marc's `marcs-vibe-icon` skill "matching the portfolio house style", and that skill is not
 installed on this machine. Drawing one anyway would be inventing the house style rather than
 matching it, so it is in BLOCKERS.md as P4-16.
+
+### P4-09, the mutation duet (2026-08-31)
+
+PLAN.md calls this "the feature that gets it used by protein engineers rather than admired".
+Two halves: what a substitution does to the fold, and what two folds sound like together.
+
+**PhoneFold cannot predict a mutant's structure, and the feature does not pretend to.** There
+is no sequence-to-structure model on the device, and a mutant has no AlphaFold entry. What a
+structure-based model can do is the standard thing - keep the native structure and weaken the
+interactions the substituted residue makes, which is how Go-model phi-value studies have
+represented substitutions since Clementi, Nymeyer and Onuchic. The strength retained is a proxy
+from Kyte-Doolittle hydropathy scaled by burial, with glycine and proline treated as more
+disruptive than hydropathy alone implies, and burial taken from the native contact count the
+model already has.
+
+**And the obvious claim turned out to be false, which changed what the feature is.** I first
+asserted that a destabilising mutation folds less completely. Measured on villin HP36, weakening
+the most buried residue's contacts gave a **higher** final native fraction than the wild type -
+1.00 against 0.89 at 200,000 steps. A Go landscape is smooth by construction, and removing some
+of a residue's contacts can reduce frustration rather than add it. Which direction a
+perturbation moves a fold is a property of that protein and that site, not something this model
+can be assumed to get right.
+
+So the feature is a **comparison, not a stability prediction**: the duet sonifies where and by
+how much two folds diverge, which is real, rather than how much worse the mutant is, which
+would be a claim about free energy that nothing here computes. The test asserts that the two
+trajectories differ, and no longer asserts a direction.
+
+**The dissonance mapping.** The two parts are in the same key by construction, so the interval
+*between* them is the whole effect. Where they agree about a residue the mutant sings the wild
+type's note; where they disagree its note is displaced along the conventional Western
+consonance ordering - unison, octave, fifth, fourth, major sixth, major third, minor third,
+minor sixth, major second, minor seventh, major seventh, minor second, tritone - reaching a
+tritone at a 30-point confidence difference. Thirty is not a rounding difference: it is one
+fold being confident where the other is not, which is the residue an engineer is looking for.
+
+The ladder is written out where it can be argued with rather than buried in a lookup, and it is
+a convention rather than an acoustic law.
+
+**The wild type keeps the harmony.** A duet whose key was set by the thing under test would be
+reading the answer off the experiment.
+
+**The notation is checked against the sequence.** `A53T` written against the wrong isoform or
+the wrong numbering perturbs the wrong residue - and the piece would still play, which is the
+worst kind of wrong. The error names what was found: "Residue 1 is MET, not ALA".
+
+Each fold gets its own MIDI channels and its own named tracks, so a duet opens in a DAW as two
+labelled proteins rather than five tracks with two folds tangled in each. The mutant is offset
+past channel 9, which General MIDI plays as percussion whatever the note says.
+
+**A swift-testing gotcha worth recording:** `#expect(optional?.value == 64 + 6)` failed while
+reporting `70 == 70`. Comparing a `UInt8?` against a literal *expression* decomposes into
+something the macro mis-handles; assigning both sides to explicit `Int` locals first passes.
+The values were right the whole time.
