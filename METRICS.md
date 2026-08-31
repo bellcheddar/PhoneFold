@@ -2977,3 +2977,35 @@ already.
 not vertically: the controls alone are taller than the phone, the title gets pushed up under the
 Dynamic Island, and no room is left for the protein. PhoneFold is a stage. The onboarding cards
 and About are sheets, are text and nothing else, and are deliberately not capped.
+
+## P4-13 twenty consecutive folds (2026-08-31, M1 Max, release build)
+
+`swift run --package-path PhoneFoldKit -c release leak-probe`, from the repository root. Each
+fold simulates trp-cage with the structure-based model, builds the frame stream, scores it,
+renders the audio offline and puts five frames through the offscreen Metal stage. Physical
+footprint (`task_vm_info.phys_footprint`, the number jetsam uses) after each fold, in MB:
+
+| fold | 20-fold run | 40-fold run |
+|---|---|---|
+| 1 | 236.1 | 235.7 |
+| 2 | 235.7 | — |
+| 3 | 283.6 | — |
+| 8 | 395.5 | — |
+| 17 | 400.0 | 400.2 |
+| 18 | **325.1** | **334.0** |
+| 20 | 326.0 | 335.0 |
+| 26 | — | **260.1** |
+| 40 | — | 328.5 |
+
+**No leak. The footprint sawtooths between about 236 and 401 MB and is reclaimed twice.** A leak
+does not give memory back, and this gives back 75 MB at fold 18 and another 77 at fold 26. Over
+the 40-fold run the mean of the second half is **47.1 MB below** the mean of the first.
+
+**Twenty folds is not enough to tell, which is worth recording because PLAN asks for twenty.**
+The first reclaim lands at fold 18, so a twenty-fold window sees only the climb and reports
++47.0 MB between halves - indistinguishable from a slow leak. The gate therefore runs forty.
+
+`Tools/verify_phase.sh 4` now runs this and the MP4 probe rather than skipping both. What is
+still skipped is the full accessibility audit, and deliberately: VoiceOver rotor order, focus
+escape and gesture conflicts are not things a script can judge, and a check that only asserted
+labels exist would pass an app that is unusable.

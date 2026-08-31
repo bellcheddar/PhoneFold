@@ -280,7 +280,7 @@ that already exists, and because three of the four gate criteria are about them.
 | P4-11 | Live Activity and Dynamic Island | — | done |
 | P4-12 | Privacy manifest, no analytics | — | done |
 | P4-16 | App icon — **blocked**: `marcs-vibe-icon` is not installed on this machine | — | blocked |
-| P4-13 | Leak check across 20 consecutive folds | P4-03 | todo |
+| P4-13 | Leak check across 20 consecutive folds | P4-03 | done: no leak, 40-fold run in the gate |
 | P4-18 | The style row wrapped one letter per line on a phone | — | done |
 
 **Needs Marc, not a machine:** AirPlay to a real Apple TV, the exported-video comparison, cold

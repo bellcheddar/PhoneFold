@@ -54,6 +54,13 @@ let package = Package(
         .executableTarget(name: "genie2-probe",
                           dependencies: ["FoldEngine", "FoldCore"]),
 
+        // PLAN.md Phase 4's leak gate: twenty consecutive folds in one process, reporting the
+        // physical footprint after each. Twenty runs of preview-style would prove nothing,
+        // because each would start with a fresh heap.
+        .executableTarget(name: "leak-probe",
+                          dependencies: ["FoldEngine", "FoldCore", "FoldGeometry", "FoldAudio",
+                                         "FoldRender", "FoldCapture"]),
+
         // PLAN.md Phase 3's command-line renderer: a trajectory plus a style profile in, a WAV
         // out. Regression-tests audio without a device, and auditions a style tweak in
         // seconds.

@@ -754,3 +754,21 @@ menu item presses and reports success, and the screen stays unlocked.
 
 - [ ] Lock a real phone mid-fold and check the banner: protein name, progress bar, and the
       "Folding · Simulate · recycle N" line all legible without tapping
+
+
+## Phase 4: the accessibility audit is human (2026-08-31)
+
+`Tools/verify_phase.sh 4` now runs the MP4 probe and the forty-fold leak run, so the only thing
+it still skips is PLAN's "full accessibility audit passes in the Simulator". That one stays
+human on purpose. VoiceOver rotor order, whether focus can escape the 3D stage, and whether the
+scrub gesture fights VoiceOver's own are not things a script can judge, and a check that only
+asserted every control has a label would pass an app that is unusable.
+
+What is already done and machine-checked: labels, hints and `isSelected` traits on every
+control; Reduce Motion, Reduce Transparency and Differentiate Without Color; a colour-blind-safe
+secondary-structure palette; and Dynamic Type up to accessibility 3 (P4-15, capped deliberately,
+see METRICS.md).
+
+- [ ] Turn on VoiceOver and drive a whole fold by ear: choose a protein, start it, change the
+      style mid-piece, scrub the timeline, and export a film
+- [ ] Check focus can leave the stage view in both directions
