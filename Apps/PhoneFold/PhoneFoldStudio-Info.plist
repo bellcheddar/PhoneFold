@@ -24,5 +24,9 @@
 	<false/>
 	<key>NSHumanReadableCopyright</key>
 	<string>2026 Marc C. Deller</string>
+	<key>NSUserActivityTypes</key>
+	<array>
+		<string>com.mdeller.phonefold.fold</string>
+	</array>
 </dict>
 </plist>

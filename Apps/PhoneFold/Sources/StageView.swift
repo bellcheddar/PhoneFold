@@ -228,6 +228,22 @@ struct StageView: View {
             .dynamicTypeSize(...DynamicTypeSize.accessibility3)
         }
         .preferredColorScheme(.dark)
+        // PLAN.md Phase 5a: "start a fold on the phone, continue on the Mac". Published from
+        // the shared stage, so the phone advertises and the Mac adopts without either needing
+        // its own copy of what a fold is.
+        .userActivity(FoldHandoff.activityType, isActive: player.isPlaying) { activity in
+            guard let payload = handoffPayload else { return }
+            activity.title = payload.title
+            activity.isEligibleForHandoff = true
+            // Not eligible for search or prediction: this describes a fold in progress on
+            // another device, and a stale one in Spotlight a week later is noise.
+            activity.isEligibleForSearch = false
+            activity.userInfo = payload.userInfo
+        }
+        .onContinueUserActivity(FoldHandoff.activityType) { activity in
+            guard let payload = FoldHandoff.from(userInfo: activity.userInfo) else { return }
+            continueFold(payload)
+        }
         .task {
             // `PHONEFOLD_ENGINE` picks the engine at launch, which is the only way to reach
             // the picker's other options without tapping a simulator.
@@ -472,6 +488,45 @@ struct StageView: View {
                   ?? player.orderedStyles.first else { return }
         film.export(provider: provider, style: style, colourMode: player.colourMode,
                     name: selection?.id ?? provider.metadata.name)
+    }
+
+    /// What this device would tell another about the fold it is playing.
+    private var handoffPayload: FoldHandoff? {
+        guard player.provider != nil || selection != nil else { return nil }
+        return FoldHandoff(
+            subject: player.title,
+            galleryID: selection?.id,
+            accession: accession.isEmpty ? nil : accession.uppercased(),
+            engine: runner.engine,
+            styleID: player.styleID,
+            progress: player.progress,
+            // Only for the generative engine: a seed means nothing to the other two, and
+            // carrying it anyway would invite the receiving end to use it.
+            seed: runner.engine.needsReferenceStructure ? nil : generationSeed)
+    }
+
+    /// Take over a fold another device was playing.
+    ///
+    /// **The style and the engine are adopted before the fold starts**, not after. Starting the
+    /// fold first and then applying them means the first seconds play in the wrong voice, which
+    /// is the part of a handoff a person is actually watching.
+    private func continueFold(_ payload: FoldHandoff) {
+        runner.engine = payload.engine
+        player.styleID = payload.styleID
+
+        if let galleryID = payload.galleryID,
+           let entry = library.entries.first(where: { $0.id == galleryID }) {
+            start(entry)
+        } else if let fetched = payload.accession {
+            accession = fetched
+            selection = nil
+            runner.fetchAndRun(accession: fetched, engine: payload.engine, into: player)
+        } else if !payload.engine.needsReferenceStructure {
+            // The same seed, so this is the same backbone rather than a new one that happens
+            // to be generated on a different machine.
+            if let seed = payload.seed { generationSeed = seed }
+            runner.generate(seed: generationSeed, into: player)
+        }
     }
 
     private func start(_ entry: TrajectoryLibrary.Entry) {

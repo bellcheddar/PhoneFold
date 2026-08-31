@@ -28,6 +28,10 @@
 	<string>PhoneFold saves the film of a fold, with its music, to your photo library.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
+	<key>NSUserActivityTypes</key>
+	<array>
+		<string>com.mdeller.phonefold.fold</string>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

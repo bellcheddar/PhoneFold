@@ -32,11 +32,19 @@ struct PhoneFoldStudioApp: App {
             BatchWindow()
         }
         .defaultSize(width: 620, height: 520)
+
+        // PLAN.md's one analytical concession, and it lives in its own window for the same
+        // reason the batch does: it is a workbench, and the stage is a stage.
+        Window("Compare Structures", id: Self.compareWindow) {
+            CompareWindow()
+        }
+        .defaultSize(width: 680, height: 560)
     }
 
     /// Named so `openWindow` can ask for another one by identifier rather than by guessing.
     static let stageWindow = "stage"
     static let batchWindow = "batch"
+    static let compareWindow = "compare"
 }
 
 /// One window, and the fold that belongs to it.
@@ -77,6 +85,11 @@ struct StudioCommands: Commands {
                 openWindow(id: PhoneFoldStudioApp.batchWindow)
             }
             .keyboardShortcut("b", modifiers: [.command, .shift])
+
+            Button("Compare Structures…") {
+                openWindow(id: PhoneFoldStudioApp.compareWindow)
+            }
+            .keyboardShortcut("k", modifiers: [.command, .shift])
         }
 
         // PLAN.md Phase 5a: "PhoneFold Studio appears as a MIDI device so Logic, Ableton or any

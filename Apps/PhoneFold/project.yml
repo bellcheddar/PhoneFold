@@ -60,6 +60,10 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         UILaunchScreen: {}
         NSSupportsLiveActivities: true
+        # Handoff. Both apps must declare the same type or the continuation never arrives,
+        # and there is no error anywhere when they do not.
+        NSUserActivityTypes:
+          - com.mdeller.phonefold.fold
         # Required for the external display scene to be delivered at all: a scene role other
         # than the application role is only offered to an app that declares it supports more
         # than one. On iPad this also permits a second app window, which shows the same fold
@@ -155,6 +159,8 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         NSHumanReadableCopyright: "2026 Marc C. Deller"
         ITSAppUsesNonExemptEncryption: false
+        NSUserActivityTypes:
+          - com.mdeller.phonefold.fold
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.mdeller.phonefold.studio

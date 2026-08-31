@@ -39,11 +39,13 @@ Five surfaces: iPhone, iPad, Mac ("PhoneFold Studio"), Apple Watch, Vision Pro.
    `PHONEFOLD_GATE_FAST=1 bash Tools/verify_phase.sh <n>` between commits and keep the full run
    for a phase exit. The escape hatch exists; it was built and then not used six times in a row.
 
-11. **A saturated machine is not a failing build.** When another job holds this Mac (check
-   `uptime`: load well above the core count, especially with processes in uninterruptible
-   state), timings are meaningless and system services fail transiently. Flag those in
-   `BLOCKERS.md` under "Re-check on a quiet machine" rather than debugging them, use
-   `PHONEFOLD_GATE_FAST=1`, and do not add a full test suite to the contention.
+11. **A saturated machine is not a failing build, but never wait for a quiet one.** Marc's
+   instruction, 2026-08-31: do not defer work on machine state. Run the gates and the tests
+   when the work is ready. What survives from the earlier rule is only the *interpretation*:
+   when another job holds this Mac (check `uptime` for load well above the core count,
+   especially with processes in uninterruptible state), a transient system-service failure is
+   the load talking and a wall-clock number is an upper bound, so say which and carry on.
+   Never hold a commit, a gate or a phase waiting for conditions to improve.
 
 ## This machine
 

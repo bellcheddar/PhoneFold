@@ -809,7 +809,14 @@ What no test here can answer is whether the result is *music* when it lands on a
       that a duet's two folds are distinguishable
 
 
-## Re-check on a quiet machine (2026-08-31)
+## Measured under load, worth retaking sometime (2026-08-31)
+
+**Not blocking anything.** Marc's instruction is not to wait for a quiet machine, so nothing
+below holds up work; these are numbers whose absolute values are upper bounds, kept so that a
+future comparison is made against the right thing rather than against a figure taken while
+another job held a quarter of the Mac.
+
+### Original note (superseded above)
 
 Marc's Boltz run is saturating this Mac: load average 22.8, much of it uninterruptible I/O wait
 rather than CPU. Per his instruction, failures and timings attributable to that are **flagged
@@ -838,4 +845,23 @@ Everything below is unresolved *evidence*, not known-bad code.
       neither has been run clean since. Use `PHONEFOLD_GATE_FAST=1` in the meantime, which skips
       the forty-fold leak run and the five-record batch, the two long checks.
 
-Nothing here blocks building. It blocks *believing a number*.
+Nothing here blocks building, and as of Marc's instruction nothing here blocks anything at all.
+It only qualifies what an absolute number means.
+
+
+## Phase 5a: Handoff needs two devices (2026-08-31)
+
+`FoldHandoff` carries what to fold rather than the fold: which protein, which engine, which
+style, how far through, and Genie 2's seed so a generated backbone continues as the *same*
+backbone. Seven tests cover the payload, including that a missing field yields nil rather than a
+default, and that an engine name this build does not know is refused rather than becoming this
+machine's default.
+
+Both apps declare `com.mdeller.phonefold.fold` in `NSUserActivityTypes`, the phone publishes
+while playing and the Mac adopts. None of that proves a handoff actually crosses: that needs two
+devices on one iCloud account with Bluetooth and Wi-Fi on, and the same team signing both.
+
+- [ ] Start a fold on the phone, then check the PhoneFold Studio icon appears in the Mac's Dock
+      handoff slot, and that clicking it continues the same protein in the same style
+- [ ] Continue a Genie 2 fold specifically, and confirm the Mac generates the *same* backbone
+      rather than a different one, which is what the seed is carried for
