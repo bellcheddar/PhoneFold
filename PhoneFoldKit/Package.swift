@@ -63,6 +63,11 @@ let package = Package(
                           dependencies: ["FoldEngine", "FoldCore", "FoldGeometry", "FoldAudio",
                                          "FoldRender", "FoldCapture"]),
 
+        // PLAN.md Phase 5a's structure comparison, without a window. Studio's drop surface
+        // drives the same StructureComparison.
+        .executableTarget(name: "compare-structures",
+                          dependencies: ["FoldCore", "FoldGeometry"]),
+
         .executableTarget(name: "leak-probe",
                           dependencies: ["FoldEngine", "FoldCore", "FoldGeometry", "FoldAudio",
                                          "FoldRender", "FoldCapture"]),

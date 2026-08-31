@@ -3139,3 +3139,35 @@ A cheap check can be silent about the thing an expensive one exercises.
 
 **Not to be trusted as a timing:** 363 s for a single three-second ProRes film. The machine was
 saturated by another project's job. Flagged in BLOCKERS.md with the rest.
+
+## P5-06 structure comparison (2026-08-31)
+
+Real files: AlphaFold **P00698** (hen lysozyme) against the **1LYZ** crystal structure, fetched
+from EBI and the RCSB.
+
+| Step | Result |
+|---|---|
+| mmCIF reader on an RCSB file (1UBQ) | 76 alpha carbons, coordinates match |
+| PDB and mmCIF of 1UBQ, read independently | agree residue for residue on all 76 |
+| AlphaFold vs 1LYZ, matched by number | **18.11 Å over 129 residues** |
+| The same, with the mismatch check | refused: "only 7% of the 129 matched residues have the same name" |
+| Offset the check derived | **18** — hen lysozyme's signal peptide, exactly |
+| The same comparison at that offset | **0.54 Å over 129 residues** |
+
+**Matching by residue number is necessary and not sufficient, and the second half was only
+visible on real data.** Matching by array position pairs a prediction's residue 1 with a crystal
+structure's residue 3 whenever the disordered ends are missing, so the code matched by number
+from the start and the synthetic tests confirmed it. Real files then produced 18.11 Å, which is
+not a bad prediction: it is the same structure eighteen residues out of register, because a
+UniProt entry includes the signal peptide and a structure of the mature protein does not. Both
+files number from 1 and mean different things by it.
+
+The fix is cheap and decisive: compare the residue *names* at the matched positions. Seven per
+cent agreement is not a comparison. The offset is then found by maximising name agreement over a
+range of shifts, which turns "these do not line up" into "shift by 18", and never touches
+coordinates - searching over superpositions would be a structure alignment, which is a different
+program and explicitly not what PLAN asks for.
+
+**A crash found only by real data.** The first run on real files exited 139. `String(format:)`
+bridges to C varargs and `%s` with a Swift `String` is undefined behaviour; every synthetic test
+passed because none of them formatted a residue name.

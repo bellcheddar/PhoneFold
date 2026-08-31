@@ -329,7 +329,7 @@ with nothing to notice it had.
 | P5-03 | Batch mode: a multi-record FASTA or a list of accessions in, a film per protein out, headless | P5-01 | done: parser, runner, `fold-batch`, Studio's drop window, and the gate |
 | P5-04 | ProRes and 4K export, plus an image-sequence export for grading | P5-01 | done; verified with ffprobe |
 | P5-05 | CoreMIDI virtual source, so a DAW can record the fold live | P5-01 | done; the DAW check is Marc's (BLOCKERS.md) |
-| P5-06 | Drag and drop PDB and mmCIF: superpose against the prediction, per-residue RMSD | P5-01 | todo |
+| P5-06 | Drag and drop PDB and mmCIF: superpose against the prediction, per-residue RMSD | P5-01 | doing: readers, comparison and `compare-structures` done; Studio's drop surface outstanding |
 | P5-07 | Handoff: start a fold on the phone, continue on the Mac | P5-01 | todo |
 
 **P5-02, restated.** PLAN 5a says "higher residue cap (~640) using the unpalettised fp16 model
