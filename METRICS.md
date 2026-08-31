@@ -2900,3 +2900,37 @@ block compiles and fails inside on eight lines. The guard has to be `os(iOS)`. A
 `ActivityKit.Activity` is a plain non-Sendable class whose `update` and `end` are nonisolated -
 held in a `@MainActor` property it can never be passed to them, and no amount of `Task { }`
 helps, because the value carries the isolation. It has to live outside any actor.
+
+## P4-14 Genie 2 divergence: the root cause (2026-08-31, M1 Max, release build)
+
+`swift run --package-path PhoneFoldKit -c release genie2-probe`, run from the repository root.
+Six seeds, 1,000 reverse steps each, `scale` 0.6.
+
+| seed | as shipped | max &#124;CoM&#124; | CA-CA | re-centred | max &#124;CoM&#124; | CA-CA | Rg |
+|---|---|---|---|---|---|---|---|
+| 1 | diverged at step 422 | 113.98 | — | OK | 0 | 3.86 | 11.4 |
+| 2 | diverged at step 621 | 112.33 | — | OK | 0 | 3.86 | 10.9 |
+| 3 | OK | 49.09 | 3.86 | OK | 0 | 3.85 | 10.0 |
+| 4 | OK | 87.27 | 3.91 | OK | 0 | 3.86 | 10.5 |
+| 5 | OK | 105.50 | 3.94 | OK | 0 | 3.85 | 12.1 |
+| 6 | diverged at step 481 | 110.12 | — | OK | 0 | 3.86 | 10.9 |
+
+Å throughout. **3 of 6 seeds diverged; with the centre of mass projected out each step, 6 of 6
+complete.** The cause was that `sampleOnce` centred the coordinates it *recorded* and never the
+ones it fed back in, so the centre of mass random-walked to 114 Å on a chain whose own radius of
+gyration is 11 Å — far outside anything the network saw in training — and the posterior mean's
+`1/sqrt(alpha_t)` factor, 2 at t = 1000, amplified the resulting nonsense at every later step.
+
+**The spacing is the second, independent signal.** Ideal consecutive CA-CA is 3.8 Å. The seeds
+that survived without re-centring were drifting up to 3.94 Å and scattering across 0.08 Å;
+re-centred, every seed lands in 3.85 to 3.86 Å, a range of 0.01 Å. And Rg 10.0 to 12.1 Å for 64
+residues sits on Dima and Thirumalai's native scaling, 2.2·N^0.38 = 10.5 Å — these are compact
+globular backbones, not merely finite ones.
+
+**Why it survived the earlier investigation.** Everything checked against the Python reference
+agreed, and all of it was a *single step from identical coordinates*: at step one both are
+centred, so the one quantity that only drifts over a trajectory is exactly the one a single-step
+comparison cannot see.
+
+Consequence: the app's Genie 2 seed default goes back to **1**, from the 3 it had been moved to
+in order to skip the two seeds that failed.

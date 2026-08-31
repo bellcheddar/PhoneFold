@@ -88,11 +88,14 @@ final class FoldRunner: ObservableObject {
     /// backbone that has never existed. The protein has no name, no sequence and no reference,
     /// which is why it takes a different path from the other two engines rather than sharing
     /// theirs with a nil target.
-    /// - Parameter seed: **3, not 1.** Seeds 1 and 2 are measured to diverge, and although the
-    ///   sampler retries with the next seed, each wasted attempt is a thousand denoising steps
-    ///   - half a minute on a Mac and several minutes on a phone. Starting from a draw that is
-    ///   known to complete costs nothing and saves the user two of those.
-    func generate(seed: UInt64 = 3, into player: FoldPlayer) {
+    /// - Parameter seed: **1, and it used to be 3.** Seeds 1 and 2 both diverged, so the
+    ///   default skipped past them to a draw known to complete - each wasted attempt being a
+    ///   thousand denoising steps, half a minute on a Mac and several minutes on a phone. That
+    ///   was a symptom of the missing centre-of-mass projection in `Genie2Sampler.sampleOnce`,
+    ///   which is now fixed: all six of the first six seeds complete, and seeds 1 and 2 give
+    ///   3.86 A CA-CA spacing like the rest. There is no longer a reason to start at 3, and
+    ///   leaving it there would quietly preserve a workaround for a bug that has gone.
+    func generate(seed: UInt64 = 1, into player: FoldPlayer) {
         cancel()
         subject = "Generated backbone"
         state = .folding(progress: 0)

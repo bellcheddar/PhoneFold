@@ -1,7 +1,7 @@
 # PhoneFold — STATE
 
 **Current phase:** 3 (The score). Phase 0's engines are done and Phase 2's machine gate stays GREEN.
-**Current task:** P4-18. Phase 3's machine gate is GREEN; what remains of it is Marc's ears (BLOCKERS.md) and the Phase 2 sign-off. Marc answered the wizard on 2026-08-30: keep Genie 2 as a third mode, Simulate as the default, gallery references unchanged, and **do all four** of the next-work options - so Phase 3, the Phase 2 sign-off, engine hardening and polish are all in scope. Polish is done (P2-15).
+**Current task:** P4-15. Phase 3's machine gate is GREEN; what remains of it is Marc's ears (BLOCKERS.md) and the Phase 2 sign-off. Marc answered the wizard on 2026-08-30: keep Genie 2 as a third mode, Simulate as the default, gallery references unchanged, and **do all four** of the next-work options - so Phase 3, the Phase 2 sign-off, engine hardening and polish are all in scope. Polish is done (P2-15).
 **Last updated:** 2026-08-30
 
 Status vocabulary: `todo` / `doing` / `blocked` / `done`.
@@ -281,6 +281,7 @@ that already exists, and because three of the four gate criteria are about them.
 | P4-12 | Privacy manifest, no analytics | — | done |
 | P4-16 | App icon — **blocked**: `marcs-vibe-icon` is not installed on this machine | — | blocked |
 | P4-13 | Leak check across 20 consecutive folds | P4-03 | todo |
+| P4-18 | The style row wrapped one letter per line on a phone | — | done |
 
 **Needs Marc, not a machine:** AirPlay to a real Apple TV, the exported-video comparison, cold
 launch on device, and signing and TestFlight. Those are the phase's human halt.
@@ -297,4 +298,4 @@ launch on device, and signing and TestFlight. Those are the phase's human halt.
 
 | id | task | depends | status |
 |---|---|---|---|
-| P4-14 | Genie 2 divergence: find the root cause, not a workaround | — | todo |
+| P4-14 | Genie 2 divergence: find the root cause, not a workaround | — | done: missing zero-CoM projection; 6/6 seeds now complete |

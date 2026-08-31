@@ -18,8 +18,9 @@ struct StageView: View {
     @State private var selection: TrajectoryLibrary.Entry?
     @State private var meshDiagnostic = ""
     @State private var accession = ""
-    /// Genie 2's seed. Starts at 3 because 1 and 2 are measured to diverge; see FoldRunner.
-    @State private var generationSeed: UInt64 = 3
+    /// Genie 2's seed. Starts at 1 again: it started at 3 while seeds 1 and 2 diverged,
+    /// which they no longer do. See `FoldRunner.generate` and `Genie2Sampler.sample`.
+    @State private var generationSeed: UInt64 = 1
     /// What the last export did, shown under the controls rather than in an alert: a
     /// modal for "saved it" interrupts a fold that is still playing.
     @State private var mutation = ""

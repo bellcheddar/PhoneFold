@@ -105,24 +105,42 @@ public final class Genie2Sampler: @unchecked Sendable {
 
     /// Run the reverse process, retrying with the next seed if it diverges.
     ///
-    /// **Some seeds blow up, and it is not a defect in this port.** Measured: seeds 1 and 2
-    /// reach NaN part way through while 3 and 4 produce clean backbones at 3.86 and 3.91 A
-    /// mean CA-CA spacing. Everything that could be checked against the reference
-    /// implementation was, and agrees - fed the identical starting coordinates, one step of
-    /// this Swift matches the Python to 0.01 in the predicted noise and 0.015 in the updated
-    /// translations, with `w_z` and the scale agreeing to five decimals; the schedule matches
-    /// to float32's own precision; the frames match element for element; and the generator is
-    /// standard normal with no serial correlation.
+    /// **The divergence had a cause, and it was here rather than in the arithmetic.** Half the
+    /// seeds used to reach NaN part way through the reverse process - measured: seeds 1, 2 and 6
+    /// of the first six - and the retry above was shipped as an admitted workaround while the
+    /// reason was unknown. Everything that could be checked against the reference implementation
+    /// had been, and agreed: fed identical starting coordinates, one step of this Swift matches
+    /// the Python to 0.01 in the predicted noise and 0.015 in the updated translations, the
+    /// schedule matches to float32's own precision, the frames match element for element, and
+    /// the generator is standard normal with no serial correlation.
     ///
-    /// What cannot be matched is torch's random stream, so the noise sequence differs, and the
-    /// reverse process is evidently marginally stable: at high timesteps the posterior mean is
-    /// multiplied by `1/sqrt(alpha_t)`, which is 2 at t = 1000, so noise added early is
-    /// amplified by every step that follows it. Some draws tip over.
+    /// What none of that could see is a quantity that only drifts *over* a trajectory. Genie's
+    /// translation diffusion is defined on the **zero-centre-of-mass subspace**, and the network
+    /// only ever saw inputs from it. `sampleOnce` centred the coordinates it *recorded* but
+    /// never the ones it fed back in, so the centre of mass performed an unconstrained random
+    /// walk: measured at up to 114 A from the origin, on a chain whose own radius of gyration is
+    /// about 11 A. Once the input is that far out of distribution the predicted noise is
+    /// meaningless, and the posterior mean multiplies by `1/sqrt(alpha_t)` - which is 2 at
+    /// t = 1000 - so it is amplified by every step that follows. Some draws tipped over; the
+    /// surprise in hindsight is that any survived.
     ///
-    /// Retrying is therefore a **workaround, not a fix**, and is labelled as one. It is the
-    /// honest option: the alternative is an engine that fails half the time with a NaN.
+    /// Projecting back onto the subspace each step fixes it, and the evidence is not just the
+    /// absence of a NaN:
+    ///
+    /// | | seeds 1-6 | max &#124;CoM&#124; | CA-CA spacing |
+    /// |---|---|---|---|
+    /// | as shipped | 3 of 6 diverged | 114 A | 3.86 to 3.94 A |
+    /// | re-centred | 6 of 6 succeeded | 0 | 3.85 to 3.86 A |
+    ///
+    /// The spacing is the second signal. Ideal consecutive CA-CA is 3.8 A; without re-centring
+    /// even the seeds that survived were drifting up to 3.94 and scattering eight times as
+    /// widely. That is a geometry improving, not merely a crash avoided.
+    ///
+    /// **The retry is kept, and is no longer load-bearing.** It costs nothing when nothing
+    /// diverges, and removing the net at the same moment as fixing the thing it was catching
+    /// would leave a future regression with nowhere to land.
     public func sample(seed: UInt64 = 1, scale: Double = 0.6, frameCount: Int = 180,
-                       attempts: Int = 4,
+                       attempts: Int = 4, recentre: Bool = true,
                        progress: (@Sendable (Double) -> Void)? = nil,
                        shouldContinue: (@Sendable () -> Bool)? = nil)
         throws -> [[SIMD3<Double>]] {
@@ -130,7 +148,8 @@ public final class Genie2Sampler: @unchecked Sendable {
         for attempt in 0..<Swift.max(attempts, 1) {
             do {
                 return try sampleOnce(seed: seed &+ UInt64(attempt), scale: scale,
-                                      frameCount: frameCount, progress: progress,
+                                      frameCount: frameCount, recentre: recentre,
+                                      progress: progress,
                                       shouldContinue: shouldContinue)
             } catch let failure as Failure {
                 guard case .degenerateOutput = failure else { throw failure }
@@ -141,9 +160,16 @@ public final class Genie2Sampler: @unchecked Sendable {
         throw lastFailure ?? Failure.degenerateOutput(reason: "every attempt diverged")
     }
 
-    private func sampleOnce(seed: UInt64, scale: Double, frameCount: Int,
-                            progress: (@Sendable (Double) -> Void)?,
-                            shouldContinue: (@Sendable () -> Bool)?)
+    /// One reverse run.
+    ///
+    /// `observe` is called after every step with the step index and the working translations,
+    /// which is how the centre-of-mass drift was measured without duplicating this loop into a
+    /// diagnostic copy that could then disagree with it.
+    public func sampleOnce(seed: UInt64, scale: Double, frameCount: Int,
+                           recentre: Bool = true,
+                           progress: (@Sendable (Double) -> Void)?,
+                           shouldContinue: (@Sendable () -> Bool)?,
+                           observe: ((Int, [SIMD3<Double>]) -> Void)? = nil)
         throws -> [[SIMD3<Double>]] {
         let n = Self.residues
         var rng = SplitMix64(seed: seed)
@@ -152,6 +178,9 @@ public final class Genie2Sampler: @unchecked Sendable {
         var trans = (0..<n).map { _ in
             SIMD3<Double>(rng.gaussian(), rng.gaussian(), rng.gaussian())
         }
+        // Genie's translation diffusion lives on the zero-centre-of-mass subspace, so the
+        // starting draw belongs there too rather than being an arbitrary point in R^3N.
+        if recentre { trans = Self.centred(trans) }
         var rots = FrenetFrames.compute(trans)
 
         let transArray = try MLMultiArray(shape: [1, NSNumber(value: n), 3], dataType: .float32)
@@ -198,7 +227,11 @@ public final class Genie2Sampler: @unchecked Sendable {
                 }
                 trans = mean
             }
+            // **Back onto the zero-centre-of-mass subspace, every step.** See `sample` for
+            // what happens without it.
+            if recentre { trans = Self.centred(trans) }
             rots = FrenetFrames.compute(trans)
+            observe?(step, trans)
 
             let done = total - step + 1
             if done % stride == 0, frames.count < frameCount {

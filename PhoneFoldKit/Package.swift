@@ -47,6 +47,13 @@ let package = Package(
         // numbers.
         .executableTarget(name: "foldaudio-probe", dependencies: ["FoldAudio"]),
 
+        // P4-14's harness: measures the centre-of-mass drift along Genie 2's reverse process,
+        // which is the one thing a single-step comparison against the Python reference cannot
+        // see. An executable rather than a test, because it needs the .mlpackage from the
+        // repository and takes minutes.
+        .executableTarget(name: "genie2-probe",
+                          dependencies: ["FoldEngine", "FoldCore"]),
+
         // PLAN.md Phase 3's command-line renderer: a trajectory plus a style profile in, a WAV
         // out. Regression-tests audio without a device, and auditions a style tweak in
         // seconds.
