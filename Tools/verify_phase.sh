@@ -323,19 +323,42 @@ assert last.b_factor.max() > 0, 'the confidence column is empty'
     skip "phase 4: the full accessibility audit is human-verifiable, see BLOCKERS.md"
     ;;
   5)
-    # PLAN.md Phase 5a's machine gate: "builds and tests on macOS". The Studio compiles the
-    # phone's own Sources with its own @main, so this also catches the failure mode that shape
-    # invites: a change to the shared stage that only builds under one of the two entry points.
     DD=/Users/dellboy/Library/Developer/PhoneFold-DerivedData
     APP_DIR="$ROOT/Apps/PhoneFold"
+
+    # PLAN.md's cross-platform gate: "all five apps build in one `xcodebuild` invocation
+    # across the workspace." This is that invocation, and it replaces the three separate
+    # per-platform builds that used to be here.
+    #
+    # **One destination is enough, which is not obvious.** The scheme names targets on four
+    # platforms and `generic/platform=iOS Simulator` looks like it could only build one of
+    # them; Xcode resolves each target to the platform it declares and builds iphonesimulator,
+    # watchsimulator, xrsimulator and macosx in the same pass. Passing four `-destination`
+    # flags - the thing that looks like the answer - fails outright with "unable to find a
+    # destination matching the provided destination specifier".
     if [[ -f "$APP_DIR/PhoneFold.xcodeproj/project.pbxproj" ]]; then
       if (cd "$APP_DIR" && xcodebuild build -project PhoneFold.xcodeproj \
-            -scheme PhoneFoldStudio -configuration Release -destination "platform=macOS" \
+            -scheme PhoneFoldAll -configuration Release \
+            -destination "generic/platform=iOS Simulator" \
             -derivedDataPath "$DD" CODE_SIGNING_ALLOWED=NO \
-            >/tmp/pf_gate_studio.log 2>&1); then
-        pass "PhoneFold Studio builds for macOS"
+            >/tmp/pf_gate_all.log 2>&1); then
+        # The build succeeding is not the claim; four products existing is.
+        missing=""
+        for product in \
+            "Release-iphonesimulator/PhoneFold.app" \
+            "Release-watchsimulator/PhoneFoldWatch.app" \
+            "Release-xrsimulator/PhoneFoldVision.app" \
+            "Release/PhoneFoldStudio.app"; do
+          [[ -d "$DD/Build/Products/$product" ]] || missing="$missing $product"
+        done
+        if [[ -z "$missing" ]]; then
+          pass "all five apps build in one xcodebuild invocation"
+        else
+          fail "the all-apps build succeeded but produced no:$missing"
+        fi
       else
-        fail "PhoneFold Studio build failed - see /tmp/pf_gate_studio.log"
+        fail "the all-apps build failed - see /tmp/pf_gate_all.log"
+        grep -m 5 "error:" /tmp/pf_gate_all.log >&2 || true
       fi
     else
       fail "the app project is missing; run xcodegen in Apps/PhoneFold"
@@ -396,44 +419,21 @@ assert last.b_factor.max() > 0, 'the confidence column is empty'
       tail -20 /tmp/pf_gate_midi.log >&2
     fi
 
-    # PLAN.md Phase 5b's machine gate: "builds, connectivity handshake unit-tested with a mock
-    # session, complication timeline entries generated correctly."
-    if [[ -f "$APP_DIR/PhoneFold.xcodeproj/project.pbxproj" ]]; then
-      if (cd "$APP_DIR" && xcodebuild build -project PhoneFold.xcodeproj \
-            -scheme PhoneFoldWatch -configuration Release \
-            -destination "platform=watchOS Simulator,name=Apple Watch Series 11 (46mm)" \
-            -derivedDataPath "$DD" CODE_SIGNING_ALLOWED=NO \
-            >/tmp/pf_gate_watch.log 2>&1); then
-        pass "the Watch app and its complication build for watchOS"
-      else
-        fail "the Watch app failed to build - see /tmp/pf_gate_watch.log"
-      fi
-    fi
-
-    # PLAN.md Phase 5c's machine gate: "builds for visionOS, renderer runs in the Simulator
-    # from the sample provider, immersive space lifecycle unit-tested." The build and the
-    # lifecycle are checked here; the renderer actually drawing is confirmed by screenshot and
-    # recorded in METRICS.md, because a script cannot look at a protein.
-    if [[ -f "$APP_DIR/PhoneFold.xcodeproj/project.pbxproj" ]]; then
-      if (cd "$APP_DIR" && xcodebuild build -project PhoneFold.xcodeproj \
-            -scheme PhoneFoldVision -configuration Release \
-            -destination "platform=visionOS Simulator,name=Apple Vision Pro" \
-            -derivedDataPath "$DD" CODE_SIGNING_ALLOWED=NO \
-            >/tmp/pf_gate_vision.log 2>&1); then
-        pass "PhoneFold builds for visionOS"
-      else
-        fail "the visionOS build failed - see /tmp/pf_gate_vision.log"
-      fi
-    fi
+    # PLAN.md's cross-platform gate also asks that "iCloud trajectory sync round-trips between
+    # two Simulators". Two simulators signed into one iCloud account is not something a script
+    # can arrange, and NSUbiquitousKeyValueStore does nothing at all without a signed-in
+    # account - silently, which is the whole difficulty. What is machine-checkable is the
+    # merge, and that is `FoldLogTests` below.
+    skip "phase 5: the iCloud round-trip needs two signed-in Simulators, see BLOCKERS.md"
 
     # The handshake, the timeline and the immersive lifecycle, which are the things 5b and 5c
     # name by hand. Run together
     # because they are the same claim: the wrist shows what the phone said, and the face shows
     # what the wrist last heard.
     if swift test --package-path PhoneFoldKit \
-         --filter "RemoteLinkTests|FoldComplicationTests|ImmersiveSessionTests" \
+         --filter "RemoteLinkTests|FoldComplicationTests|ImmersiveSessionTests|SharePlaySessionTests|FoldLogTests" \
          >/tmp/pf_gate_watchlink.log 2>&1; then
-      pass "the Watch handshake, the complication timeline and the immersive lifecycle hold up"
+      pass "the Watch handshake, the complication, the immersive lifecycle, SharePlay and the fold log hold up"
     else
       fail "the Watch link tests failed - see /tmp/pf_gate_watchlink.log"
       tail -20 /tmp/pf_gate_watchlink.log >&2

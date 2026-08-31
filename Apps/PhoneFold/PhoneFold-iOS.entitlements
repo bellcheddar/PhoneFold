@@ -2,19 +2,16 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <!-- Required for any App Store macOS build. -->
-    <key>com.apple.security.app-sandbox</key>
-    <true/>
-    <!-- Outbound only, for fetching a reference structure from AlphaFold. The app never
-         listens, so the server entitlement is deliberately absent. -->
-    <key>com.apple.security.network.client</key>
-    <true/>
     <!-- The synced list of folds this account has run. See FoldLogStore.
 
          NSUbiquitousKeyValueStore does nothing at all without this and says nothing about it:
          set() succeeds, data(forKey:) returns nil, and the feature is simply inert. The
          identifier must also have iCloud enabled on the App ID in the developer portal, which
-         is Marc's - see BLOCKERS.md. -->
+         is Marc's - see BLOCKERS.md.
+
+         iOS only. The sandbox and network-client keys that the macOS file carries are not
+         valid iOS entitlements: iOS sandboxes every app implicitly, and supplying them there
+         is a provisioning error rather than a no-op. -->
     <key>com.apple.developer.ubiquity-kvstore-identifier</key>
     <string>$(TeamIdentifierPrefix)$(CFBundleIdentifier)</string>
 </dict>

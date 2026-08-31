@@ -3704,3 +3704,53 @@ Marc's judgement rather than a guess. It is in `BLOCKERS.md` as an open question
 **Measured:** all five surfaces build; 7 `SharePlaySessionTests`.
 **Not measured:** anything at all about two devices. A custom `GroupActivity` also needs a real
 FaceTime call to do anything, which no simulator provides.
+
+## The cross-platform gate (2026-08-31)
+
+### "All five apps build in one `xcodebuild` invocation"
+
+Done, and the way it works is not what it looks like. The scheme names targets on four
+platforms, so the obvious approach is to pass four `-destination` flags - and that fails
+outright with "unable to find a destination matching the provided destination specifier".
+
+**One destination is enough.** `-destination "generic/platform=iOS Simulator"` builds
+`iphonesimulator`, `watchsimulator`, `xrsimulator` *and* `macosx` in the same pass: Xcode
+resolves each target to the platform it declares rather than filtering the scheme to the
+destination given. The gate asserts the four `.app` products exist afterwards, because a build
+that succeeds having quietly skipped three of them is exactly the failure this check is for.
+
+This replaces three separate per-platform builds in the gate, so it is also faster.
+
+### "iCloud trajectory sync round-trips between two Simulators"
+
+**Descriptions, not coordinates, and that is the third time the same argument has paid.** A
+trajectory is megabytes; a fold is a deterministic function of the protein, the engine and the
+seed. So what syncs is `FoldHandoff` - the payload Phase 5a defined for Handoff and Phase 5c
+reuses for SharePlay - and a full forty-entry log with 60-character subjects, long
+accessions, maximum seeds and a long device name encodes to **between 5 and 12 kB** against
+`NSUbiquitousKeyValueStore`'s 1 MB - bounded on both sides by `FoldLogTests`, tightly, because
+a generous bound would pass just as well if an entry grew tenfold and the whole argument for
+syncing descriptions rests on this staying small. Syncing the coordinates
+would move a hundred times the data to arrive at a fold the receiving device can compute
+exactly, at *its* own residue cap rather than the sender's.
+
+`FoldLog` is the merge, with 11 tests. Three of its rules fail silently if wrong:
+
+- **Merge is a union, never a replacement.** Both devices can run folds while offline, so
+  neither list is authoritative; writing this device's over the top is how the other device's
+  afternoon disappears permanently, with nothing to notice it.
+- **Unreadable remote data decodes to nil, not to an empty log.** A log that failed to decode
+  and a log with nothing in it are different situations, and treating the first as the second
+  is how a device with a version mismatch deletes everything the account had.
+- **A fold's identity is the protein, the engine and the seed** - exactly what determines the
+  trajectory - and not the progress. Otherwise watching one protein twice fills a list of forty
+  with one protein.
+
+**Two ways this feature can be inert while appearing to work**, both silent, both now surfaced
+in the interface rather than assumed away: without the `ubiquity-kvstore-identifier` entitlement
+`NSUbiquitousKeyValueStore` accepts a write and returns nil on the read; with the entitlement
+but nobody signed into iCloud it does exactly the same. `FileManager.ubiquityIdentityToken` is
+the only honest test available before anything is written, and the store now says so.
+
+The entitlement is added to the iOS, macOS and visionOS targets. **The App ID also needs iCloud
+enabled in the developer portal**, which is Marc's - see `BLOCKERS.md`.

@@ -1011,3 +1011,29 @@ has the engines and a fold is a deterministic function of protein, engine and se
       answers - the presenter's progress is authoritative and everyone scrubs to it; everyone
       waits for the slowest; or nobody syncs and the point is the protein rather than the
       instant - and which is right is a question about teaching, not about code
+
+## Cross-platform: the iCloud fold list needs a signed-in account (2026-08-31)
+
+The folds this account has run follow it between devices - as descriptions, never coordinates,
+for the same reason Handoff and SharePlay carry descriptions. The merge is tested (11 tests) and
+the encoded log is a few kilobytes against `NSUbiquitousKeyValueStore`'s 1 MB.
+
+**Two ways this is inert while appearing to work, and both are silent.** Without the
+`ubiquity-kvstore-identifier` entitlement the store accepts a write and returns nil on the read;
+with the entitlement but nobody signed into iCloud it does exactly the same. The app now says
+which, using `FileManager.ubiquityIdentityToken`, rather than showing an empty list either way.
+
+- [ ] **Enable iCloud on the App IDs in the developer portal** for `com.mdeller.phonefold` and
+      `com.mdeller.phonefold.vision`. The entitlement is in the repo and signing will fail
+      without the capability on the identifier. This is the same class of step as the app group
+      the complication needs, and it is Marc's
+- [ ] Run a fold on two devices signed into one iCloud account and confirm each sees the
+      other's in the list, and that a fold run on both appears once rather than twice
+- [ ] Run folds on both devices while one is offline, then reconnect, and confirm neither
+      device's afternoon has been overwritten by the other's. That is the merge's whole job and
+      the failure is silent and permanent
+
+## Cross-platform: universal purchase (2026-08-31)
+
+- [ ] PLAN's cross-platform gate lists "universal purchase configured", which is an App Store
+      Connect setting and cannot be done from here

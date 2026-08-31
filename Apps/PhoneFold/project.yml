@@ -96,6 +96,8 @@ targets:
         # sandboxes every app implicitly - and supplying it there is a provisioning error
         # rather than a no-op, so the setting is conditioned on the SDK.
         "CODE_SIGN_ENTITLEMENTS[sdk=macosx*]": PhoneFold-macOS.entitlements
+        "CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]": PhoneFold-iOS.entitlements
+        "CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]": PhoneFold-iOS.entitlements
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.education
         ENABLE_HARDENED_RUNTIME: YES
         CODE_SIGN_STYLE: Automatic
@@ -279,4 +281,22 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.mdeller.phonefold.vision
+        CODE_SIGN_ENTITLEMENTS: PhoneFold-iOS.entitlements
         CODE_SIGN_STYLE: Automatic
+
+# PLAN.md's cross-platform gate: "all five apps build in one `xcodebuild` invocation".
+#
+# **One scheme with every target, and `xcodebuild` given four destinations at once.** A single
+# destination cannot do it - the five apps are three products on four platforms - but xcodebuild
+# takes repeated `-destination` flags and builds the scheme for each, which is one invocation by
+# any reading. See Tools/verify_phase.sh.
+schemes:
+  PhoneFoldAll:
+    build:
+      targets:
+        PhoneFold: [run, test, profile, analyze, archive]
+        PhoneFoldWidgets: [run, test, profile, analyze, archive]
+        PhoneFoldStudio: [run, test, profile, analyze, archive]
+        PhoneFoldWatch: [run, test, profile, analyze, archive]
+        PhoneFoldWatchWidgets: [run, test, profile, analyze, archive]
+        PhoneFoldVision: [run, test, profile, analyze, archive]

@@ -63,14 +63,29 @@ final class PhoneFoldModel: ObservableObject {
     /// PLAN.md Phase 5c's teaching mode. See `FoldTogether`.
     let together = FoldTogether()
 
+    /// The folds this account has run, on any of its devices. See `FoldLogStore`.
+    let folds = FoldLogStore()
+
     /// A fold somebody else in the session is playing, for the same reason and by the same
     /// route as `requestedGalleryID`: the view owns the selection, so the model asks.
     @Published var requestedHandoff: FoldHandoff?
 
     /// What this device is playing, as the other end would need it. Kept by the stage, which
-    /// owns the selection, so the Handoff advertisement and the SharePlay offer describe the
-    /// same fold rather than two guesses at it.
-    @Published var currentHandoff: FoldHandoff?
+    /// owns the selection, so the Handoff advertisement, the SharePlay offer and the synced
+    /// log describe the same fold rather than three guesses at it.
+    @Published var currentHandoff: FoldHandoff? {
+        didSet {
+            // Recorded on the *identity* changing rather than on every progress tick, or the
+            // log would be rewritten sixty times a second for one fold. `FoldLog` collapses
+            // duplicates anyway; this is about not asking iCloud to.
+            guard let currentHandoff,
+                  currentHandoff.galleryID != oldValue?.galleryID
+                      || currentHandoff.accession != oldValue?.accession
+                      || currentHandoff.engine != oldValue?.engine
+                      || currentHandoff.seed != oldValue?.seed else { return }
+            folds.record(currentHandoff)
+        }
+    }
 
     /// True while a change arrived from somewhere else, so it is not sent straight back.
     private var isApplyingRemoteChange = false
