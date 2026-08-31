@@ -24,6 +24,8 @@
 	<false/>
 	<key>NSHumanReadableCopyright</key>
 	<string>2026 Marc C. Deller</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>PhoneFold saves the film of a fold, with its music, to your photo library.</string>
 	<key>UILaunchScreen</key>
 	<dict/>
 </dict>

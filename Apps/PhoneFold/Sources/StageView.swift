@@ -24,6 +24,7 @@ struct StageView: View {
     @State private var isExportingMIDI = false
     @State private var isShowingAbout = false
     @StateObject private var film = FilmExportController()
+    @State private var isShowingOnboarding = !Onboarding.hasBeenSeen
 
     /// All three engines run. Kept as a hook because an engine can still become unavailable -
     /// a missing model in the bundle, say - and a disabled control with a reason beats one

@@ -163,9 +163,19 @@ struct AboutView: View {
                 if let style {
                     section("The style", "\(style.name). \(style.summary)")
                 }
+                // First, and in the same type as everything else. PLAN.md: "Permanent short
+                // version in About. Marc will be asked about this and the app should answer
+                // first" - so it is not in small print at the bottom.
+                section("What this is not", Onboarding.disclaimer)
                 section("The pitch layer", ScoreCredits.pitchLayer)
                 section("Confidence", ScoreCredits.disorder)
                 section("The sound", ScoreCredits.synthesis)
+
+                Button("Show the introduction again") {
+                    Onboarding.forget()
+                    dismiss()
+                }
+                .font(.footnote)
 
                 Text("2026 Marc C. Deller")
                     .font(.footnote)

@@ -2631,3 +2631,25 @@ apply to the render in flight - offering it would be offering a control that doe
 
 Both platforms build. The Photos write itself needs a device or a simulator with a library, so
 it is on the list that needs Marc.
+
+### P4-06, onboarding (2026-08-31)
+
+Three cards: what it does, what the music means, and the disclaimer.
+
+**The disclaimer is PLAN.md's exact words, and it is neither softened nor buried.** PLAN says
+"Marc will be asked about this and the app should answer first", so it is the last card before
+the app opens, in the same type as everything else rather than in small print, and the same
+words stand permanently at the *top* of About rather than in a footnote.
+
+> PhoneFold visualises how a neural network converges on a structure. It is not a physical
+> folding pathway, and no protein folds this way.
+
+The "seen" flag is read from `UserDefaults` directly rather than through `@AppStorage`: the
+stage needs the value in a `@State` initialiser to decide whether to present the sheet at all,
+and a property wrapper only exists once the view does. The key is versioned so that a
+materially different introduction can be shown again rather than silently skipped.
+
+**A correction to my own comment, recorded because the rule matters more than the line.** The
+first version of that comment justified avoiding `@AppStorage` with a cold-launch race I had
+never observed - a plausible-sounding measurement that did not happen. Every number in this
+file is measured; an invented reason in a source comment is the same offence in a quieter place.
