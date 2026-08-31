@@ -73,10 +73,8 @@ final class ScoreConductor: @unchecked Sendable {
     /// chosen before the fold has happened. The accelerando then runs slightly ahead of the
     /// animation early and slightly behind it late, which the jitter buffer absorbs.
     static func secondsPerReadout(style: StyleProfile, readouts: Int) -> Float {
-        guard readouts > 0 else { return 1 }
-        let tempo = (style.tempoSlow + style.tempoFast) / 2
-        let pacing = Sonifier.pacing(readouts: readouts, style: style)
-        return Float(pacing.seconds(atTempo: tempo) / Double(readouts))
+        Float(Sonifier.pacing(readouts: readouts, style: style)
+            .secondsPerReadout(readouts: readouts, style: style))
     }
 
     // MARK: - Transport

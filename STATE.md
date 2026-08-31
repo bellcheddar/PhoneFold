@@ -1,7 +1,7 @@
 # PhoneFold — STATE
 
 **Current phase:** 3 (The score). Phase 0's engines are done and Phase 2's machine gate stays GREEN.
-**Current task:** P4-03. Phase 3's machine gate is GREEN; what remains of it is Marc's ears (BLOCKERS.md) and the Phase 2 sign-off. Marc answered the wizard on 2026-08-30: keep Genie 2 as a third mode, Simulate as the default, gallery references unchanged, and **do all four** of the next-work options - so Phase 3, the Phase 2 sign-off, engine hardening and polish are all in scope. Polish is done (P2-15).
+**Current task:** P4-04. Phase 3's machine gate is GREEN; what remains of it is Marc's ears (BLOCKERS.md) and the Phase 2 sign-off. Marc answered the wizard on 2026-08-30: keep Genie 2 as a third mode, Simulate as the default, gallery references unchanged, and **do all four** of the next-work options - so Phase 3, the Phase 2 sign-off, engine hardening and polish are all in scope. Polish is done (P2-15).
 **Last updated:** 2026-08-30
 
 Status vocabulary: `todo` / `doing` / `blocked` / `done`.
@@ -267,7 +267,7 @@ that already exists, and because three of the four gate criteria are about them.
 |---|---|---|---|
 | P4-01 | mmCIF export: final model with pLDDT in the B-factor column, and a multi-model trajectory | — | done |
 | P4-02 | Offscreen render pass at export resolution, driven by the same frame stream | — | done |
-| P4-03 | `AVAssetWriter` video plus audio from the `mainMixerNode` tap; H.264 and HEVC | P4-02 | todo |
+| P4-03 | `AVAssetWriter` video plus audio; H.264 and HEVC | P4-02 | done |
 | P4-04 | Export presets (1920x1080, 1080x1920, 4K) and the optional burned-in overlay | P4-03 | todo |
 | P4-05 | Export UI: progress, background safety, save to Photos with permissions | P4-03 | todo |
 | P4-06 | Onboarding: three cards, and the permanent disclaimer in About | — | todo |

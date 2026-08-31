@@ -110,8 +110,12 @@ public struct TrajectoryInterpolator: Sendable {
 
     /// Whether an output frame lands exactly on a raw readout.
     ///
-    /// The score must ignore interpolated frames when triggering events, or one contact
-    /// becomes a machine-gun burst at 60 fps. This is how a consumer tells them apart.
+    /// **Not the way to enumerate readouts.** This is an exactness test, and it is only true
+    /// when the output frame rate is an integer multiple of the readout rate. Pacing the
+    /// animation from the score makes it 145.5 frames per readout, at which this is true for
+    /// 2 readouts in 8. `FoldFrameSequence` marks a frame raw when it is the first one nearest
+    /// a readout, which holds at any ratio; this remains for callers that genuinely want to
+    /// know whether a parameter is on a readout.
     public func isRawFrame(_ u: Float, tolerance: Float = 1e-4) -> Bool {
         abs(u - u.rounded()) < tolerance
     }

@@ -25,6 +25,8 @@ struct Options {
     var midi: String?
     var cif: String?
     var still: String?
+    var film: String?
+    var filmSize = "1080"
     var quiet = false
 }
 
@@ -41,6 +43,8 @@ func usage() -> Never {
       --midi <file.mid>   also write a standard MIDI file of the same score
       --cif <file.cif>    also write the trajectory as a multi-model mmCIF
       --still <file.png>  also render the final frame offscreen at 1920x1080
+      --film <file.mp4>   render the whole fold as a film, with its music
+      --size <preset>     1080 | vertical | 4k   (default 1080)
       --quiet             print only the summary line
 
     """.utf8))
@@ -65,6 +69,8 @@ while let argument = arguments.first {
     case "--midi": options.midi = value()
     case "--cif": options.cif = value()
     case "--still": options.still = value()
+    case "--film": options.film = value()
+    case "--size": options.filmSize = value()
     case "--quiet": options.quiet = true
     case "-h", "--help": usage()
     default:
@@ -113,8 +119,17 @@ do {
     }
 
     let provider = try SampleTrajectoryProvider(bundle: bundle)
+    // Paced from the score, exactly as the app paces its animation, so the picture and the
+    // sound finish together. The sequence's own default is an eighth of a second per readout,
+    // which for a live fold is a fifteen-second picture against a thirty-eight-second piece.
+    let readoutCount = provider.readouts.count
+    let framePacing = Sonifier.pacing(readouts: readoutCount, style: style)
+    let sequence = FoldFrameSequence(provider: provider, configuration: .init(
+        frameRate: 60,
+        secondsPerRawFrame: Float(framePacing.secondsPerReadout(readouts: readoutCount,
+                                                               style: style))))
     var frames: [FoldFrame] = []
-    for try await frame in FoldFrameSequence(provider: provider) { frames.append(frame) }
+    for try await frame in sequence { frames.append(frame) }
 
     let readouts = frames.count { !$0.isInterpolated }
     let pacing = Sonifier.pacing(readouts: readouts, style: style)
@@ -136,6 +151,27 @@ do {
                                  sampleRate: result.sampleRate)
     try data.write(to: URL(fileURLWithPath: options.output))
 
+    if let path = options.film {
+        var exportOptions = FilmExporter.Options()
+        switch options.filmSize {
+        case "vertical": exportOptions.size = .vertical
+        case "4k": exportOptions.size = .ultraHD
+        default: exportOptions.size = .landscape
+        }
+        say("rendering \(frames.count) frames at \(exportOptions.size.width)x\(exportOptions.size.height)...")
+        let exporter = FilmExporter(options: exportOptions)
+        var lastReport = 0
+        let summary = try await exporter.export(
+            frames: frames, residues: bundle.residues, style: style,
+            to: URL(fileURLWithPath: path)) { fraction in
+                let percent = Int(fraction * 100)
+                if percent >= lastReport + 20 { lastReport = percent; say("  \(percent)%") }
+            }
+        say(String(format: "film -> %@  %d frames, %.1f s picture, %.1f s sound (drift %.2f s), %d bars",
+                   path, summary.frames, summary.videoSeconds, summary.audioSeconds,
+                   summary.drift, summary.bars))
+    }
+
     if let path = options.still, let final = frames.last {
         // The offscreen pass, at export resolution, driven by the same frames the film will
         // be. Nothing is on screen: this runs on a machine with no window.
@@ -147,14 +183,13 @@ do {
                                      residues: bundle.residues)
         try stage.show(mesh: mesh, confidence: final.pLDDT, mode: .secondaryStructure,
                        options: options2)
-        // Framed from the protein's own extent, so a 20-residue miniprotein and a 300-residue
-        // one both fill the frame rather than one of them being a dot.
-        let extent = OffscreenStage.extent(of: ca)
-        stage.frame(centre: extent.centre, radius: extent.radius)
+        // Framing is the stage's own, and it is the live view's: the protein is normalised to
+        // a fixed extent and the camera sits where StageCamera puts it, so a 20-residue
+        // miniprotein and a 300-residue one both fill the frame identically to the app.
         _ = try await stage.render()
         if let png = stage.png() {
             try png.write(to: URL(fileURLWithPath: path))
-            say("still -> \(path) (1920x1080, radius \(String(format: "%.1f", extent.radius)) A)")
+            say("still -> \(path) (1920x1080)")
         }
     }
 

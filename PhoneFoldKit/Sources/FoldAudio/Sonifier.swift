@@ -85,6 +85,24 @@ public struct Sonifier: Sendable {
         public func seconds(atTempo tempo: Double) -> Double {
             beats * 60 / Swift.max(tempo, 1)
         }
+
+        /// How long one raw readout should stay on screen for the two to finish together.
+        ///
+        /// **The rule every caller needs**, which is why it is here rather than in the app.
+        /// The command-line renderer built its frames at the sequence's default eighth of a
+        /// second and produced a fifteen-second picture against a thirty-eight-second
+        /// soundtrack; the export refused it, which is the right outcome and a reason for the
+        /// rule to be reachable from outside the app.
+        public func secondsPerReadout(readouts: Int, atTempo tempo: Double) -> Double {
+            guard readouts > 0 else { return 1 }
+            return seconds(atTempo: tempo) / Double(readouts)
+        }
+
+        /// The same figure, for a style's midpoint tempo.
+        public func secondsPerReadout(readouts: Int, style: StyleProfile) -> Double {
+            secondsPerReadout(readouts: readouts,
+                              atTempo: (style.tempoSlow + style.tempoFast) / 2)
+        }
     }
 
     /// Choose the grouping and the beat length for a trajectory.

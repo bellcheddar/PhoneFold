@@ -13,13 +13,18 @@ import FoldRender
 @Suite("Offscreen stage", .serialized)
 struct OffscreenStageTests {
 
-    /// A short helix, which is the easiest thing to see whether it drew.
-    static func helix(residues n: Int = 24) -> (TubeMesh, [Float], ColourOptions) {
+    /// The alpha carbons of the test helix.
+    static func helixPositions(residues n: Int = 24) -> [SIMD3<Float>] {
         let rise: Float = 1.5, radius: Float = 2.3, turn: Float = 100 * .pi / 180
-        let ca = (0..<n).map { i -> SIMD3<Float> in
+        return (0..<n).map { i -> SIMD3<Float> in
             let a = Float(i) * turn
             return SIMD3(radius * cos(a), radius * sin(a), Float(i) * rise)
         }
+    }
+
+    /// A short helix, which is the easiest thing to see whether it drew.
+    static func helix(residues n: Int = 24) -> (TubeMesh, [Float], ColourOptions) {
+        let ca = helixPositions(residues: n)
         let assignment = (0..<n).map { _ in SSAssignment(structure: .helix, confidence: 1) }
         let mesh = TubeGeometry.build(caPositions: ca, secondaryStructure: assignment)
         let confidence = (0..<n).map { _ in Float(90) }
@@ -50,14 +55,6 @@ struct OffscreenStageTests {
         SIMD3(pixels[0], pixels[1], pixels[2])
     }
 
-    /// Far enough back to hold a 24-residue helix, and on its axis.
-    ///
-    /// The helix runs along +z from 0 to about 34, so it is centred near z = 17 - and a camera
-    /// at y = 18 looking down -z, as RealityKit cameras do, misses it entirely.
-    static let viewpoint = Transform(scale: .one,
-                                     rotation: simd_quatf(angle: 0, axis: [0, 1, 0]),
-                                     translation: SIMD3(0, 0, 90))
-
     /// The fraction of pixels that are not the background.
     static func coverage(_ pixels: [UInt8], background: SIMD3<UInt8>) -> Double {
         var drawn = 0
@@ -76,7 +73,6 @@ struct OffscreenStageTests {
         let (mesh, confidence, options) = helix()
         try stage.show(mesh: mesh, confidence: confidence, mode: .secondaryStructure,
                        options: options)
-        stage.place(camera: Self.viewpoint)
         _ = try await stage.render()
         return (stage, stage.readPixels())
     }
@@ -126,7 +122,6 @@ struct OffscreenStageTests {
     func meshIsReusedAcrossFrames() async throws {
         let stage = try OffscreenStage(size: .landscape)
         let (mesh, confidence, options) = Self.helix()
-        stage.place(camera: Self.viewpoint)
         // Sixty frames of the same topology, which is what a trajectory is: the vertex count
         // is constant by construction so the buffer is updated in place rather than rebuilt.
         for _ in 0..<60 {
@@ -144,7 +139,6 @@ struct OffscreenStageTests {
     func colourModesDiffer() async throws {
         let stage = try OffscreenStage(size: .landscape)
         let (mesh, confidence, options) = Self.helix()
-        stage.place(camera: Self.viewpoint)
         var digests: [ColourMode: UInt64] = [:]
         for mode in ColourMode.allCases {
             try stage.show(mesh: mesh, confidence: confidence, mode: mode, options: options)

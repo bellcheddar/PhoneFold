@@ -69,11 +69,20 @@ public final class OffscreenStage {
     private let depth: MTLTexture
 
     private let protein = Entity()
-    private let camera = Entity()
+    private let cameraEntity = Entity()
     private var lights: [Entity] = []
     private var mesh: LowLevelTubeMesh?
     private var vertexCapacity = 0
     private var materialMode: ColourMode?
+    private var bounds: (minimum: SIMD3<Float>, maximum: SIMD3<Float>)?
+
+    /// The same camera the live stage uses, so the film orbits the way the app does.
+    ///
+    /// **The type, not a copy of its numbers.** The orbit rate, the resting tilt, the distance
+    /// and the sign conventions all live in `StageCamera`, and a second implementation of them
+    /// here would be a second thing to keep in step - which the lens and the lighting had each
+    /// already got wrong once.
+    public var camera = StageCamera()
 
     public init(size: Size) throws {
         self.size = size
@@ -112,10 +121,10 @@ public final class OffscreenStage {
         // spends almost all of the buffer on the first fraction of the scene.
         lens.near = 0.5
         lens.far = 2_000
-        camera.components.set(lens)
-        renderer.entities.append(camera)
+        cameraEntity.components.set(lens)
+        renderer.entities.append(cameraEntity)
         renderer.entities.append(protein)
-        renderer.activeCamera = camera
+        renderer.activeCamera = cameraEntity
 
         // **The stage has to light itself, and the live one used not to.**
         //
@@ -141,38 +150,38 @@ public final class OffscreenStage {
     /// are visually identical" does not survive either. Matching the lens costs nothing.
     public static let fieldOfViewDegrees: Float = 42
 
-    /// Where the camera stands, in the same terms the live stage uses.
-    public func place(camera transform: Transform) {
-        camera.transform = transform
+    /// How large the protein is made, in scene units.
+    ///
+    /// 1.15 across its bounding diagonal, which is the live stage's own normalisation. With the
+    /// same figure, the same field of view and the same camera distance, the export frames the
+    /// protein exactly as the app does - rather than approximately, which is what a separate
+    /// framing rule gives however carefully it is written.
+    public static let proteinExtent: Float = 1.15
+
+    /// Advance the automatic orbit, and put the camera where it says.
+    ///
+    /// The stage turns the *protein* against a camera fixed on +Z, which is what the live one
+    /// does, so a film made this way rotates in the same direction at the same rate.
+    public func advance(by deltaTime: Float) {
+        camera.advance(deltaTime: deltaTime)
+        applyTransforms()
     }
 
-    /// Frame a protein of a given extent so it fills the picture.
+    /// Place the camera and the protein from the current bounds and camera state.
     ///
-    /// **Here rather than in each caller**, because the distance depends on the field of view
-    /// and the caller does not know it. The first version guessed at `radius * 3.2 + 6` and
-    /// put a 129-residue protein in the middle third of a 1920 by 1080 frame.
-    ///
-    /// The vertical axis is the limiting one at every preset except the vertical video, where
-    /// it is the horizontal - so the aspect is folded in rather than assumed.
-    public func frame(centre: SIMD3<Float>, radius: Float, margin: Float = 1.12) {
-        let vertical = Self.fieldOfViewDegrees * .pi / 180
-        var half = vertical / 2
-        if size.aspect < 1 {
-            // Taller than it is wide: the horizontal field is the narrower one.
-            half = atan(tan(vertical / 2) * size.aspect)
-        }
-        let distance = Swift.max(radius, 0.001) / tan(Swift.max(half, 0.01)) * margin
-        camera.transform = Transform(scale: .one,
-                                     rotation: simd_quatf(angle: 0, axis: [0, 1, 0]),
-                                     translation: centre + SIMD3(0, 0, distance))
-    }
-
-    /// The centre and radius of a set of points, for `frame(centre:radius:)`.
-    public static func extent(of points: [SIMD3<Float>]) -> (centre: SIMD3<Float>, radius: Float) {
-        guard !points.isEmpty else { return (.zero, 1) }
-        let centre = points.reduce(SIMD3<Float>.zero, +) / Float(points.count)
-        let radius = points.map { simd_length($0 - centre) }.max() ?? 1
-        return (centre, Swift.max(radius, 0.001))
+    /// The arithmetic is the live stage's, verbatim.
+    private func applyTransforms() {
+        cameraEntity.transform = Transform(
+            scale: .one, rotation: simd_quatf(angle: 0, axis: SIMD3<Float>(0, 1, 0)),
+            translation: SIMD3<Float>(0, 0, camera.distance))
+        guard let bounds else { return }
+        let extent = simd_length(bounds.maximum - bounds.minimum)
+        let scale = extent > 0.001 ? Self.proteinExtent / extent : 1
+        let centre = (bounds.maximum + bounds.minimum) * 0.5
+        let rotation = camera.subjectRotation
+        protein.transform = Transform(
+            scale: SIMD3<Float>(repeating: scale), rotation: rotation,
+            translation: rotation.act(-(centre + camera.target) * scale))
     }
 
     /// Put one frame's geometry on the stage.
@@ -198,6 +207,15 @@ public final class OffscreenStage {
             materialMode = mode
         }
         try mesh?.update(vertices: packed)
+
+        var minimum = built.vertices[0].position
+        var maximum = minimum
+        for vertex in built.vertices {
+            minimum = simd_min(minimum, vertex.position)
+            maximum = simd_max(maximum, vertex.position)
+        }
+        bounds = (minimum, maximum)
+        applyTransforms()
     }
 
     /// Draw, and hand back the texture that was drawn into.
@@ -222,6 +240,13 @@ public final class OffscreenStage {
         }
         return colour
     }
+
+    /// The texture that was last drawn into, without drawing again.
+    ///
+    /// Named plainly because the alternative - `render()` returning it - would make "give me
+    /// the pixels" and "draw a frame" the same call, and a film writer that asked for the
+    /// texture would silently render an extra frame per frame.
+    public var texture: MTLTexture { colour }
 
     /// The rendered pixels, as 8-bit RGBA rows.
     ///

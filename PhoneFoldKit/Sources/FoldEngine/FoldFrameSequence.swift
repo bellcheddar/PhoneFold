@@ -106,13 +106,24 @@ public struct FoldFrameSequence: AsyncSequence, Sendable {
 
             let u = interpolator.parameter(forOutputFrame: index, outOf: total)
             let ca = interpolator.positions(at: u)
-            let isRaw = interpolator.isRawFrame(u)
             let rawIndex = Swift.min(Int(u.rounded()), readouts.count - 1)
             let readout = readouts[rawIndex]
 
-            // Contacts advance only on raw readouts, and only once per readout.
+            // **A frame is raw when it is the first one nearest to a readout**, not when its
+            // interpolation parameter lands exactly on an integer.
+            //
+            // Exactness worked only by arithmetic accident: an eighth of a second per readout
+            // at 60 fps is exactly five output frames, so `u` hit integers on the nose. Pacing
+            // the animation from the score gives 145.5 frames per readout, `u` steps by 0.0069,
+            // and it lands within a tolerance of 1e-4 of an integer roughly never - measured,
+            // **2 raw frames out of 8 readouts**. Contacts advance only on raw frames, so three
+            // quarters of the fold's events simply vanished, and the score was built from two
+            // bars instead of eight.
+            //
+            // This marks exactly one frame per readout at any ratio, integer or not.
+            let isRaw = rawIndex != lastRawFrameIndex
             var newContacts: [ContactEvent] = []
-            if isRaw, rawIndex != lastRawFrameIndex {
+            if isRaw {
                 newContacts = contacts.update(caPositions: ca, residues: residues)
                 lastRawFrameIndex = rawIndex
             }

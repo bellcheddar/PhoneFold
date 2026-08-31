@@ -2524,3 +2524,47 @@ implicit default environment and the offscreen renderer by two lights of its own
 The lens was not identical either, and would have been missed if only the lighting had been
 looked at: the offscreen stage was on a 60-degree lens against the live view's 42, which is a
 visibly deeper perspective on the same protein. Both are 42 now.
+
+### P4-03, the film (2026-08-31)
+
+`AVAssetWriter` with a pixel-buffer adaptor for the picture and one sample buffer for the whole
+soundtrack. **Not real time**: `expectsMediaDataInRealTime` is false on both inputs, which is
+the whole difference between this and a screen recording - the writer waits for the renderer
+rather than the renderer racing the writer, so a slow frame costs export time instead of a
+dropped frame.
+
+The soundtrack goes through the **real audio graph** - `FoldAudioEngine`'s manual rendering
+mode, with the same `AVAudioEnvironmentNode` and HRTF the app plays through - so the film
+carries the spatial mix rather than a flat approximation.
+
+**Three defects, and the second one was in code that had been correct for weeks.**
+
+1. **A deadlock, found by exporting something longer than a few seconds.** `AVAssetWriter`
+   interleaves its tracks and stops accepting video once the video runs far ahead of an audio
+   track that still expects data. Writing every frame and then the sound sat at **0.3% CPU for
+   twenty-one minutes with a zero-byte file**, spinning in a `while !isReadyForMoreMediaData`
+   loop that would never come true. The soundtrack is written first now and its input closed
+   immediately, and the readiness loop has a ten-second deadline so a stall is an error rather
+   than a hang.
+2. **`isRawFrame` was an exactness test that only worked by arithmetic accident**, and pacing
+   the animation from the score exposed it. An eighth of a second per readout at 60 fps is
+   exactly five output frames, so the interpolation parameter landed on integers. The new
+   pacing gives 145.5 frames per readout, the parameter steps by 0.0069, and it lands within
+   1e-4 of an integer roughly never: **2 raw frames out of 8 readouts**. Contacts advance only
+   on raw frames, so three quarters of the fold's events vanished and an eight-bar piece became
+   two bars. A frame is now marked raw when it is the first one nearest a readout, which holds
+   at any ratio.
+3. **A caller can pace its frames by a different rule and the export will refuse.** The
+   command-line renderer did exactly that, producing a fifteen-second picture against a
+   thirty-eight-second soundtrack; the exporter now compares the two before drawing a frame and
+   throws rather than writing a file that looks finished. The pacing rule moved into
+   `Sonifier.Pacing` so every caller can reach it.
+
+The offscreen stage uses `StageCamera` itself rather than a copy of its numbers, and the live
+stage's normalisation verbatim - protein scaled to 1.15 across its bounding diagonal, camera on
++Z at the camera's own distance, the protein rotated rather than the camera. With the lens and
+the lighting already matched, the film is framed and lit as the app is.
+
+Measured: trp-cage under the structure-based model, 2,686 frames at 1920x1080, **29.5 MB**.
+Bitrate scales with the pixel rate rather than being fixed, because the same figure that is
+generous at 1080p is a smear at 4K.
