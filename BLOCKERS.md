@@ -865,3 +865,24 @@ devices on one iCloud account with Bluetooth and Wi-Fi on, and the same team sig
       handoff slot, and that clicking it continues the same protein in the same style
 - [ ] Continue a Genie 2 fold specifically, and confirm the Mac generates the *same* backbone
       rather than a different one, which is what the seed is carried for
+
+
+## Phase 5b: pause is built but only half verified (2026-08-31)
+
+The app had no pause at all: it played a fold through. PLAN's Watch remote lists "play, pause",
+so the phone needed one rather than a wrist button that ends the fold.
+
+**Verified by test.** `FoldAudioEngine.pause()` stops rendering without tearing the graph down,
+`resume()` restarts the same graph, both are idempotent, and - the claim the design rests on -
+the audio clock does not advance across a pause. The conductor derives its time from that clock,
+so the score stops advancing by construction rather than by arrangement.
+
+**Not verified.** Pausing a real fold in the running app: that the picture holds with the sound,
+that progress does not jump on resume, and that nothing clicks when the notes come back. An
+attempt to drive it from outside failed - a diagnostic probe that pauses at a set progress never
+fired, and the log search that looked for it matched only its own command lines, which is the
+same self-match trap as the pgrep one. The probe was removed rather than left in unproven.
+
+- [ ] Play a fold on the phone, pause it mid-piece, wait, and resume. Check the picture and the
+      sound resume together, that progress continues rather than jumping, and that there is no
+      click on the first note back

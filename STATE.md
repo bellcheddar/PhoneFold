@@ -1,7 +1,7 @@
 # PhoneFold — STATE
 
 **Current phase:** 5 (Fleet). Phases 0, 2, 3 and 4 all hold a GREEN machine gate.
-**Current task:** P5b-02, the watchOS target. **Phase 5a's machine gate is GREEN** end to end, including the CoreMIDI loopback in its own invocation. What is left of 5a is the human gate: Marc recording a fold into a DAW, and a handoff crossing between two real devices. P5-02 is investigated and restated (see 5a below); its export half waits for a free machine. **Phase 4's machine gate is GREEN**, including the two checks it used to skip: the exported MP4 now probes clean in ffprobe, and forty consecutive folds show no leak. What is left of Phase 4 is human and is in `BLOCKERS.md` - AirPlay to a real Apple TV, the Lock Screen banner, the exported-video comparison, cold launch on device, the VoiceOver audit, signing and TestFlight - plus P4-16, the app icon, which is blocked on a skill this machine does not have. Marc is deferring the sign-offs and will say when.
+**Current task:** P5b-03, wiring the phone's side of the remote. P5b-08 (pause) is built and its audio half is tested; pausing end to end in the app is **not yet verified** and must not be claimed. **Phase 5a's machine gate is GREEN** end to end, including the CoreMIDI loopback in its own invocation. What is left of 5a is the human gate: Marc recording a fold into a DAW, and a handoff crossing between two real devices. P5-02 is investigated and restated (see 5a below); its export half waits for a free machine. **Phase 4's machine gate is GREEN**, including the two checks it used to skip: the exported MP4 now probes clean in ffprobe, and forty consecutive folds show no leak. What is left of Phase 4 is human and is in `BLOCKERS.md` - AirPlay to a real Apple TV, the Lock Screen banner, the exported-video comparison, cold launch on device, the VoiceOver audit, signing and TestFlight - plus P4-16, the app icon, which is blocked on a skill this machine does not have. Marc is deferring the sign-offs and will say when.
 **Last updated:** 2026-08-31
 
 **Published 2026-08-31: <https://github.com/bellcheddar/PhoneFold>, public, MIT.** The history was
@@ -364,7 +364,8 @@ unreachable. `FoldSync` is currently a stub with a version string, so this is al
 | id | task | depends | status |
 |---|---|---|---|
 | P5b-01 | `FoldRemote`: the message vocabulary and a `Transport` protocol, so the handshake is testable against a mock | — | done: 10 tests against a mock session, plus the real `WCSession` conformance |
-| P5b-02 | The watchOS app target, three screens at most. Watch apps die of ambition | P5b-01 | doing |
+| P5b-02 | The watchOS app target, three screens at most. Watch apps die of ambition | P5b-01 | done: builds, runs, three screens |
+| P5b-08 | Pause on the phone, which the app did not have and the wrist needs | P5b-01 | audio half verified; end to end unverified |
 | P5b-03 | Transport remote: play, pause, style, colour mode, with the Digital Crown scrubbing the timeline | P5b-02 | todo |
 | P5b-04 | Wrist haptics of the fold, the phone keeping the audio | P5b-02 | todo |
 | P5b-05 | Complication: the last fold's mean confidence as a progress ring, tap to open the remote | P5b-02 | todo |

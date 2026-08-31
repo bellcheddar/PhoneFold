@@ -107,6 +107,17 @@ final class ScoreConductor: @unchecked Sendable {
         }
     }
 
+    /// Stop the audio without ending the piece. The score stops advancing on its own, because
+    /// the drain below is driven by `playbackTime`, which comes from the audio clock.
+    func pause() {
+        engine.pause()
+        midi?.allNotesOff()
+    }
+
+    func resume() {
+        try? engine.resume()
+    }
+
     func stop() {
         scheduler?.cancel()
         scheduler = nil

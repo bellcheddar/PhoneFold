@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 import SwiftUI
 import simd
 import FoldCore
@@ -66,6 +67,23 @@ final class FoldPlayer: ObservableObject {
     var onFrame: (@MainActor (PreparedFrame, [FlashInstance]) -> Void)?
 
     @Published private(set) var isPlaying = false
+
+    /// Whether playback is paused, as opposed to stopped.
+    ///
+    /// PLAN.md Phase 5b lists "play, pause" among what the wrist can ask for, and the app had
+    /// no pause: it played a fold through. Stopping instead would have been a remote button
+    /// that ends the fold, which is not what it says.
+    @Published private(set) var isPaused = false
+
+    /// The same flag, readable from the detached frame loop without hopping to the main actor.
+    ///
+    /// The loop runs at sixty frames a second and `await`ing an actor-isolated property for
+    /// every one of them would put the main actor in the render path, which is exactly what
+    /// this task was made detached to avoid.
+    ///
+    /// Wrapped in a class because `Atomic` is non-copyable and so cannot be captured by a
+    /// closure; a reference to a box can.
+    private let paused = PauseFlag()
     @Published private(set) var progress: Double = 0
     /// Secondary structure by default.
     ///
@@ -256,7 +274,8 @@ final class FoldPlayer: ObservableObject {
         // Detached, not a child of the main actor: a `Task {}` inside a @MainActor type
         // inherits main-actor isolation, which is exactly what starved the renderer.
         diagnostic = "starting"
-        task = Task.detached(priority: .userInitiated) { [weak self] in
+        let pauseFlag = paused
+        task = Task.detached(priority: .userInitiated) { [weak self, pauseFlag] in
             var flashPool = ContactFlashPool(frameRate: 60)
             var delivered = 0
             do {
@@ -265,6 +284,15 @@ final class FoldPlayer: ObservableObject {
                 await self?.note("stream total=\(total)")
                 for await frame in sequence {
                     if Task.isCancelled { return }
+                    // **The picture waits with the sound.** The score stops on its own when the
+                    // audio clock freezes, but the frame stream is paced by its own sleep and
+                    // would run on regardless, so a resumed fold would find the picture minutes
+                    // ahead of the music. Polled rather than signalled because this is the
+                    // render path: a continuation per frame costs more than a relaxed load.
+                    while pauseFlag.isSet {
+                        if Task.isCancelled { return }
+                        try? await Task.sleep(for: .milliseconds(40))
+                    }
                     // Scored before the mesh is built, so a note is never late because the
                     // geometry was slow.
                     conductor?.receive(frame)
@@ -464,6 +492,21 @@ final class FoldPlayer: ObservableObject {
         }
     }
 
+    /// Hold the fold where it is. The audio engine's clock freezes, so the score stops with it.
+    func pause() {
+        guard isPlaying, !isPaused else { return }
+        isPaused = true
+        paused.set(true)
+        conductor?.pause()
+    }
+
+    func resume() {
+        guard isPaused else { return }
+        isPaused = false
+        paused.set(false)
+        conductor?.resume()
+    }
+
     func stop() {
         task?.cancel()
         task = nil
@@ -477,4 +520,16 @@ final class FoldPlayer: ObservableObject {
     }
 
     deinit { task?.cancel() }
+}
+
+
+/// A boolean the render path can read without touching an actor.
+///
+/// `Atomic` is non-copyable, so it cannot be captured by the detached frame task directly; a
+/// reference to this can. Releasing and acquiring rather than relaxed, so a pause that is set on
+/// the main actor is certainly seen by the next frame rather than eventually.
+final class PauseFlag: Sendable {
+    private let value = Atomic<Bool>(false)
+    var isSet: Bool { value.load(ordering: .acquiring) }
+    func set(_ paused: Bool) { value.store(paused, ordering: .releasing) }
 }

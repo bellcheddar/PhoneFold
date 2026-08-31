@@ -193,6 +193,36 @@ public final class FoldAudioEngine: @unchecked Sendable {
         isRunning = false
     }
 
+    /// Stop rendering without tearing the graph down.
+    ///
+    /// **`pause()` rather than `stop()`, and the difference is the whole point.** `stop()`
+    /// releases the render resources and resets the node timelines, so resuming would restart
+    /// the piece from zero. `pause()` freezes them, which also freezes `audioTime` - and since
+    /// the conductor derives its clock from `audioTime`, the score stops advancing on its own
+    /// without a second timebase to keep in step. Pausing the audio pauses the music by
+    /// construction rather than by arrangement.
+    ///
+    /// Every sounding note is released first: a paused engine holds its buffers, so a note left
+    /// on would resume as a click a minute later.
+    public func pause() {
+        guard isRunning else { return }
+        allNotesOff()
+        engine.pause()
+        isRunning = false
+    }
+
+    /// Carry on from where `pause()` left off.
+    ///
+    /// The session is not reconfigured and the graph is not rebuilt: both survive a pause, and
+    /// touching them is what would reset the timeline this is trying to preserve.
+    public func resume() throws {
+        guard !isRunning else { return }
+        do { try engine.start() } catch {
+            throw Failure.couldNotStart(error.localizedDescription)
+        }
+        isRunning = true
+    }
+
     private func configureSession() throws {
         // macOS has no AVAudioSession at all; it uses the default output device. The other
         // three platforms need `.playback` so the piece keeps going with the screen locked and

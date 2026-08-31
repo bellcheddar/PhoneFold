@@ -4,6 +4,7 @@ options:
   deploymentTarget:
     iOS: "18.0"
     macOS: "15.0"
+    watchOS: "11.0"
   createIntermediateGroups: true
 
 # The team id is never written into this repository: XcodeGen expands the environment
@@ -168,3 +169,33 @@ targets:
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.education
         ENABLE_HARDENED_RUNTIME: YES
         CODE_SIGN_STYLE: Automatic
+
+  # PLAN.md Phase 5b. A single-target watchOS app (WKApplication), embedded in the phone app so
+  # it installs with it. Memory: a companion watch app must be embedded, not merely depended on.
+  PhoneFoldWatch:
+    type: application
+    # `platform`, not `supportedDestinations`: XcodeGen refuses watchOS in a multiplatform
+    # target, because a watch app is its own product rather than another destination.
+    platform: watchOS
+    sources:
+      - path: ../PhoneFold-watchOS/Sources
+    dependencies:
+      # FoldSync only. Not FoldAudio and not FoldRender: the Watch runs no audio and draws no
+      # protein, and the style and colour lists arrive from the phone in the state it publishes.
+      - package: PhoneFoldKit
+        products: [FoldSync]
+    info:
+      path: PhoneFoldWatch-Info.plist
+      properties:
+        CFBundleDisplayName: PhoneFold
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        # The modern single-target watch app. Without this it is treated as a legacy
+        # WatchKit extension pair and will not launch.
+        WKApplication: true
+        WKCompanionAppBundleIdentifier: com.mdeller.phonefold
+        NSHumanReadableCopyright: "2026 Marc C. Deller"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.mdeller.phonefold.watchkitapp
+        CODE_SIGN_STYLE: Automatic
+        SKIP_INSTALL: YES

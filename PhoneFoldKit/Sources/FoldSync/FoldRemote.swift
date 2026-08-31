@@ -80,10 +80,21 @@ public enum FoldRemote {
         public var confidenceLabel: String
         public var styleID: String
         public var colourMode: String
+        /// The choices the phone can actually offer, as identifier and display name.
+        ///
+        /// **Sent rather than known.** The Watch runs no audio and draws no protein, so it has
+        /// no business depending on `FoldAudio` or `FoldRender` just to learn five style names -
+        /// that would put a synthesiser and a renderer on a device whose whole design principle
+        /// is that it runs no inference. Hard-coding the list instead would drift the moment a
+        /// style is added. The phone knows; the phone says. They ride in the application
+        /// context, which the system coalesces, so repeating them costs nothing.
+        public var styles: [String: String]
+        public var colourModes: [String: String]
 
         public init(title: String, isPlaying: Bool, progress: Double,
                     meanConfidence: Double? = nil, confidenceLabel: String = "pLDDT",
-                    styleID: String = "fantasy", colourMode: String = "secondaryStructure") {
+                    styleID: String = "fantasy", colourMode: String = "secondaryStructure",
+                    styles: [String: String] = [:], colourModes: [String: String] = [:]) {
             self.title = title
             self.isPlaying = isPlaying
             self.progress = progress
@@ -91,6 +102,8 @@ public enum FoldRemote {
             self.confidenceLabel = confidenceLabel
             self.styleID = styleID
             self.colourMode = colourMode
+            self.styles = styles
+            self.colourModes = colourModes
         }
 
         public var payload: [String: Any] {
@@ -101,6 +114,8 @@ public enum FoldRemote {
                 "confidenceLabel": confidenceLabel,
                 "styleID": styleID,
                 "colourMode": colourMode,
+                "styles": styles,
+                "colourModes": colourModes,
             ]
             if let meanConfidence { info["meanConfidence"] = meanConfidence }
             return info
@@ -115,7 +130,9 @@ public enum FoldRemote {
                 meanConfidence: payload["meanConfidence"] as? Double,
                 confidenceLabel: payload["confidenceLabel"] as? String ?? "pLDDT",
                 styleID: payload["styleID"] as? String ?? "fantasy",
-                colourMode: payload["colourMode"] as? String ?? "secondaryStructure")
+                colourMode: payload["colourMode"] as? String ?? "secondaryStructure",
+                styles: payload["styles"] as? [String: String] ?? [:],
+                colourModes: payload["colourModes"] as? [String: String] ?? [:])
         }
     }
 

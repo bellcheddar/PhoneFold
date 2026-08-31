@@ -228,18 +228,6 @@ struct StageView: View {
             .dynamicTypeSize(...DynamicTypeSize.accessibility3)
         }
         .preferredColorScheme(.dark)
-        // PLAN.md Phase 5a: "start a fold on the phone, continue on the Mac". Published from
-        // the shared stage, so the phone advertises and the Mac adopts without either needing
-        // its own copy of what a fold is.
-        .userActivity(FoldHandoff.activityType, isActive: player.isPlaying) { activity in
-            guard let payload = handoffPayload else { return }
-            activity.title = payload.title
-            activity.isEligibleForHandoff = true
-            // Not eligible for search or prediction: this describes a fold in progress on
-            // another device, and a stale one in Spotlight a week later is noise.
-            activity.isEligibleForSearch = false
-            activity.userInfo = payload.userInfo
-        }
         .onContinueUserActivity(FoldHandoff.activityType) { activity in
             guard let payload = FoldHandoff.from(userInfo: activity.userInfo) else { return }
             continueFold(payload)
