@@ -84,7 +84,17 @@ public final class OffscreenStage {
     /// already got wrong once.
     public var camera = StageCamera()
 
-    public init(size: Size) throws {
+    /// The colour the stage clears to, in linear space.
+    ///
+    /// The default is the app's own stage: the ground every fold is watched against, so a film
+    /// and the live view agree. It is a parameter because the app icon needs the protein on a
+    /// *transparent* ground and `RealityRenderer` offers no alpha here - the way to get one is
+    /// to render the same frame against two known backgrounds and solve for it, which needs
+    /// this to be settable and needs nothing else. See `make-icon`.
+    public static let defaultBackground = CGColor(red: 0.047, green: 0.039, blue: 0.122,
+                                                  alpha: 1)
+
+    public init(size: Size, background: CGColor = OffscreenStage.defaultBackground) throws {
         self.size = size
         guard let device = MTLCreateSystemDefaultDevice() else { throw Failure.noMetalDevice }
         self.device = device
@@ -138,8 +148,7 @@ public final class OffscreenStage {
         // the other. That was Marc's call on 2026-08-31.
         lights = StageLighting.makeLights()
         for light in lights { renderer.entities.append(light) }
-        renderer.cameraSettings.colorBackground = .color(.init(red: 0.047, green: 0.039,
-                                                              blue: 0.122, alpha: 1))
+        renderer.cameraSettings.colorBackground = .color(background)
     }
 
     /// How much further back the camera must stand for a frame narrower than it is tall.

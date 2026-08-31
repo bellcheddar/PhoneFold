@@ -705,19 +705,12 @@ against the live view's 42 - and is now 42 in both.
       RealityView's default environment on top of the explicit lights
 
 
-## Phase 4: the app icon needs a skill this machine does not have (2026-08-31)
+## RESOLVED 2026-08-31: the app icon
 
-PLAN.md: "App icon: generate with Marc's `marcs-vibe-icon` skill, matching the portfolio house
-style." That skill is not installed here - `~/.claude/skills` has `marcs-vibe-coding`,
-`hf-model-upload` and `boltzmaker-input-wizard`, and nothing else.
-
-I have not drawn one anyway. An icon is the app's face, "matching the portfolio house style" is
-a thing I cannot see from here, and inventing one would be inventing the house style rather
-than matching it.
-
-- [ ] Either install `marcs-vibe-icon` on this machine, or say what the icon should be and I
-      will build it to that description
-
+Marc: "The app icon is not dependent on my skill, apple app icons are independent from my
+skills, so generate one." Done - `swift run make-icon` renders trp-cage on the app's own stage
+in its own secondary-structure colouring, and `Tools/appstore/make_icon_sets.py` slices it for
+all four platforms including visionOS's layered stack. See METRICS.md, P4-16.
 
 ## Phase 4: the external display scene needs a real display (2026-08-31)
 

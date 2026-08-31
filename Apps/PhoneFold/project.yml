@@ -27,6 +27,10 @@ targets:
     supportedDestinations: [iOS, macOS]
     sources:
       - path: Sources
+      # P4-16, the app icon: a real frame of a real fold, rendered by `make-icon` from the
+      # trp-cage demo structure in the app's own secondary-structure colouring.
+      - path: Assets.xcassets
+        buildPhase: resources
       # The Live Activity's state type, compiled into the app and the widget extension from
       # the same file. See FoldActivityAttributes.swift for why it is not duplicated.
       - path: ../Shared/Sources
@@ -61,6 +65,14 @@ targets:
       properties:
         CFBundleDisplayName: PhoneFold
         CFBundleShortVersionString: $(MARKETING_VERSION)
+        # **Written by hand, because XcodeGen supplies the Info.plist.** Xcode injects
+        # CFBundleIconName only when it is generating the plist itself (GENERATE_INFOPLIST_FILE),
+        # and an explicit plist gets no such favour. Without it the asset catalogue still
+        # compiles, the icon still appears on the home screen, and App Store Connect refuses the
+        # upload: "A value for the Info.plist key CFBundleIconName is missing." It was missing on
+        # iOS, watchOS and visionOS and present on macOS, which is exactly the kind of asymmetry
+        # nobody checks.
+        CFBundleIconName: AppIcon
         UILaunchScreen: {}
         NSSupportsLiveActivities: true
         # Handoff. Both apps must declare the same type or the continuation never arrives,
@@ -92,6 +104,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.mdeller.phonefold
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         # macOS only. `com.apple.security.app-sandbox` is not a valid iOS entitlement - iOS
         # sandboxes every app implicitly - and supplying it there is a provisioning error
         # rather than a no-op, so the setting is conditioned on the SDK.
@@ -143,10 +156,19 @@ targets:
         excludes:
           - PhoneFoldApp.swift
       - path: ../PhoneFoldStudio-macOS/Sources
+      - path: Assets.xcassets
+        buildPhase: resources
       - path: ../Shared/Sources
       - path: Resources
         buildPhase: resources
+      # PLAN.md Phase 5a: "Studio raises the cap; the phone does not." Two length buckets
+      # here against the phone's one - 34 and 37 MB - because a Mac can spare the bundle and
+      # the minutes a longer trajectory takes, and a phone can spare neither.
+      # `Genie2Sampler.bundledLengths` probes for these rather than being told, so nothing has
+      # to know which app it is compiled into, and adding the 256 bucket is one line here.
       - path: ../../Models/Genie2Step_L64.mlpackage
+        buildPhase: resources
+      - path: ../../Models/Genie2Step_L128.mlpackage
         buildPhase: resources
       - path: ../Shared/Resources/Styles
         buildPhase: resources
@@ -163,6 +185,7 @@ targets:
       properties:
         CFBundleDisplayName: PhoneFold Studio
         CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleIconName: AppIcon
         NSHumanReadableCopyright: "2026 Marc C. Deller"
         ITSAppUsesNonExemptEncryption: false
         NSUserActivityTypes:
@@ -170,6 +193,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.mdeller.phonefold.studio
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_ENTITLEMENTS: PhoneFold-macOS.entitlements
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.education
         ENABLE_HARDENED_RUNTIME: YES
@@ -184,6 +208,8 @@ targets:
     platform: watchOS
     sources:
       - path: ../PhoneFold-watchOS/Sources
+      - path: ../PhoneFold-watchOS/Assets.xcassets
+        buildPhase: resources
       # The Fold of the Day, baked by Tools/make_fold_of_the_day.py. 228 kB for six folds of
       # ninety frames, which is the whole reason the wrist needs no engine and no phone.
       - path: ../PhoneFold-watchOS/Resources
@@ -202,6 +228,7 @@ targets:
       properties:
         CFBundleDisplayName: PhoneFold
         CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleIconName: AppIcon
         # The modern single-target watch app. Without this it is treated as a legacy
         # WatchKit extension pair and will not launch.
         WKApplication: true
@@ -210,6 +237,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.mdeller.phonefold.watchkitapp
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_ENTITLEMENTS: PhoneFoldWatch.entitlements
         CODE_SIGN_STYLE: Automatic
         SKIP_INSTALL: YES
@@ -254,6 +282,8 @@ targets:
           # shaders, so this would not compile and nothing there would use it.
           - StageShaders.metal
       - path: ../PhoneFold-visionOS/Sources
+      - path: ../PhoneFold-visionOS/Assets.xcassets
+        buildPhase: resources
       - path: ../Shared/Sources
       - path: Resources
         buildPhase: resources
@@ -274,6 +304,7 @@ targets:
       properties:
         CFBundleDisplayName: PhoneFold
         CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleIconName: AppIcon
         NSHumanReadableCopyright: "2026 Marc C. Deller"
         ITSAppUsesNonExemptEncryption: false
         UIApplicationSceneManifest:
@@ -281,6 +312,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.mdeller.phonefold.vision
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_ENTITLEMENTS: PhoneFold-iOS.entitlements
         CODE_SIGN_STYLE: Automatic
 
@@ -290,7 +322,19 @@ targets:
 # destination cannot do it - the five apps are three products on four platforms - but xcodebuild
 # takes repeated `-destination` flags and builds the scheme for each, which is one invocation by
 # any reading. See Tools/verify_phase.sh.
+# **Declaring any scheme stops XcodeGen generating them for every target.** Adding
+# `PhoneFoldAll` silently removed the `PhoneFold` scheme, which the phase 4 gate builds by
+# name - so phase 4's gate would have failed with "does not contain a scheme named PhoneFold"
+# on a tree where nothing about phase 4 had changed. The other three survived because a target
+# with its own `platform:` still gets one. Every scheme the project needs is therefore named
+# here, explicitly, rather than relying on a rule with exceptions in it.
 schemes:
+  PhoneFold:
+    build:
+      targets:
+        PhoneFold: [run, test, profile, analyze, archive]
+        PhoneFoldWidgets: [run, test, profile, analyze, archive]
+
   PhoneFoldAll:
     build:
       targets:

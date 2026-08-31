@@ -3754,3 +3754,48 @@ the only honest test available before anything is written, and the store now say
 
 The entitlement is added to the iOS, macOS and visionOS targets. **The App ID also needs iCloud
 enabled in the developer portal**, which is Marc's - see `BLOCKERS.md`.
+
+## P4-16, the app icon (2026-08-31)
+
+**The icon is a frame of the app doing its job**, not a drawing of one: trp-cage TC5b - the
+structure the gallery opens with - rendered by the same `OffscreenStage` that makes the films,
+with the same lighting rig and the app's own secondary-structure colouring. Marc's call on both
+the structure and the palette. `swift run make-icon` produces it, so it is reproducible rather
+than a file someone once exported.
+
+Four things the pipeline got wrong first, three of which are silent:
+
+- **The camera has to be applied.** `OffscreenStage` applies the transform inside `show` and
+  inside `advance`, and nowhere else, so a camera changed between them is a camera nothing has
+  read. Ten candidates came back identical to each other, which reads as the arguments not
+  being parsed.
+- **The background gradient was never visible.** The stage clears to an opaque colour and the
+  render covers the canvas; every corner pixel read exactly that colour. It was removed rather
+  than fixed - that colour *is* the app's stage, so an icon on a gradient would show a ground
+  the app never shows.
+- **Removing it took the sRGB conversion with it.** The texture is linear and the composite was
+  going through an sRGB `CGContext`, which was doing the conversion incidentally. Without it the
+  corner went from (13, 13, 38) to (1, 1, 5) - the same picture three stops down - and the PNG
+  was tagged linear, which an asset catalogue and App Store Connect both read as too dark.
+- **`CFBundleIconName` is not written when XcodeGen supplies the Info.plist.** Xcode injects it
+  only under `GENERATE_INFOPLIST_FILE`. It was present on macOS and missing on iOS, watchOS and
+  visionOS; the catalogue compiles, the icon appears on the home screen, and the *upload* is
+  refused with "A value for the Info.plist key CFBundleIconName is missing".
+
+### visionOS will not take a flat icon
+
+Two requirements Xcode enforces and neither is in the interface guidance:
+
+| | |
+|---|---|
+| The stack is **512 x 512**, not 1024 | a 1024 layer fails with "must exactly fill the image stack. Its current frame is {{0, 0}, {1024, 1024}} while the visionOS App Icon's size is {512, 512}" |
+| **At least two layers must have content** | artwork on `Back` with empty layers in front is refused: "Although it has 3 layers, only 1 has applicable content" |
+
+So the ground and the protein had to be separated, which needs the protein on transparency, and
+`RealityRenderer` offers no alpha. **Two renders and algebra, not a colour key.** Compositing is
+`C = F + (1 - a)B`, so rendering against black and against white gives `C_white - C_black =
+1 - a` and alpha falls out with no threshold anywhere; the premultiplied colour is `C_black`.
+Keying out the flat background is the obvious approach and it fringes, because the ribbons are
+shaded and their dark faces sit near the background colour. Measured: corner alpha 0, protein
+alpha 255, full range in between. `OffscreenStage` gained a background parameter for this and
+nothing else.

@@ -83,6 +83,12 @@ let package = Package(
         // PLAN.md Phase 3's command-line renderer: a trajectory plus a style profile in, a WAV
         // out. Regression-tests audio without a device, and auditions a style tweak in
         // seconds.
+        // PLAN.md Phase 4's P4-16. The icon is a frame of the app doing its job, rendered by
+        // the same offscreen stage that makes the films.
+        .executableTarget(name: "make-icon",
+                          dependencies: ["FoldCore", "FoldGeometry", "FoldRender",
+                                         "FoldCapture"]),
+
         .executableTarget(name: "preview-style",
                           dependencies: ["FoldAudio", "FoldEngine", "FoldGeometry", "FoldCore",
                                          "FoldRender", "FoldCapture"]),
