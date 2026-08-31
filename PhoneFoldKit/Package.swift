@@ -57,6 +57,12 @@ let package = Package(
         // PLAN.md Phase 4's leak gate: twenty consecutive folds in one process, reporting the
         // physical footprint after each. Twenty runs of preview-style would prove nothing,
         // because each would start with a fresh heap.
+        // PLAN.md Phase 5a's batch mode, headless. Studio's drag-and-drop surface drives the
+        // same BatchRunner; this is what the phase gate can run without a network.
+        .executableTarget(name: "fold-batch",
+                          dependencies: ["FoldEngine", "FoldCore", "FoldGeometry", "FoldAudio",
+                                         "FoldRender", "FoldCapture"]),
+
         .executableTarget(name: "leak-probe",
                           dependencies: ["FoldEngine", "FoldCore", "FoldGeometry", "FoldAudio",
                                          "FoldRender", "FoldCapture"]),

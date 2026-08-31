@@ -341,7 +341,41 @@ assert last.b_factor.max() > 0, 'the confidence column is empty'
       fail "the app project is missing; run xcodegen in Apps/PhoneFold"
     fi
 
-    skip "phase 5: batch mode and the CoreMIDI loopback check arrive with P5-03 and P5-05"
+    # PLAN.md Phase 5a's machine gate: "batch mode processes a 5-record FASTA headlessly".
+    #
+    # **Offline, against the bundled trajectories, and that is deliberate.** Resolving five
+    # accessions through AlphaFold would make this gate depend on a network and on someone
+    # else's uptime, so it would fail on a train and pass at a desk for reasons that have
+    # nothing to do with the code. The library resolver keys on each bundle's own
+    # `metadata.accession`, so the fixture is checked against what the files actually contain
+    # rather than against a hand-written mapping that could drift from them.
+    #
+    # The fixture deliberately mixes both identifier kinds - UniProt accessions and PDB entry
+    # ids - because the parser tells them apart and the resolver has to serve both.
+    if [[ -n "${PHONEFOLD_GATE_FAST:-}" ]]; then
+      skip "batch mode is skipped because PHONEFOLD_GATE_FAST is set"
+    elif swift build --package-path PhoneFoldKit --product fold-batch >/dev/null 2>&1; then
+      BIN=$(swift build --package-path PhoneFoldKit --show-bin-path 2>/dev/null)
+      rm -rf /tmp/pf_gate_batch
+      if "$BIN/fold-batch" "$ROOT/Tools/fixtures/batch_five.fasta" \
+           --library "$TRAJ_DIR" --styles "$ROOT/Apps/Shared/Resources/Styles" \
+           --engine morph --frames 48 --out /tmp/pf_gate_batch --cif --quiet \
+           >/tmp/pf_gate_batch.log 2>&1; then
+        FOLDED=$(sed -n 's/^\([0-9]*\) folded.*/\1/p' /tmp/pf_gate_batch.log | tail -1)
+        CIFS=$(ls /tmp/pf_gate_batch/*.cif 2>/dev/null | wc -l | tr -d ' ')
+        if [[ "$FOLDED" == "5" && "$CIFS" == "5" ]]; then
+          pass "batch mode: 5 records folded headlessly, 5 mmCIF written"
+        else
+          fail "batch mode folded ${FOLDED:-0}/5 and wrote $CIFS/5 files - see /tmp/pf_gate_batch.log"
+        fi
+      else
+        fail "fold-batch exited non-zero - see /tmp/pf_gate_batch.log"
+      fi
+    else
+      fail "fold-batch does not build"
+    fi
+
+    skip "phase 5: the CoreMIDI loopback check arrives with P5-05"
     ;;
   *)
     echo "unknown phase: $PHASE" >&2; exit 2
