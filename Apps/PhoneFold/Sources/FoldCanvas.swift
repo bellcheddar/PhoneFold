@@ -15,6 +15,9 @@ import AppKit
 /// rewritten in place each frame rather than a new `MeshResource` being built. RealityKit is
 /// also the visionOS path, which is why it wins over SceneKit here.
 struct FoldCanvas: View {
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColour
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @ObservedObject var player: FoldPlayer
     @Binding var diagnostic: String
 
@@ -40,8 +43,29 @@ struct FoldCanvas: View {
         RealityView { content in
             content.add(stage.root)
         }
+        // A `RealityView` coordinator has no environment of its own, so the settings are read
+        // here and pushed down. `.onChange` with `initial: true` rather than `.onAppear`: a
+        // setting can be changed while the app is open, and a stage that only read it at
+        // launch would need a relaunch to honour it.
+        .onChange(of: differentiateWithoutColour, initial: true) { _, value in
+            stage.accessiblePalette = value || player.accessiblePalette
+        }
+        .onChange(of: reduceMotion, initial: true) { _, value in
+            stage.reduceMotion = value || player.reduceMotion
+        }
+        // The stage is the one thing in the app with no text of its own. Merged into a single
+        // element so VoiceOver reads the protein rather than nothing, and `updatesFrequently`
+        // so it re-reads as the fold proceeds instead of describing frame one for a minute.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("The fold")
+        .accessibilityValue(player.stageDescription)
+        .accessibilityAddTraits(.updatesFrequently)
         // Over the stage and nothing else, and never in the way of a gesture.
-        .auroraVignette(stage.grade)
+        //
+        // Reduce Transparency removes it entirely rather than thinning it: the grade is a
+        // translucent wash, which is precisely what the setting is asking not to be shown, and
+        // a fainter wash is still a wash.
+        .auroraVignette(reduceTransparency ? nil : stage.grade)
         // The grade sits directly on the RealityView's output, before the gestures, so it
         // covers exactly the stage and nothing else. `onGeometryChange` rather than a
         // GeometryReader wrapper: the reader would relayout the view it wraps, and the
@@ -153,6 +177,15 @@ final class StageContent {
     var colourMode: ColourMode = .confidence
     var residues: [AminoAcid] = []
     var residueCount: Int = 0
+
+    /// Accessibility, pushed in from the view.
+    ///
+    /// `Differentiate Without Color` swaps the secondary-structure palette for the amber and
+    /// blue one; `Reduce Motion` stops the orbit and the contact flashes. Both are read from
+    /// the environment by the view and set here, because a `RealityView` coordinator has no
+    /// environment of its own.
+    var accessiblePalette = false { didSet { if accessiblePalette != oldValue { rampMode = nil } } }
+    var reduceMotion = false
 
     /// Interaction counters, on the glass under PHONEFOLD_DIAGNOSTICS=1.
     ///
@@ -340,9 +373,15 @@ final class StageContent {
                 try? await Task.sleep(nanoseconds: 16_000_000)
                 guard let self else { return }
                 let now = Date()
-                self.camera.advance(deltaTime: Float(now.timeIntervalSince(last)))
+                // Reduce Motion stops the automatic orbit outright rather than slowing it. A
+                // slow drift is still drift, and the setting exists for people for whom that
+                // is the problem; a drag still turns the protein, so nothing is lost but the
+                // motion nobody asked for.
+                if !self.reduceMotion {
+                    self.camera.advance(deltaTime: Float(now.timeIntervalSince(last)))
+                    self.applyCamera()
+                }
                 last = now
-                self.applyCamera()
             }
         }
     }
@@ -418,7 +457,8 @@ final class StageContent {
         let mesh = frame.mesh
         guard !mesh.vertices.isEmpty else { return }
 
-        let options = ColourOptions(residueCount: residueCount, residues: residues)
+        let options = ColourOptions(residueCount: residueCount, residues: residues,
+                                    accessiblePalette: accessiblePalette)
         let packed = TubeMeshPacker.pack(mesh, residueConfidence: frame.confidence,
                                          mode: colourMode, options: options)
 
@@ -468,7 +508,7 @@ final class StageContent {
 
         // Follow the action: ease toward where contacts are forming, in the protein's own
         // normalised space.
-        if !flashes.isEmpty, let bounds = lastBounds {
+        if !flashes.isEmpty, !reduceMotion, let bounds = lastBounds {
             let extent = simd_length(bounds.maximum - bounds.minimum)
             let scale = extent > 0.001 ? 1.0 / extent : 1
             let centre = (bounds.maximum + bounds.minimum) * 0.5

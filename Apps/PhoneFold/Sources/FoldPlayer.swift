@@ -74,6 +74,18 @@ final class FoldPlayer: ObservableObject {
     /// headline". The confidence ramp is one tap away and is still the better view of a
     /// prediction settling; it is not the better view of a protein folding.
     @Published var colourMode: ColourMode = .secondaryStructure
+
+    /// Accessibility settings, pushed down from the view that can read the environment.
+    ///
+    /// **The palette existed and was unreachable.** `ColourOptions.accessiblePalette` and the
+    /// amber-and-blue secondary structure colours were written in Phase 2 and nothing ever set
+    /// the flag, so the only way to see them was from a unit test. A capability nobody can
+    /// reach is not a feature.
+    @Published var accessiblePalette = false
+    /// Slower orbit and no contact flashes.
+    @Published var reduceMotion = false
+    /// The aurora grade off, so the stage is a flat ground rather than a gradient wash.
+    @Published var reduceTransparency = false
     /// Published at `hudUpdateInterval`, not per frame: the counters and traces are read by
     /// a human and gain nothing from sixty updates a second.
     @Published private(set) var history = FoldHistory()
@@ -352,6 +364,22 @@ final class FoldPlayer: ObservableObject {
     }
 
     private func note(_ text: String) { diagnostic = text }
+
+    /// What VoiceOver says about the stage.
+    ///
+    /// Built from the last frame rather than stored per frame: it is read on demand by the
+    /// accessibility system, and computing a sentence sixty times a second for something
+    /// nobody may be listening to is work for nothing.
+    var stageDescription: String {
+        guard let frame = latestFrame else { return "No fold is playing." }
+        return StageDescription.describe(
+            name: provider?.metadata.name,
+            residueCount: frame.caPositions.count,
+            fractions: frame.structureFractions,
+            confidence: frame.metrics.meanConfidence,
+            confidenceSource: provider?.confidenceSource ?? .pLDDT,
+            progress: frame.progress)
+    }
 
     /// The trajectory currently on screen, for an export to re-render from.
     ///

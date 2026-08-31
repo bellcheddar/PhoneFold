@@ -2676,3 +2676,42 @@ things would fail rather than quietly mislead.
 The tests read the shipping file and cross-check it against the trajectories actually present:
 every protein has a note, no note describes a protein that is not there, and a headline is
 short enough for a tile.
+
+### P4-08, accessibility (2026-08-31)
+
+**The colour-blind-safe palette already existed and was unreachable.** `ColourOptions
+.accessiblePalette` and the amber-and-blue secondary structure colours were written in Phase 2,
+and nothing in the app ever set the flag - the only way to see them was from a unit test. A
+capability nobody can reach is not a feature. It is now driven by
+`accessibilityDifferentiateWithoutColor`, read from the environment by the view and pushed into
+the stage, because a `RealityView` coordinator has no environment of its own.
+
+**Reduce Motion stops the orbit outright rather than slowing it.** A slow drift is still drift,
+and the setting exists for people for whom that is the problem. A drag still turns the protein,
+so nothing is lost but the motion nobody asked for. Contact flashes are suppressed under the
+same setting - they are PLAN's "particle bursts".
+
+**Reduce Transparency removes the aurora grade entirely**, for the same reason: the vignette is
+a translucent wash, which is exactly what the setting asks not to be shown, and a fainter wash
+is still a wash.
+
+**Selection was carried by colour alone.** Every picker in the app - engine, style, export
+preset - showed its selection as a blue capsule and nothing else, which VoiceOver cannot see
+and a colour-blind user may not either. They now carry `.isSelected`, which is both spoken and
+rendered by Differentiate Without Color.
+
+**The stage had no text of its own**, being a protein turning in space. It now has a spoken
+description built from the fold's state - protein, structure content in words rather than
+percentages, the named confidence, and how far through it is - and `updatesFrequently`, so it
+re-reads as the fold proceeds rather than describing frame one for a minute.
+
+That description is a **pure function in `FoldRender`, and tested**, rather than a string
+assembled inside a view where the only way to check it is to turn VoiceOver on and listen. The
+tests pin the things that would otherwise quietly go wrong: a two-residue strand in a helical
+protein is not "alpha and beta"; an unfolded chain reads as "unstructured coil" rather than as
+the description giving up, because that is where every simulated fold begins; and the
+confidence is named rather than numbered.
+
+**Not done, and split out as P4-15:** Dynamic Type. The stage is built from fixed `.system(size:)`
+point sizes throughout, and making them scale is a layout change to every control rather than an
+attribute - it needs doing properly rather than annotated as finished.

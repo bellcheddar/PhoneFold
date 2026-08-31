@@ -213,6 +213,9 @@ struct EnginePicker: View {
                     }
                     .buttonStyle(.plain)
                     .disabled(blocked != nil)
+                    .accessibilityLabel("\(candidate.displayName) engine")
+                    .accessibilityHint(blocked ?? candidate.summary)
+                    .accessibilityAddTraits(engine == candidate ? [.isSelected] : [])
                 }
             }
             // The engine's own description of what it does, which is also the honest limit of

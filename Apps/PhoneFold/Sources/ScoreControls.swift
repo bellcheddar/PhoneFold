@@ -38,6 +38,9 @@ struct ScoreControls: View {
                         .foregroundStyle(isSoundOn ? .white : Color.white.opacity(0.55))
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(isSoundOn ? "Sound on" : "Sound off")
+                .accessibilityHint("Turns the music for this fold on or off")
+                .accessibilityAddTraits(isSoundOn ? [.isSelected] : [])
 
                 ForEach(styles) { style in
                     Button {
@@ -57,6 +60,12 @@ struct ScoreControls: View {
                     // Not hidden when the sound is off: a control that vanishes takes its
                     // meaning with it, and the style is still what the piece would be.
                     .disabled(!isSoundOn)
+                    // **Selection is carried by colour alone**, which VoiceOver cannot see and
+                    // a colour-blind user may not either. `isSelected` makes it a trait, so it
+                    // is spoken as "selected" and shown by Differentiate Without Color.
+                    .accessibilityLabel("\(style.name) style")
+                    .accessibilityHint(style.summary)
+                    .accessibilityAddTraits(styleID == style.id ? [.isSelected] : [])
                 }
 
                 Spacer(minLength: 0)
@@ -72,6 +81,8 @@ struct ScoreControls: View {
                     }
                     .buttonStyle(.plain)
                     .disabled(!isSoundOn)
+                    .accessibilityLabel("Export MIDI")
+                    .accessibilityHint("Saves the score as a standard MIDI file")
                 }
             }
 
@@ -236,6 +247,8 @@ struct ExportControls: View {
                     // A preset changed mid-render would not apply to the render in flight, so
                     // offering it would be offering a control that does nothing.
                     .disabled(state.isBusy)
+                    .accessibilityLabel("\(candidate.rawValue) export size")
+                    .accessibilityAddTraits(preset == candidate ? [.isSelected] : [])
                 }
 
                 Spacer(minLength: 0)
@@ -253,6 +266,10 @@ struct ExportControls: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(!canExport && !state.isBusy)
+                .accessibilityLabel(state.isBusy ? "Cancel export" : "Export film")
+                .accessibilityHint(state.isBusy
+                                   ? "Stops the render in progress"
+                                   : "Renders this fold with its music and saves it to Photos")
             }
 
             // A determinate bar rather than a spinner: a render is minutes long and a spinner
@@ -261,9 +278,14 @@ struct ExportControls: View {
             if case .rendering(let fraction) = state {
                 ProgressView(value: fraction)
                     .tint(Color(hex: 0x2B5CE6))
+                    .accessibilityLabel("Export progress")
+                    .accessibilityValue("\(Int(fraction * 100)) percent")
             }
             if !state.message.isEmpty {
+                // Announced rather than merely shown: an export finishing is the one thing a
+                // VoiceOver user is waiting for and cannot see.
                 Text(state.message)
+                    .accessibilityAddTraits(.updatesFrequently)
                     .font(.system(size: 10))
                     .foregroundStyle(Color(hex: 0x6B7C93))
                     .lineLimit(2)

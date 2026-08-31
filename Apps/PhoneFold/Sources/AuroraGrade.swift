@@ -88,11 +88,14 @@ extension View {
     /// `RealityView`. The gradient is sized from the view rather than given a fixed radius so
     /// it lands the same on an iPhone and on a Mac window, and it starts a third of the way
     /// out so the protein itself is never dimmed.
+    /// Passing nil removes it entirely, which is what Reduce Transparency asks for: the
+    /// vignette is a translucent wash, and a fainter wash is still a wash.
     @ViewBuilder
-    func auroraVignette(_ grade: AuroraGrade) -> some View {
-        if grade.vignette <= 0 {
+    func auroraVignette(_ grade: AuroraGrade?) -> some View {
+        if grade == nil || grade!.vignette <= 0 {
             self
         } else {
+            let grade = grade!
             overlay {
                 GeometryReader { proxy in
                     let diagonal = hypot(proxy.size.width, proxy.size.height) * 0.5
