@@ -9,9 +9,12 @@ import UniformTypeIdentifiers
 
 /// The Aurora Stage: a deep indigo ground, the protein, and the readouts beneath it.
 struct StageView: View {
-    @StateObject private var library = TrajectoryLibrary()
-    @StateObject private var player = FoldPlayer()
-    @StateObject private var runner = FoldRunner()
+    // Observed rather than owned: the fold belongs to `PhoneFoldModel`, because an external
+    // display scene shows the same one and a `@StateObject` here would be owned by this view.
+    @ObservedObject private var model = PhoneFoldModel.shared
+    @ObservedObject private var library = PhoneFoldModel.shared.library
+    @ObservedObject private var player = PhoneFoldModel.shared.player
+    @ObservedObject private var runner = PhoneFoldModel.shared.runner
     @State private var selection: TrajectoryLibrary.Entry?
     @State private var meshDiagnostic = ""
     @State private var accession = ""
@@ -116,6 +119,22 @@ struct StageView: View {
                             EmptyView()
                         }
                     }
+                    // Where the picture went. A presenter who has just plugged in a projector
+                    // has no way to tell from the phone whether anything reached it - the phone
+                    // looks identical either way - so the control surface says so itself.
+                    .overlay(alignment: .topTrailing) {
+                        if model.isOnExternalDisplay {
+                            Label("On display", systemImage: "tv")
+                                .font(.system(size: 11, weight: .medium))
+                                .padding(.horizontal, 9)
+                                .padding(.vertical, 5)
+                                .background(Capsule().fill(.black.opacity(0.45)))
+                                .foregroundStyle(Color(hex: 0x8FB4FF))
+                                .padding(12)
+                                .transition(.opacity)
+                        }
+                    }
+                    .animation(.easeInOut(duration: 0.25), value: model.isOnExternalDisplay)
                 FoldHUD(history: player.history, meter: player.meter,
                         confidenceSource: player.confidenceSource,
                         progress: player.progress,

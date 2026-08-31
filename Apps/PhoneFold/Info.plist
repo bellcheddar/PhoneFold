@@ -26,6 +26,23 @@
 	<string>2026 Marc C. Deller</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>PhoneFold saves the film of a fold, with its music, to your photo library.</string>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<true/>
+		<key>UISceneConfigurations</key>
+		<dict>
+			<key>UIWindowSceneSessionRoleExternalDisplayNonInteractive</key>
+			<array>
+				<dict>
+					<key>UISceneConfigurationName</key>
+					<string>External Display</string>
+					<key>UISceneDelegateClassName</key>
+					<string>ExternalDisplaySceneDelegate</string>
+				</dict>
+			</array>
+		</dict>
+	</dict>
 	<key>UILaunchScreen</key>
 	<dict/>
 </dict>

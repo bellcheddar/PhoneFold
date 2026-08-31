@@ -2851,3 +2851,25 @@ it asks for both structures on screen.
 
 And starting a plain fold clears any prepared duet, or the next run would play the previous
 comparison over a single protein.
+
+## P4-10 external display (2026-08-31, Simulator)
+
+| What | Measured |
+|---|---|
+| Scene roles the app was asked to configure, display attached | `UIWindowSceneSessionRoleApplication` only |
+| `simctl io enumerate` connected screens | 2 (LCD id 1, TVOut id 2) |
+| `simctl io screenshot --display 2`, PhoneFold running | "Timeout waiting for screen surfaces" |
+| `simctl io screenshot --display 2`, home screen, no app running | "Timeout waiting for screen surfaces" |
+| Simulator windows while TVOut connected (CoreGraphics, incl. offscreen) | 1 |
+| `ExternalDisplaySceneDelegate` in the built binary | present, `_OBJC_METACLASS_$_ExternalDisplaySceneDelegate` |
+
+The last two rows are the ones that matter together. The Simulator reports the screen as
+connected but publishes no surfaces to it for **any** app including its own home screen, and never
+opens the external display window, so it cannot be used to test this. The delegate class is
+present under exactly the name the scene manifest references, which is the one failure mode that
+would have been silent.
+
+**Measured, and it cost an hour before it was believed:** `strings` on `PhoneFold.app/PhoneFold`
+finds none of the app's own strings. Xcode 26 debug builds put the code in
+`PhoneFold.debug.dylib` and leave a 40 KB launcher in its place, so inspecting the executable by
+that name says "the file was never compiled in" about code that is demonstrably running.

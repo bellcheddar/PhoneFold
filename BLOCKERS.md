@@ -717,3 +717,28 @@ than matching it.
 
 - [ ] Either install `marcs-vibe-icon` on this machine, or say what the icon should be and I
       will build it to that description
+
+
+## Phase 4: the external display scene needs a real display (2026-08-31)
+
+Built and building on both platforms: `ExternalDisplaySceneDelegate`, the
+`UIWindowSceneSessionRoleExternalDisplayNonInteractive` manifest entry, `PresentationView`, and
+`RoutePicker` over `AVRoutePickerView`. The fold now lives in `PhoneFoldModel` above both scenes,
+so connecting or disconnecting a display builds or destroys a window and touches nothing else -
+which is what "connect and disconnect mid-fold without interrupting playback" needs structurally.
+
+**What could not be verified here, and why the Simulator is not evidence either way.** The
+Simulator's I/O > External Displays does attach a screen - `simctl io enumerate` lists TVOut as
+connected - but no scene is ever offered for it: the app logged a configuration request for
+`UIWindowSceneSessionRoleApplication` and for nothing else, and `simctl io screenshot --display 2`
+returns "Timeout waiting for screen surfaces". That is not a finding about PhoneFold, because
+**the Simulator's own home screen produces no surfaces on that display either**, and the
+Simulator never opens its external display window. The app half is sound as far as it can be
+checked: the delegate class is present in the binary under exactly the runtime name the manifest
+asks for (`_OBJC_METACLASS_$_ExternalDisplaySceneDelegate`).
+
+PLAN.md already classes this as human-verifiable and a halt.
+
+- [ ] AirPlay to a real Apple TV shows the clean external scene, with the audio in sync
+- [ ] Connect and disconnect a display mid-fold: the music should not pause, restart or glitch
+- [ ] The mirroring fallback (AirPlay "Mirror" rather than the app scene) still looks acceptable

@@ -2,6 +2,12 @@ import SwiftUI
 
 @main
 struct PhoneFoldApp: App {
+    // Only to route the external display scene to its delegate: SwiftUI's `App` has no hook for
+    // `configurationForConnecting`. See ExternalDisplay.swift.
+    #if os(iOS)
+    @UIApplicationDelegateAdaptor(PhoneFoldAppDelegate.self) private var appDelegate
+    #endif
+
     var body: some Scene {
         WindowGroup {
             StageView()

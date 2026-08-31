@@ -70,6 +70,10 @@ struct ScoreControls: View {
 
                 Spacer(minLength: 0)
 
+                // Where the music goes. Next to the sound controls rather than in a menu,
+                // because on a phone in a lecture theatre it is the first thing wanted.
+                RoutePicker()
+
                 if let onExportMIDI {
                     Button(action: onExportMIDI) {
                         Label("MIDI", systemImage: "square.and.arrow.up")

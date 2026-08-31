@@ -52,6 +52,21 @@ targets:
         CFBundleDisplayName: PhoneFold
         CFBundleShortVersionString: $(MARKETING_VERSION)
         UILaunchScreen: {}
+        # Required for the external display scene to be delivered at all: a scene role other
+        # than the application role is only offered to an app that declares it supports more
+        # than one. On iPad this also permits a second app window, which shows the same fold
+        # because the fold lives above the scene rather than inside it.
+        UIApplicationSceneManifest:
+          # `UIApplicationSupportsMultipleScenes` alone is not enough, and this was measured:
+          # with only that key the system created exactly one scene, the external screen
+          # reported no surfaces, and nothing appeared on it. The role has to be *declared*
+          # before iOS will offer a scene for it - the app delegate's routing is consulted
+          # only for a scene the system has already decided to create.
+          UIApplicationSupportsMultipleScenes: true
+          UISceneConfigurations:
+            UIWindowSceneSessionRoleExternalDisplayNonInteractive:
+              - UISceneConfigurationName: External Display
+                UISceneDelegateClassName: ExternalDisplaySceneDelegate
         # Add-only, which is the narrowest thing that works: PhoneFold writes films and never
         # reads the library, and asking for full access to do that would be asking for more
         # than the feature needs.
