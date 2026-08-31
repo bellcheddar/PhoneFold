@@ -353,6 +353,13 @@ final class FoldPlayer: ObservableObject {
 
     private func note(_ text: String) { diagnostic = text }
 
+    /// The trajectory currently on screen, for an export to re-render from.
+    ///
+    /// The provider rather than the frames: a 52-second fold is about 3,100 frames and holding
+    /// them would be gigabytes. The stream is deterministic, so an export rebuilds the same
+    /// frames from the same provider - at its own resolution rather than the screen's.
+    var exportProvider: (any FoldFrameProvider)? { provider }
+
     /// Styles in a stable order, for a picker that does not reshuffle itself.
     var orderedStyles: [StyleProfile] {
         // Fantasy first, because it is the default and PLAN.md's own first style; the rest

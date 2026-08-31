@@ -192,3 +192,73 @@ struct AboutView: View {
         }
     }
 }
+
+/// The export row: a preset, a button, and what it is doing.
+///
+/// Its own row under the score's, because an export is a different kind of act from choosing a
+/// style - it takes a minute, it writes to the photo library, and it can fail for reasons the
+/// user has to go to Settings to fix.
+struct ExportControls: View {
+    @Binding var preset: FilmExportController.Preset
+    let state: FilmExportController.State
+    let canExport: Bool
+    let onExport: () -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                ForEach(FilmExportController.Preset.allCases) { candidate in
+                    Button {
+                        preset = candidate
+                    } label: {
+                        Text(candidate.rawValue)
+                            .font(.system(size: 12, weight: .semibold))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(
+                                Capsule().fill(preset == candidate
+                                               ? Color(hex: 0x2B5CE6)
+                                               : Color.white.opacity(0.08)))
+                            .foregroundStyle(state.isBusy ? Color.white.opacity(0.35) : .white)
+                    }
+                    .buttonStyle(.plain)
+                    // A preset changed mid-render would not apply to the render in flight, so
+                    // offering it would be offering a control that does nothing.
+                    .disabled(state.isBusy)
+                }
+
+                Spacer(minLength: 0)
+
+                Button(action: state.isBusy ? onCancel : onExport) {
+                    Label(state.isBusy ? "Cancel" : "Export film",
+                          systemImage: state.isBusy ? "xmark" : "film")
+                        .font(.system(size: 12, weight: .semibold))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Capsule().fill(state.isBusy
+                                                   ? Color.white.opacity(0.14)
+                                                   : Color(hex: 0x2B5CE6)))
+                        .foregroundStyle(.white)
+                }
+                .buttonStyle(.plain)
+                .disabled(!canExport && !state.isBusy)
+            }
+
+            // A determinate bar rather than a spinner: a render is minutes long and a spinner
+            // says only that something is happening, which is the one thing the user can
+            // already see.
+            if case .rendering(let fraction) = state {
+                ProgressView(value: fraction)
+                    .tint(Color(hex: 0x2B5CE6))
+            }
+            if !state.message.isEmpty {
+                Text(state.message)
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color(hex: 0x6B7C93))
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+}

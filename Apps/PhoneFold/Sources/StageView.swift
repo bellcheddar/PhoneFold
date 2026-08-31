@@ -4,6 +4,7 @@ import FoldCore
 import FoldRender
 import FoldEngine
 import FoldAudio
+import FoldCapture
 import UniformTypeIdentifiers
 
 /// The Aurora Stage: a deep indigo ground, the protein, and the readouts beneath it.
@@ -22,6 +23,7 @@ struct StageView: View {
     @State private var midiDocument = MIDIDocument(data: Data())
     @State private var isExportingMIDI = false
     @State private var isShowingAbout = false
+    @StateObject private var film = FilmExportController()
 
     /// All three engines run. Kept as a hook because an engine can still become unavailable -
     /// a missing model in the bundle, say - and a disabled control with a reason beats one
@@ -62,6 +64,11 @@ struct StageView: View {
                               diagnostic: midiMessage.isEmpty ? player.audioDiagnostic
                                                               : midiMessage,
                               onExportMIDI: exportMIDI)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 6)
+                ExportControls(preset: $film.preset, state: film.state,
+                               canExport: player.exportProvider != nil,
+                               onExport: exportFilm, onCancel: film.cancel)
                     .padding(.horizontal, 20)
                     .padding(.top, 6)
                 // The accession field is meaningless for Genie 2 - it invents a protein and
@@ -256,6 +263,15 @@ struct StageView: View {
         }
         midiDocument = MIDIDocument(data: data)
         isExportingMIDI = true
+    }
+
+    /// Render the fold that is on screen as a film and put it in Photos.
+    private func exportFilm() {
+        guard let provider = player.exportProvider,
+              let style = player.orderedStyles.first(where: { $0.id == player.styleID })
+                  ?? player.orderedStyles.first else { return }
+        film.export(provider: provider, style: style, colourMode: player.colourMode,
+                    name: selection?.id ?? provider.metadata.name)
     }
 
     private func start(_ entry: TrajectoryLibrary.Entry) {

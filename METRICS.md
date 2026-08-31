@@ -2605,3 +2605,29 @@ the other and neither in a package that builds for both.
 **The confidence is named in the caption, not just printed.** Three of the four engines do not
 report pLDDT, and a bare number under the wrong name is worse than no number - the same reason
 the mmCIF export writes its B-factor column's meaning into the file.
+
+### P4-05, the export UI (2026-08-31)
+
+Marc's call: the film goes to **Photos**, and MIDI and mmCIF go through the share sheet, since
+Photos cannot hold them.
+
+**The frames are recomputed, not kept.** A 52-second fold is about 3,100 frames and holding
+them would be gigabytes. The stream is deterministic, so an export rebuilds the same frames
+from the same provider - and gets to render at its own resolution rather than at whatever the
+screen happened to be.
+
+**`.addOnly` photo access, not full.** PhoneFold writes films and never reads the library;
+asking for read access to do that would be asking for more than the feature needs, and it is
+the kind of thing App Review asks about.
+
+**A background task around the export.** iOS suspends an app a few seconds after it leaves the
+screen, which for a two-minute render is a file that is never written and no error to explain
+it. macOS does not suspend, so the guard is a no-op there rather than a second code path.
+
+A determinate progress bar rather than a spinner: a render is minutes long, and a spinner says
+only that something is happening, which is the one thing the user can already see. The preset
+buttons disable while a render is in flight, because a preset changed mid-render would not
+apply to the render in flight - offering it would be offering a control that does nothing.
+
+Both platforms build. The Photos write itself needs a device or a simulator with a library, so
+it is on the list that needs Marc.

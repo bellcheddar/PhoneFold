@@ -40,13 +40,18 @@ targets:
         type: folder
     dependencies:
       - package: PhoneFoldKit
-        products: [FoldCore, FoldGeometry, FoldEngine, FoldRender, FoldAudio]
+        products: [FoldCore, FoldGeometry, FoldEngine, FoldRender, FoldAudio, FoldCapture]
     info:
       path: Info.plist
       properties:
         CFBundleDisplayName: PhoneFold
         CFBundleShortVersionString: $(MARKETING_VERSION)
         UILaunchScreen: {}
+        # Add-only, which is the narrowest thing that works: PhoneFold writes films and never
+        # reads the library, and asking for full access to do that would be asking for more
+        # than the feature needs.
+        NSPhotoLibraryAddUsageDescription: >-
+          PhoneFold saves the film of a fold, with its music, to your photo library.
         NSHumanReadableCopyright: "2026 Marc C. Deller"
         ITSAppUsesNonExemptEncryption: false
     settings:
