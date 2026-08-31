@@ -703,3 +703,17 @@ against the live view's 42 - and is now 42 in both.
 
 - [ ] Still needs Marc's eye: the live stage's look has changed, because it no longer gets
       RealityView's default environment on top of the explicit lights
+
+
+## Phase 4: the app icon needs a skill this machine does not have (2026-08-31)
+
+PLAN.md: "App icon: generate with Marc's `marcs-vibe-icon` skill, matching the portfolio house
+style." That skill is not installed here - `~/.claude/skills` has `marcs-vibe-coding`,
+`hf-model-upload` and `boltzmaker-input-wizard`, and nothing else.
+
+I have not drawn one anyway. An icon is the app's face, "matching the portfolio house style" is
+a thing I cannot see from here, and inventing one would be inventing the house style rather
+than matching it.
+
+- [ ] Either install `marcs-vibe-icon` on this machine, or say what the icon should be and I
+      will build it to that description

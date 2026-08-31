@@ -2715,3 +2715,25 @@ confidence is named rather than numbered.
 **Not done, and split out as P4-15:** Dynamic Type. The stage is built from fixed `.system(size:)`
 point sizes throughout, and making them scale is a layout change to every control rather than an
 attribute - it needs doing properly rather than annotated as finished.
+
+### P4-12, the privacy manifest (2026-08-31)
+
+`PrivacyInfo.xcprivacy`: no tracking, no tracking domains, no collected data types, and one
+required-reason API - `UserDefaults` under `CA92.1`, "access info from same app", for the single
+flag recording whether the introduction has been seen. Verified present in the built bundle
+rather than only in the repository.
+
+**The failure mode is staleness, not absence**, which is why there is a test rather than a
+file. A manifest is written once and quietly stops being true the first time somebody reads a
+file's modification date - and nothing fails, because Apple checks it at submission and not at
+build. The test scans the shipping sources for every required-reason API symbol and asserts
+that any category actually used is declared; it excludes the tests and the command-line tools,
+because a manifest describes the binary Apple receives and `preview-style` is not in it.
+
+It also checks that every declared reason is a code Apple publishes. A plausible-looking string
+that is not on the list is rejected at submission, which is a long way from here.
+
+**The app icon is not done and is not claimed.** PLAN.md asks for it to be generated with
+Marc's `marcs-vibe-icon` skill "matching the portfolio house style", and that skill is not
+installed on this machine. Drawing one anyway would be inventing the house style rather than
+matching it, so it is in BLOCKERS.md as P4-16.
