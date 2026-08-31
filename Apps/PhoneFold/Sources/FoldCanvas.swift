@@ -37,9 +37,6 @@ struct FoldCanvas: View {
         // No `update:` closure driving the mesh. Frames arrive through the player's
         // `onFrame` sink instead, so drawing does not depend on a SwiftUI re-evaluation and
         // the fold is not paced by layout.
-        // No `update:` closure driving the mesh. Frames arrive through the player's
-        // `onFrame` sink instead, so drawing does not depend on a SwiftUI re-evaluation and
-        // the fold is not paced by layout.
         RealityView { content in
             content.add(stage.root)
         }
@@ -70,43 +67,47 @@ struct FoldCanvas: View {
         // covers exactly the stage and nothing else. `onGeometryChange` rather than a
         // GeometryReader wrapper: the reader would relayout the view it wraps, and the
         // shader needs the size only to place its radial terms.
+        // **The same two gestures everywhere, attached two different ways.**
+        //
+        // PLAN.md Phase 5c asks for "pinch-drag to rotate, two-handed pinch to scale", and
+        // the temptation is to say the phone's gestures already do that and the headset gets
+        // them for free. They do not. On visionOS a gesture attached to a `RealityView`
+        // receives nothing unless the pinch ray hits an entity carrying `InputTargetComponent`
+        // and a `CollisionComponent`: without `targetedToAnyEntity` and the box the stage
+        // installs alongside it, this is not a less precise drag, it is no drag at all, and
+        // the protein cannot be turned by hand. The handlers below are shared precisely so
+        // that difference stays where it belongs - in how the gesture is aimed, and nowhere
+        // else.
+        #if os(visionOS)
         .gesture(
             DragGesture()
+                .targetedToAnyEntity()
                 .onChanged { value in
-                    if dragAnchor != value.startLocation {
-                        dragAnchor = value.startLocation
-                        lastDrag = .zero
-                    }
-                    // Deltas, not the cumulative translation: using the total resets the
-                    // rotation to zero on release and snaps the view back.
-                    let dx = Float(value.translation.width - lastDrag.width)
-                    let dy = Float(value.translation.height - lastDrag.height)
-                    stage.camera.drag(deltaX: dx, deltaY: dy)
-                    lastDrag = value.translation
-                    stage.noteDrag(dx, dy)
-                    // Applied here rather than waiting for the next clock tick, so the
-                    // rotation cannot depend on that task still running.
-                    stage.applyCamera()
-                    // And the diagnostics update from the gesture itself, so a screenshot
-                    // taken during a stuck drag shows the state at that moment.
-                    diagnostic = stage.lastDiagnostic
+                    applyDrag(startLocation: value.gestureValue.startLocation,
+                              translation: value.gestureValue.translation)
                 }
-                .onEnded { _ in
-                    lastDrag = .zero
-                    dragAnchor = nil
-                    stage.camera.endInteraction()
-                }
+                .onEnded { _ in endDrag() }
         )
         .simultaneousGesture(
             MagnifyGesture()
-                .onChanged {
-                    stage.camera.magnify(scale: Float($0.magnification))
-                    stage.noteMagnify()
-                    stage.applyCamera()
-                    diagnostic = stage.lastDiagnostic
-                }
+                .targetedToAnyEntity()
+                .onChanged { applyMagnify($0.gestureValue.magnification) }
                 .onEnded { _ in stage.camera.endInteraction() }
         )
+        #else
+        .gesture(
+            DragGesture()
+                .onChanged { value in
+                    applyDrag(startLocation: value.startLocation, translation: value.translation)
+                }
+                .onEnded { _ in endDrag() }
+        )
+        .simultaneousGesture(
+            MagnifyGesture()
+                .onChanged { applyMagnify($0.magnification) }
+                .onEnded { _ in stage.camera.endInteraction() }
+        )
+        #endif
         #if os(macOS)
         // Scroll only acts over the stage itself, so the gallery and scrubber keep their
         // own scrolling. The stage's frame is tracked and the event's location hit-tested
@@ -161,6 +162,46 @@ struct FoldCanvas: View {
         }
     }
 
+    // MARK: - The two gestures
+
+    /// A drag, however it was aimed.
+    ///
+    /// Shared between the targeted visionOS gesture and the untargeted one every other
+    /// platform uses, so the two cannot drift into behaving differently. The camera model
+    /// itself is in `FoldRender` and fully tested; this is only the translation from a
+    /// gesture callback into calls on it.
+    private func applyDrag(startLocation: CGPoint, translation: CGSize) {
+        if dragAnchor != startLocation {
+            dragAnchor = startLocation
+            lastDrag = .zero
+        }
+        // Deltas, not the cumulative translation: using the total resets the rotation to
+        // zero on release and snaps the view back.
+        let dx = Float(translation.width - lastDrag.width)
+        let dy = Float(translation.height - lastDrag.height)
+        stage.camera.drag(deltaX: dx, deltaY: dy)
+        lastDrag = translation
+        stage.noteDrag(dx, dy)
+        // Applied here rather than waiting for the next clock tick, so the rotation cannot
+        // depend on that task still running.
+        stage.applyCamera()
+        // And the diagnostics update from the gesture itself, so a screenshot taken during a
+        // stuck drag shows the state at that moment.
+        diagnostic = stage.lastDiagnostic
+    }
+
+    private func endDrag() {
+        lastDrag = .zero
+        dragAnchor = nil
+        stage.camera.endInteraction()
+    }
+
+    private func applyMagnify(_ magnification: CGFloat) {
+        stage.camera.magnify(scale: Float(magnification))
+        stage.noteMagnify()
+        stage.applyCamera()
+        diagnostic = stage.lastDiagnostic
+    }
 
 }
 
@@ -230,6 +271,14 @@ final class StageContent {
         var angle = rotation.angle * 180 / .pi
         if angle > 180 { angle = 360 - angle }
         var scroll = "scr \(scrollEvents)"
+        #if os(visionOS)
+        // The one thing that cannot be told apart by looking at the stage: whether a hand has
+        // anything to pinch. Reported so a screenshot shows the box is there and is the size
+        // of the protein, rather than the feature being confirmed by it appearing to work.
+        scroll += inputTarget.extent.map {
+            String(format: " | pinch box %.0fx%.0fx%.0f A", $0.x, $0.y, $0.z)
+        } ?? " | pinch box NONE"
+        #endif
         #if os(macOS)
         scroll += String(format: "/%d sf(%.0f,%.0f,%.0f,%.0f) at(%.0f,%.0f)",
                          scrollEventsSeen, stageFrame.origin.x, stageFrame.origin.y,
@@ -313,6 +362,12 @@ final class StageContent {
     private var outlineIndices: [UInt32] = []
     private var clock: Task<Void, Never>?
     private var lastBounds: (minimum: SIMD3<Float>, maximum: SIMD3<Float>)?
+    /// The box a hand has to pinch, and when it needs rebuilding. See `InputTargetShape`.
+    ///
+    /// visionOS only, because it is the only surface where a gesture has to *hit* something
+    /// before it is delivered. On the phone and the Mac the drag lands on the view and a
+    /// collision shape would be geometry nothing reads.
+    private var inputTarget = InputTargetShape()
 
     init() {
         root.addChild(protein)
@@ -446,11 +501,35 @@ final class StageContent {
         refreshOutline()
     }
 
+    /// Keep the box a pinch has to hit in step with the protein it is meant to be.
+    ///
+    /// In the protein's own space, not the stage's: the entity's transform already carries
+    /// the framing scale and the orbit, so a box built in stage units would be scaled twice
+    /// and the hand would grab a protein-shaped region a fraction of the protein's size.
+    ///
+    /// A no-op on every platform but visionOS. `InputTargetShape` decides *when* this is
+    /// stale, and it is a value type in `FoldRender` so that decision is tested without a
+    /// headset - see `InputTargetShapeTests`.
+    private func refreshInputTarget(bounds: (minimum: SIMD3<Float>, maximum: SIMD3<Float>)) {
+        #if os(visionOS)
+        guard let box = inputTarget.update(bounds: bounds) else { return }
+        let shape = ShapeResource.generateBox(size: box.size)
+            .offsetBy(translation: box.centre)
+        protein.components.set(CollisionComponent(shapes: [shape], isStatic: false))
+        // Idempotent, and set here rather than once in `init` so the two always arrive
+        // together: an input target with no collision shape is hit by nothing, and the
+        // failure is a gesture that silently never fires.
+        protein.components.set(InputTargetComponent())
+        #endif
+    }
+
     /// Reset when the protein changes, so the mesh is reallocated for the new topology.
     func reset() {
         tubeMesh = nil
         vertexCapacity = 0
         rampMode = nil
+        // A new protein is a new shape; the pinch box must not be left sized for the old one.
+        inputTarget.invalidate()
     }
 
     func apply(frame: PreparedFrame, flashes: [FlashInstance]) {
@@ -504,6 +583,7 @@ final class StageContent {
         if let bounds = TubeMeshPacker.bounds(packed) {
             lastBounds = bounds
             applyProteinTransform()
+            refreshInputTarget(bounds: bounds)
         }
 
         // Follow the action: ease toward where contacts are forming, in the protein's own

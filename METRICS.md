@@ -3241,3 +3241,35 @@ else:
 - **RealityKit on visionOS has no `CustomMaterial`** and permits no custom Metal surface shaders.
   The stage's shader was already an opt-in path behind `PHONEFOLD_CUSTOM_SHADER`, so visionOS
   takes the default every other platform takes.
+
+## P5c-04, the hand: a fifth thing only visionOS refutes (2026-08-31)
+
+**A SwiftUI gesture attached to a `RealityView` receives nothing on visionOS unless the pinch
+ray hits an entity carrying `InputTargetComponent` *and* a `CollisionComponent`.** The phone's
+`DragGesture` and `MagnifyGesture` in `FoldCanvas` had been compiled into the visionOS target
+since P5c-01 and looked like the feature being complete already. They were not a coarser
+version of the gesture: with no collision geometry in the scene they were **no gesture at
+all**, and the protein could not be turned by hand. Nothing about that is visible from a
+build, a screenshot, or the code reading correctly on four other platforms - all five compile
+the identical two gestures.
+
+The fix is `targetedToAnyEntity()` plus a box the stage keeps in step with the mesh. Two
+things about the box that are not obvious and are now tested (`InputTargetShapeTests`, 8
+tests):
+
+| | |
+|---|---|
+| Rebuilt when the protein changes by more than 5% of its own diagonal | A fold changes shape 60 times a second; rebuilding a `ShapeResource` per frame allocates constantly for a box that is nearly always the same box |
+| Measured against the box's diagonal, not in angstroms | An absolute threshold is a different threshold for a 20-residue peptide and a 300-residue domain |
+| A suppressed rebuild leaves the *stored* extent alone | Otherwise the box creeps with each ignored frame and ends up describing nothing |
+| A degenerate bounds is padded to 0.5 A, never used as-is | A zero-size box hit-tests against nothing. A first frame with one residue, or every CA on one line, produces exactly that - and the symptom is identical to a gesture that was never wired up |
+| Built in the protein's own space | The entity transform already carries the framing scale; a box in stage units is scaled twice and the hand grabs a region a fraction of the protein's size |
+
+**Measured:** all five surfaces build with the change; the visionOS app launches and draws in
+the simulator; 40 tests across the four FoldSync and FoldRender suites pass.
+
+**Not measured, and it cannot be from here:** that visionOS actually *delivers* a targeted
+pinch-drag to the entity. `simctl` has no input injection, and `Simulator.app` opened against
+a `simctl`-booted visionOS device reported zero windows and then timed out on an Apple Event,
+so there was no surface to synthesise a drag against either. In `BLOCKERS.md` with the other
+headset items.

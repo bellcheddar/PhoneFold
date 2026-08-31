@@ -47,6 +47,14 @@ Five surfaces: iPhone, iPad, Mac ("PhoneFold Studio"), Apple Watch, Vision Pro.
    the load talking and a wall-clock number is an upper bound, so say which and carry on.
    Never hold a commit, a gate or a phase waiting for conditions to improve.
 
+12. **Never run the gate across an edit.** `verify_phase.sh` compiles the *working tree*, not a
+   commit, so a fourteen-minute run that crosses a half-finished change reports failures for a
+   state that never existed and never will. On 2026-08-31 it returned RED on the Studio and
+   visionOS builds because it reached `WristHaptics.swift` in the seconds before
+   `FoldRemote.Cue` was added; both targets built clean immediately afterwards. Start the gate
+   when the tree is coherent, and while one is running, work on notes and plans rather than on
+   sources. `PHONEFOLD_GATE_FAST=1` exists so a coherent tree can be checked quickly and often.
+
 ## This machine
 
 - **DerivedData must live outside `~/Documents`.** iCloud puts extended attributes on everything

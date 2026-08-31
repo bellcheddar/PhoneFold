@@ -11,6 +11,19 @@ struct VisionStageView: View {
 
     var body: some View {
         FoldCanvas(player: player, diagnostic: $diagnostic)
+            // Off unless asked for, exactly as on the phone. It is the only way to see from
+            // outside whether the hand has a box to pinch: `simctl launch --console-pty`
+            // returns nothing for this app, so a number on the glass and a screenshot is the
+            // channel that works.
+            .overlay(alignment: .topLeading) {
+                if Diagnostics.isEnabled {
+                    Text(diagnostic)
+                        .font(.system(size: 11, design: .monospaced))
+                        .padding(6)
+                        .glassBackgroundEffect()
+                        .padding(8)
+                }
+            }
             .ornament(attachmentAnchor: .scene(.bottom)) {
                 VisionTransport()
                     .padding(.vertical, 10)
