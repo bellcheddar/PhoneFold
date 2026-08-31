@@ -58,6 +58,10 @@ struct StudioWindow: View {
     var body: some View {
         StageView(model: model)
             .frame(minWidth: 900, minHeight: 640)
+            // What the menu bar acts on. Without it `StudioCommands` has no way to reach the
+            // fold in front of the user, and every window's own model is unreachable from the
+            // one place a Mac user looks for a feature they cannot see on screen.
+            .focusedSceneObject(model)
     }
 }
 
@@ -67,9 +71,17 @@ struct StudioWindow: View {
 /// already a control on the stage; the menu exists because on a Mac a feature that has no menu
 /// item and no key equivalent is a feature that a keyboard user cannot find. The stage's own
 /// controls stay - this is a second route to them, not a replacement.
+/// **Bound to the window that has focus, not to `PhoneFoldModel.shared`.**
+///
+/// It was `.shared`, and on this target nothing uses `.shared`: every `StudioWindow` owns its
+/// own model, deliberately, because two windows are two proteins side by side. So the MIDI
+/// toggle armed a `FoldPlayer` that was never playing anything - the virtual source appeared in
+/// every DAW's device list exactly as it should and then emitted nothing at all, for a reason
+/// nowhere near MIDI. That is the failure P5-05's human gate would have hit, and it would have
+/// looked like a CoreMIDI problem.
 struct StudioCommands: Commands {
     @Environment(\.openWindow) private var openWindow
-    @ObservedObject private var player = PhoneFoldModel.shared.player
+    @FocusedObject private var model: PhoneFoldModel?
 
     var body: some Commands {
         // Replaces the stock "New Item", which would otherwise sit in the File menu doing
@@ -97,10 +109,18 @@ struct StudioCommands: Commands {
         // property of the application, not of the fold being played, and it stays on across
         // folds so a recording session is not re-armed every time.
         CommandMenu("Fold") {
-            Toggle("Send MIDI to Other Apps", isOn: $player.isMIDIOut)
-                .keyboardShortcut("m", modifiers: [.command, .shift])
-            if !player.midiDiagnostic.isEmpty {
-                Text(player.midiDiagnostic)
+            if let model {
+                Toggle("Send MIDI to Other Apps", isOn: Binding(
+                    get: { model.player.isMIDIOut },
+                    set: { model.player.isMIDIOut = $0 }))
+                    .keyboardShortcut("m", modifiers: [.command, .shift])
+                if !model.player.midiDiagnostic.isEmpty {
+                    Text(model.player.midiDiagnostic)
+                }
+            } else {
+                // No fold window in front: the menu says so rather than offering a toggle that
+                // would arm something invisible.
+                Text("No fold window").disabled(true)
             }
         }
 

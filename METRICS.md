@@ -3630,3 +3630,44 @@ concert hall, at a legible size, which is right: the sequence is NLYIQWLKDG..., 
 glycine 10. All five surfaces build; 23 tests across the four new suites.
 **Not measured:** whether a pinch aimed by eye actually lands on the residue somebody meant,
 which is the whole question and needs a headset. In `BLOCKERS.md`.
+
+## Two more features wired on one side only (2026-08-31)
+
+Both found while building SharePlay, both the same shape as `P5b-03`'s Watch host, and both
+invisible to every test and every build.
+
+### Handoff never advertised anything
+
+`StageView` had `onContinueUserActivity`, `continueFold(_:)` and a `handoffPayload` computed
+property. `grep -n handoffPayload Apps/PhoneFold/Sources/*.swift` returns **one line: its own
+declaration.** Nothing ever called `.userActivity(...)`, so no device ever published an
+activity, so no other device could ever have seen one. P5-07 was in `BLOCKERS.md` as "built;
+two devices needed to confirm" - and two devices would have confirmed nothing, for a reason
+that looks like a Handoff or an iCloud problem rather than a missing line.
+
+The receiving half being complete is what made it invisible: everything about the feature reads
+as finished, and the half that was missing is the half you cannot see from the device you are
+holding.
+
+### The Studio's menu bar acted on a model no window uses
+
+`StudioCommands` bound `@ObservedObject private var player = PhoneFoldModel.shared.player`, and
+**nothing in the Studio target uses `PhoneFoldModel.shared`**: every `StudioWindow` owns its own
+model, deliberately, because PLAN's Phase 5a wants two proteins side by side rather than two
+views of one.
+
+So "Send MIDI to Other Apps" armed a `FoldPlayer` that was never playing anything. The virtual
+CoreMIDI source appears in every DAW's device list exactly as it should - the gate's loopback
+check passes, because that check drives the engine directly - and then emits nothing at all.
+That is precisely the failure P5-05's human gate would have hit, and it would have looked like
+a CoreMIDI problem, which is the last place anyone would find it.
+
+Fixed with `@FocusedObject` and `.focusedSceneObject(model)`, so the menu acts on the window in
+front. With no fold window the menu says so rather than offering a toggle that would arm
+something invisible.
+
+**The pattern is worth naming, because this is the third instance in one day.** A feature split
+across two places, where one place is complete and reads as authoritative, and the other is a
+declaration nobody assigned or a computed property nobody called. Neither a build nor a test
+suite can see it: the code is correct, it is simply never reached. What finds it is asking of
+each half "who calls this?" - `grep` for the symbol and count the lines.

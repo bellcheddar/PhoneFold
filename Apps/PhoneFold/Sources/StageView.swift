@@ -231,11 +231,29 @@ struct StageView: View {
         // A fold the wrist asked for. Handled here rather than in the model because this view
         // owns the gallery selection and the accession field, and two places deciding what is
         // playing is how they come to disagree.
+        // Somebody else in the SharePlay session started a fold. The same route the wrist
+        // uses, for the same reason: this view owns the selection and the accession field.
+        .onChange(of: model.requestedHandoff) { _, requested in
+            guard let requested else { return }
+            model.requestedHandoff = nil
+            continueFold(requested)
+        }
         .onChange(of: model.requestedGalleryID) { _, requested in
             guard let requested,
                   let entry = library.entries.first(where: { $0.id == requested }) else { return }
             model.requestedGalleryID = nil
             start(entry)
+        }
+        // **Advertised, not only received.** This was the missing half of P5-07: `continueFold`
+        // and `onContinueUserActivity` were both here and `handoffPayload` was computed and
+        // used by nothing, so no device ever published an activity and no other device could
+        // ever have seen one. Two devices would have confirmed nothing. Same shape as the
+        // Watch host that was declared and never constructed.
+        .userActivity(FoldHandoff.activityType, isActive: handoffPayload != nil) { activity in
+            guard let payload = handoffPayload else { return }
+            activity.title = payload.subject
+            activity.userInfo = payload.userInfo
+            activity.isEligibleForHandoff = true
         }
         .onContinueUserActivity(FoldHandoff.activityType) { activity in
             guard let payload = FoldHandoff.from(userInfo: activity.userInfo) else { return }
