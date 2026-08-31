@@ -1,7 +1,7 @@
 # PhoneFold — STATE
 
 **Current phase:** 5 (Fleet). Phases 0, 2, 3 and 4 all hold a GREEN machine gate.
-**Current task:** P5-05, the CoreMIDI virtual source. P5-02 is investigated and restated (see 5a below); its export half waits for a free machine. **Phase 4's machine gate is GREEN**, including the two checks it used to skip: the exported MP4 now probes clean in ffprobe, and forty consecutive folds show no leak. What is left of Phase 4 is human and is in `BLOCKERS.md` - AirPlay to a real Apple TV, the Lock Screen banner, the exported-video comparison, cold launch on device, the VoiceOver audit, signing and TestFlight - plus P4-16, the app icon, which is blocked on a skill this machine does not have. Marc is deferring the sign-offs and will say when.
+**Current task:** P5-04, ProRes and image-sequence export. P5-02 is investigated and restated (see 5a below); its export half waits for a free machine. **Phase 4's machine gate is GREEN**, including the two checks it used to skip: the exported MP4 now probes clean in ffprobe, and forty consecutive folds show no leak. What is left of Phase 4 is human and is in `BLOCKERS.md` - AirPlay to a real Apple TV, the Lock Screen banner, the exported-video comparison, cold launch on device, the VoiceOver audit, signing and TestFlight - plus P4-16, the app icon, which is blocked on a skill this machine does not have. Marc is deferring the sign-offs and will say when.
 **Last updated:** 2026-08-31
 
 **Published 2026-08-31: <https://github.com/bellcheddar/PhoneFold>, public, MIT.** The history was
@@ -328,7 +328,7 @@ with nothing to notice it had.
 | P5-02 | Higher residue cap. **Investigated 2026-08-31: PLAN's premise is void, restated below** | P5-01 | todo |
 | P5-03 | Batch mode: a multi-record FASTA or a list of accessions in, a film per protein out, headless | P5-01 | done: parser, runner, `fold-batch`, Studio's drop window, and the gate |
 | P5-04 | ProRes and 4K export, plus an image-sequence export for grading | P5-01 | todo |
-| P5-05 | CoreMIDI virtual source, so a DAW can record the fold live | P5-01 | todo |
+| P5-05 | CoreMIDI virtual source, so a DAW can record the fold live | P5-01 | done; the DAW check is Marc's (BLOCKERS.md) |
 | P5-06 | Drag and drop PDB and mmCIF: superpose against the prediction, per-residue RMSD | P5-01 | todo |
 | P5-07 | Handoff: start a fold on the phone, continue on the Mac | P5-01 | todo |
 

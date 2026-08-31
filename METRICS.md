@@ -3086,3 +3086,30 @@ orchestration, not the animation.
 These numbers were taken while another project's job held about a quarter of the machine, so they
 are an upper bound rather than a clean figure. The 1.6% and the 4.5x are ratios measured under
 the same load, which is what the conclusion rests on.
+
+## P5-05 CoreMIDI virtual source (2026-08-31, macOS)
+
+| What | Measured |
+|---|---|
+| Loopback tests (real CoreMIDI input port connected to the source) | 5 passing |
+| MIDI sources on the system before toggling | none |
+| MIDI sources after "Send MIDI to Other Apps" | `PhoneFold` |
+| After toggling off, and after quitting | none |
+| Live channel against `MIDIFile.channel(for:part:)` | identical |
+
+The system-wide check is the one that matters and it was run from **a separate process**: a
+standalone Swift program enumerating `MIDIGetNumberOfSources()`, which is what a DAW does. The
+app appearing in its own test proves nothing about whether Logic can see it.
+
+**The endpoint is created on demand and disposed on the way out.** Creating it at launch would
+put PhoneFold in every DAW's device list for a user who never asked, and leaving it behind on
+quit would leave a dead device there. Both directions are checked above.
+
+The live source and the file export share `MIDIFile.channel(for:part:)`. Two maps would be the
+worst kind of wrong: each file looks right alone, and they only disagree once someone lines a
+recorded take up against the exported `.mid` hours later.
+
+**Not verified, and it is the human gate:** that the MIDI is musically usable in a DAW. Timing
+here is approximate by construction - each note is dispatched by sleeping until its beat, which
+carries task-scheduler jitter of a few milliseconds, where the synthesiser's own notes sit on the
+audio clock exactly.

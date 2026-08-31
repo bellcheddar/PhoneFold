@@ -380,7 +380,18 @@ assert last.b_factor.max() > 0, 'the confidence column is empty'
       fail "fold-batch does not build"
     fi
 
-    skip "phase 5: the CoreMIDI loopback check arrives with P5-05"
+    # PLAN.md Phase 5a: "the CoreMIDI source appears and emits valid events to a loopback
+    # client." The tests are that loopback client: they open a real CoreMIDI input port, connect
+    # it to PhoneFold's virtual source, and read back the bytes that actually crossed CoreMIDI
+    # rather than the bytes the sender believes it wrote. A test asserting what `send` was
+    # called with would pass with the endpoint disposed.
+    if swift test --package-path PhoneFoldKit --filter MIDISourceTests \
+         >/tmp/pf_gate_midi.log 2>&1; then
+      pass "the CoreMIDI virtual source emits valid events to a loopback client"
+    else
+      fail "the CoreMIDI loopback tests failed - see /tmp/pf_gate_midi.log"
+      tail -20 /tmp/pf_gate_midi.log >&2
+    fi
     ;;
   *)
     echo "unknown phase: $PHASE" >&2; exit 2

@@ -118,6 +118,29 @@ final class FoldPlayer: ObservableObject {
         (try? StyleLibrary.bundled()) ?? [:]
     private var conductor: ScoreConductor?
 
+    /// Whether PhoneFold appears as a MIDI device that a DAW can record.
+    ///
+    /// PLAN.md Phase 5a. Off until asked for: creating a virtual endpoint puts the app in every
+    /// DAW's device list, and doing that to someone who never wanted it is rude. Setting it
+    /// creates or disposes the source, so the device appears and disappears with the switch.
+    @Published var isMIDIOut = false {
+        didSet {
+            guard isMIDIOut != oldValue else { return }
+            if isMIDIOut {
+                midiSource = try? MIDISource()
+                if midiSource == nil { midiDiagnostic = "CoreMIDI refused the virtual source" }
+            } else {
+                midiSource?.allNotesOff()
+                midiSource = nil
+                midiDiagnostic = ""
+            }
+            conductor?.midi = midiSource
+        }
+    }
+
+    private var midiSource: MIDISource?
+    @Published private(set) var midiDiagnostic = ""
+
     /// Frames between HUD publishes. Six at 60 fps is ten updates a second.
     private let hudUpdateInterval = 6
     private var historyBuffer = FoldHistory()
@@ -222,6 +245,7 @@ final class FoldPlayer: ObservableObject {
         } else {
             audioDiagnostic = ""
         }
+        conductor?.midi = midiSource
         self.conductor = conductor
 
         let engine = FoldEngine(configuration: .init(

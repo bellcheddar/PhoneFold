@@ -787,3 +787,23 @@ What the stage *looks like* inside that window has not been seen.
 
 - [ ] Grant Screen Recording to the terminal in System Settings → Privacy & Security, so macOS
       work can be checked the same way iOS work is
+
+
+## Phase 5a: the MIDI has to be recorded into a DAW (2026-08-31)
+
+PLAN's human gate for 5a: "Marc records a fold into a DAW and confirms the MIDI is musically
+usable." Everything checkable by machine is done and is in METRICS.md: the virtual source appears
+system-wide when switched on (verified from a separate process enumerating CoreMIDI, which is
+what Logic does), disappears when switched off and on quit, and emits valid note-on and note-off
+through a real loopback client on the same channels the `.mid` export uses.
+
+What no test here can answer is whether the result is *music* when it lands on a track.
+
+- [ ] Turn on Fold > Send MIDI to Other Apps (shift-cmd-M) in PhoneFold Studio, arm a track in
+      Logic or Ableton against the "PhoneFold" source, play a fold, and record it
+- [ ] Check the timing is usable. It is approximate by construction: notes are dispatched by
+      sleeping until their beat, so they carry a few milliseconds of scheduler jitter, where the
+      synthesiser's own notes sit on the audio clock exactly. If that is audible against a grid,
+      the fix is a sample-accurate MIDI scheduler and it should be raised as its own task
+- [ ] Check the five voices land on sensible separate channels for instrument assignment, and
+      that a duet's two folds are distinguishable

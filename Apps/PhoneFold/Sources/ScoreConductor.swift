@@ -34,6 +34,11 @@ final class ScoreConductor: @unchecked Sendable {
     private let haptics = FoldHaptics()
     private var sonifier: Sonifier
     private var scheduler: Task<Void, Never>?
+
+    /// The virtual MIDI source, when Studio has one open. Nil on the phone, and nil on the Mac
+    /// until someone asks for it: creating a MIDI endpoint makes the app appear in every DAW's
+    /// device list, which is not something to do to a user who never asked.
+    var midi: MIDISource?
     private var baseline: Double?
     /// Frames scored but not yet handed over, because the engine is far enough ahead.
     private var waiting: [(moment: ScoreMoment, positions: [SIMD3<Float>])] = []
@@ -154,10 +159,41 @@ final class ScoreConductor: @unchecked Sendable {
             // The moment's own start time, taken before the submit that advances it.
             let start = engine.nextBeat
             engine.submit(next.moment, positions: next.positions)
+            // Mirror the moment to MIDI, if a DAW is listening. Taken from the same moment and
+            // the same start time the synthesiser was just given, so a recorded take lines up
+            // with what was heard rather than with a second reading of the score.
+            if let midi { send(next.moment, from: start, to: midi) }
+
             let events = HapticScore.events(for: next.moment)
             if !events.isEmpty {
                 let beat = MusicalClock.beatDuration(tempo: next.moment.tempo)
                 lock.withLock { hapticQueue.append((start, beat, events)) }
+            }
+        }
+    }
+
+    /// Mirror one moment to the virtual MIDI source.
+    ///
+    /// **Approximately timed, and it says so.** Each note is dispatched by sleeping until its
+    /// beat, which carries the jitter of the task scheduler - a few milliseconds - where the
+    /// synthesiser's own notes are placed on the audio clock exactly. That is the right trade
+    /// here: a DAW quantises or nudges a recorded take anyway, and the alternative is a second
+    /// sample-accurate scheduler running beside the one that already works.
+    private func send(_ moment: ScoreMoment, from start: Double, to midi: MIDISource) {
+        let beat = MusicalClock.beatDuration(tempo: moment.tempo)
+        guard let now = playbackTime(engine) else { return }
+        for note in moment.notes {
+            let delay = (start + note.beatOffset * beat) - now
+            let scheduled = ScheduledNote(note: note, time: start + note.beatOffset * beat,
+                                          duration: note.duration * beat,
+                                          timbre: moment.timbre)
+            if delay <= 0 {
+                midi.play(scheduled)
+            } else {
+                Task.detached {
+                    try? await Task.sleep(for: .seconds(delay))
+                    midi.play(scheduled)
+                }
             }
         }
     }

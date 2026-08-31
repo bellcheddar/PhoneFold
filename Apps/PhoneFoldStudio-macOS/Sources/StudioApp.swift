@@ -61,6 +61,7 @@ struct StudioWindow: View {
 /// controls stay - this is a second route to them, not a replacement.
 struct StudioCommands: Commands {
     @Environment(\.openWindow) private var openWindow
+    @ObservedObject private var player = PhoneFoldModel.shared.player
 
     var body: some Commands {
         // Replaces the stock "New Item", which would otherwise sit in the File menu doing
@@ -76,6 +77,18 @@ struct StudioCommands: Commands {
                 openWindow(id: PhoneFoldStudioApp.batchWindow)
             }
             .keyboardShortcut("b", modifiers: [.command, .shift])
+        }
+
+        // PLAN.md Phase 5a: "PhoneFold Studio appears as a MIDI device so Logic, Ableton or any
+        // DAW can record the fold live." A menu item rather than a control on the stage: it is a
+        // property of the application, not of the fold being played, and it stays on across
+        // folds so a recording session is not re-armed every time.
+        CommandMenu("Fold") {
+            Toggle("Send MIDI to Other Apps", isOn: $player.isMIDIOut)
+                .keyboardShortcut("m", modifiers: [.command, .shift])
+            if !player.midiDiagnostic.isEmpty {
+                Text(player.midiDiagnostic)
+            }
         }
 
         CommandGroup(replacing: .appInfo) {
