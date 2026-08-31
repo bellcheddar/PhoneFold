@@ -36,6 +36,8 @@ public struct FilmExporter {
         public let videoSeconds: Double
         public let audioSeconds: Double
         public let bars: Int
+        /// Frames of the final structure held while the music finished.
+        public let heldFrames: Int
         /// How far the picture and the sound disagree about the length of the piece.
         public var drift: Double { abs(videoSeconds - audioSeconds) }
     }
@@ -91,7 +93,7 @@ public struct FilmExporter {
         // Rendering it anyway would produce a file that looks finished and is not.
         let videoSeconds = Double(frames.count) / Double(options.frameRate)
         let summary = Summary(url: url, frames: frames.count, videoSeconds: videoSeconds,
-                              audioSeconds: musicSeconds, bars: bars.count)
+                              audioSeconds: musicSeconds, bars: bars.count, heldFrames: 0)
         let longer = Swift.max(videoSeconds, musicSeconds)
         guard longer > 0, summary.drift <= longer * 0.5 else {
             throw FilmWriter.Failure.couldNotCreate(String(
@@ -120,7 +122,22 @@ public struct FilmExporter {
             progress?(Double(index + 1) / Double(frames.count))
         }
 
+        // **Hold the last frame while the music rings out.**
+        //
+        // The frame count is chosen from the style's midpoint tempo, but the accelerando means
+        // the piece's real length is not that estimate - and there is a tail besides. Measured:
+        // a villin fold gave 44.8 s of picture against 51.7 s of sound, so the last seven
+        // seconds played over the end of the file. Repeating the final frame is what the
+        // moment wants anyway: the cadence resolving over the finished protein.
+        var held = 0
+        while Double(frames.count + held) / Double(options.frameRate) < musicSeconds {
+            try writer.append(texture: stage.texture)
+            held += 1
+        }
+
         try await writer.finish()
-        return summary
+        return Summary(url: url, frames: frames.count + held,
+                       videoSeconds: Double(frames.count + held) / Double(options.frameRate),
+                       audioSeconds: musicSeconds, bars: bars.count, heldFrames: held)
     }
 }

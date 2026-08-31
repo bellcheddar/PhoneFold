@@ -101,7 +101,7 @@ struct FilmExporterTests {
         let summary = try await FilmExporter(options: options)
             .export(frames: frames, residues: residues, style: style, to: url)
 
-        #expect(summary.frames == frames.count)
+        #expect(summary.frames >= frames.count)
         #expect(summary.bars > 0, "the film has no music in it")
 
         let asset = AVURLAsset(url: url)
@@ -142,8 +142,11 @@ struct FilmExporterTests {
         // the rule they are both supposed to follow.
         #expect(summary.videoSeconds > 0)
         #expect(summary.audioSeconds > 0)
-        // Within the tail, which is the only length the picture does not have.
-        #expect(summary.drift < 3.5,
+        // The picture covers the sound: the last frame is held while the cadence rings out,
+        // so a player never runs out of video before it runs out of music.
+        #expect(summary.videoSeconds >= summary.audioSeconds - 1.0 / 30,
+                "picture \(summary.videoSeconds) s against sound \(summary.audioSeconds) s")
+        #expect(summary.drift < 1.0,
                 "picture \(summary.videoSeconds) s against sound \(summary.audioSeconds) s")
     }
 
@@ -193,6 +196,7 @@ struct FilmExporterTests {
             .export(frames: frames, residues: residues, style: style, to: url) {
                 reported.append($0)
             }
+        // Progress is reported per supplied frame; the held tail is not part of the fold.
         #expect(reported.count == frames.count)
         #expect(reported.first ?? 0 > 0)
         #expect(abs((reported.last ?? 0) - 1) < 0.001, "progress never reached the end")

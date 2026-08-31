@@ -2565,6 +2565,13 @@ stage's normalisation verbatim - protein scaled to 1.15 across its bounding diag
 +Z at the camera's own distance, the protein rotated rather than the camera. With the lens and
 the lighting already matched, the film is framed and lit as the app is.
 
-Measured: trp-cage under the structure-based model, 2,686 frames at 1920x1080, **29.5 MB**.
+**The last frame is held while the music rings out.** The frame count comes from the style's
+midpoint tempo, but the accelerando means the real piece is not that estimate, and there is a
+tail besides: a villin fold gave 44.8 s of picture against 51.7 s of sound, so the last seven
+seconds played over the end of the file. Repeating the final frame is what the moment wants
+anyway - the cadence resolving over the finished protein - and brings the drift to **0.00 s**.
+
+Measured: villin HP36 morphing, 3,105 frames at 1920x1080, 51.8 s of picture against 51.7 s of
+sound, **23.9 MB**. trp-cage under the structure-based model, 2,686 frames, 29.5 MB.
 Bitrate scales with the pixel rate rather than being fixed, because the same figure that is
 generous at 1080p is a smear at 4K.
