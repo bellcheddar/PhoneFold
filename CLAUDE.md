@@ -28,6 +28,17 @@ Five surfaces: iPhone, iPad, Mac ("PhoneFold Studio"), Apple Watch, Vision Pro.
    XcodeGen as a project generator are acceptable (neither ships in the binary). Any other
    dependency is a halt.
 
+9. **Never poll for a backgrounded command.** A command started in the background reports back
+   on its own; a hand-rolled wait loop for it is redundant with a notification that is coming
+   anyway. And `until ! pgrep -f "verify_phase.sh 4"` can never be false, because `pgrep -f`
+   matches full command lines and that loop's own command line contains the string it greps
+   for. On 2026-08-31 nine such loops accumulated, every one of them waiting on a gate that had
+   already finished. If a wait is genuinely needed, poll the **output file** for the line the
+   run ends with, or match the worker (`swift-test`, `xcodebuild`), never the script's own name.
+10. **The gate is expensive: about fourteen minutes of tests plus a forty-fold leak run.** Use
+   `PHONEFOLD_GATE_FAST=1 bash Tools/verify_phase.sh <n>` between commits and keep the full run
+   for a phase exit. The escape hatch exists; it was built and then not used six times in a row.
+
 ## This machine
 
 - **DerivedData must live outside `~/Documents`.** iCloud puts extended attributes on everything
