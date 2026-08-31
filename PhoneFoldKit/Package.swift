@@ -36,8 +36,16 @@ let package = Package(
         .target(name: "FoldEngine", dependencies: ["FoldCore", "FoldGeometry"]),
         .target(name: "FoldAudio", dependencies: ["FoldCore"]),
         .target(name: "FoldRender", dependencies: ["FoldCore"]),
+        // **FoldEngine is not optional here and was missing until 2026-08-31.**
+        // `BatchDelivery.swift` has imported it since batch mode landed. Nothing complained,
+        // because every build that also builds FoldEngine leaves its module in the same
+        // products directory - so FoldCapture resolves it by accident whenever the scheduler
+        // happens to compile FoldEngine first. It fails when it does not, which is a race and
+        // therefore likeliest on a loaded machine: this exact build passed earlier the same
+        // day and failed at load 143 with "unable to resolve module dependency: 'FoldEngine'".
         .target(name: "FoldCapture",
-                dependencies: ["FoldCore", "FoldGeometry", "FoldRender", "FoldAudio"]),
+                dependencies: ["FoldCore", "FoldGeometry", "FoldEngine", "FoldRender",
+                               "FoldAudio"]),
         .target(name: "FoldSync", dependencies: ["FoldCore"]),
 
         // The allocation harness for PLAN.md's Phase 3 gate. An executable rather than a

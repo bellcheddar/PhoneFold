@@ -3342,3 +3342,24 @@ frame whether or not the decimation gate kept it.
 
 **Measured:** 40 tests across FoldSync and FoldRender pass; all five surfaces build.
 **Not measured:** anything a wrist can feel. In `BLOCKERS.md`.
+
+## An undeclared dependency that only fails when the machine is busy (2026-08-31)
+
+`FoldCapture` has imported `FoldEngine` since batch mode landed, and `Package.swift` never
+declared it. That is not a latent error waiting to be found - it is a **race**, and it had
+already passed and failed on the same tree the same day:
+
+| Run | Load average | Result |
+|---|---|---|
+| Phase 5 gate, earlier | ~2 | PASS - visionOS Release built |
+| `xcodebuild` Debug, by hand | ~11 | PASS |
+| Phase 5 gate, re-run | 143 | FAIL - `unable to resolve module dependency: 'FoldEngine'` |
+
+Every build that also builds `FoldEngine` leaves its `.swiftmodule` in the same products
+directory, so `FoldCapture` resolves the import by accident whenever the scheduler happens to
+compile `FoldEngine` first. Under load the ordering changes and the accident stops happening.
+
+**The lesson is about the gate rather than about the dependency.** A check that passes on a
+quiet machine and fails on a busy one is not noise to be re-run until it agrees: the two runs
+were both telling the truth about different orderings of the same undeclared edge. Declaring it
+makes both orderings correct.
