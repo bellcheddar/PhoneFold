@@ -244,6 +244,9 @@ final class ScoreConductor: @unchecked Sendable {
     /// the protein is standing - which is only ever visionOS - has no other way to reach it.
     func setSpatialStage(_ stage: SpatialStage) { engine.setStage(stage) }
 
+    /// Listen to one residue and nothing else. See `FoldAudioEngine.solo(residue:)`.
+    func setSolo(residue: Int?) { engine.solo(residue: residue) }
+
     var soundingVoices: Int { engine.soundingVoices }
     var hapticsAvailability: FoldHaptics.Availability { haptics.availability }
     var starvedBeats: Int { engine.starvedBeats }

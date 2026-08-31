@@ -109,6 +109,8 @@ public final class FoldAudioEngine: @unchecked Sendable {
         /// it applies to, because the two are read together and a stage that changed between
         /// them would place one note of a chord somewhere else.
         var stage = SpatialStage()
+        /// The one residue being listened to, if any. See `solo(residue:)`.
+        var solo: Int?
     }
     private let state = Mutex(Scheduling())
 
@@ -295,6 +297,28 @@ public final class FoldAudioEngine: @unchecked Sendable {
         }
     }
 
+    /// Listen to one residue and nothing else.
+    ///
+    /// PLAN.md Phase 5c: "look-and-pinch on a residue to pin a label and **solo its note**."
+    ///
+    /// **A contact counts for both of its residues.** A contact note belongs to a pair, and
+    /// soloing one end of a contact and hearing nothing would be the wrong answer to "what does
+    /// this residue sound like": the contacts it forms are most of what it sounds like. So the
+    /// filter is over `spatialResidues`, which is the same pair the spatial placement averages.
+    ///
+    /// Filtered where notes are *started* rather than by muting voices: a muted voice is still
+    /// a voice allocated, and with sixteen of them a soloed residue in a busy passage would
+    /// find them all taken by notes nobody can hear.
+    public func solo(residue: Int?) {
+        state.withLock { $0.solo = residue }
+    }
+
+    /// Whether this note survives the solo.
+    static func isAudible(_ note: NoteEvent, solo: Int?) -> Bool {
+        guard let solo else { return true }
+        return note.spatialResidues.contains(solo)
+    }
+
     /// Where the protein is, in the listener's world.
     ///
     /// PLAN.md Phase 5c: in the concert hall, "spatial audio finally does what the Phase 3
@@ -319,6 +343,7 @@ public final class FoldAudioEngine: @unchecked Sendable {
         state.withLock { scheduling in
             scheduling.clock.advance(to: time, into: &scheduling.due)
             for scheduled in scheduling.due {
+                guard Self.isAudible(scheduled.note, solo: scheduling.solo) else { continue }
                 starting.append((scheduled, Self.position(of: scheduled.note,
                                                           in: scheduling.positions,
                                                           stage: scheduling.stage)))

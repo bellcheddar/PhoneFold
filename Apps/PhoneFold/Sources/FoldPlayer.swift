@@ -168,6 +168,18 @@ final class FoldPlayer: ObservableObject {
         didSet { if spatialPlacement != oldValue { rebuildSpatialStage() } }
     }
 
+    /// The residue somebody has pinched, whose label is pinned and whose note is soloed.
+    ///
+    /// PLAN.md Phase 5c. Published because the label and the audio have to agree: they are two
+    /// halves of one gesture, and a pinned label over a residue that has fallen silent - or a
+    /// solo with nothing pinned - is the app disagreeing with itself in front of someone.
+    @Published var pinnedResidue: Int? {
+        didSet {
+            guard pinnedResidue != oldValue else { return }
+            conductor?.setSolo(residue: pinnedResidue)
+        }
+    }
+
     /// The stage's live rotation and the protein's width, pushed in by `FoldCanvas`.
     ///
     /// Identity and zero everywhere but visionOS, which is what keeps the default placement
@@ -333,6 +345,10 @@ final class FoldPlayer: ObservableObject {
         }
         conductor?.midi = midiSource
         conductor?.setSpatialStage(spatialStage)
+        // A new fold is a new protein: a residue pinned in the last one means nothing here,
+        // and carrying it over would solo an arbitrary residue of something else.
+        pinnedResidue = nil
+        conductor?.setSolo(residue: nil)
         self.conductor = conductor
 
         let engine = FoldEngine(configuration: .init(

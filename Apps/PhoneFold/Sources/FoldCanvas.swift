@@ -4,6 +4,7 @@ import RealityKit
 import Metal
 import simd
 import FoldCore
+import FoldGeometry
 import FoldRender
 #if os(macOS)
 import AppKit
@@ -42,6 +43,9 @@ struct FoldCanvas: View {
     /// gestures - a jump. Comparing the start location catches that without depending on
     /// `onEnded` at all.
     @State private var dragAnchor: CGPoint?
+    /// A residue to pin as soon as there are coordinates to pin it to. Only ever set by the
+    /// launch variable above: a pin asked for before the first frame has nothing to attach to.
+    @State private var pendingPin: Int?
 
     var body: some View {
         // No `update:` closure driving the mesh. Frames arrive through the player's
@@ -110,6 +114,16 @@ struct FoldCanvas: View {
                 .onChanged { applyMagnify($0.gestureValue.magnification) }
                 .onEnded { _ in stage.camera.endInteraction() }
         )
+        // PLAN.md Phase 5c: "look-and-pinch on a residue to pin a label and solo its note."
+        // A tap on the residue already pinned unpins it, so the same gesture is the way out.
+        .simultaneousGesture(
+            SpatialTapGesture()
+                .targetedToAnyEntity()
+                .onEnded { value in
+                    let scenePoint = value.convert(value.location3D, from: .local, to: .scene)
+                    pinResidue(atScenePoint: SIMD3<Float>(scenePoint))
+                }
+        )
         #else
         .gesture(
             DragGesture()
@@ -153,6 +167,16 @@ struct FoldCanvas: View {
             stage.onStageTransformChanged = { [player] attitude, extent in
                 player.stageTransformChanged(attitude: attitude, extent: extent)
             }
+            // Nothing can synthesise a pinch in the visionOS simulator, and a label made of a
+            // text mesh at the inverse of the protein's scale is exactly the kind of thing
+            // that comes out invisible or the size of the room. See the other launch
+            // variables in `VisionControlView`.
+            //
+            //     SIMCTL_CHILD_PHONEFOLD_VISION_PIN=9 xcrun simctl launch <udid> <id>
+            if let pin = ProcessInfo.processInfo.environment["PHONEFOLD_VISION_PIN"],
+               let residue = Int(pin) {
+                pendingPin = residue
+            }
             #endif
             stage.startClock()
             #if os(macOS)
@@ -164,6 +188,10 @@ struct FoldCanvas: View {
             player.onFrame = { [stage] frame, flashes in
                 stage.apply(frame: frame, flashes: flashes)
                 diagnostic = stage.lastDiagnostic
+                if let residue = pendingPin {
+                    pendingPin = nil
+                    pin(residue: residue)
+                }
             }
         }
         .onDisappear {
@@ -221,6 +249,24 @@ struct FoldCanvas: View {
         stage.camera.endInteraction()
     }
 
+    /// One pinch: pin the label and solo the note, or clear both.
+    ///
+    /// The two go together deliberately. A pinned label over a residue that has fallen silent,
+    /// or a solo with nothing pinned, is the app disagreeing with itself in front of someone.
+    private func pinResidue(atScenePoint point: SIMD3<Float>) {
+        let picked = stage.residue(atScenePoint: point)
+        // A pinch into empty space clears, rather than leaving a label nobody can now reach.
+        pin(residue: (picked == stage.pinnedResidue) ? nil : picked)
+    }
+
+    private func pin(residue: Int?) {
+        let residues = player.provider?.residues ?? []
+        stage.pin(residue: residue,
+                  name: residue.flatMap { residues.indices.contains($0)
+                      ? residues[$0].threeLetterCode : nil })
+        player.pinnedResidue = residue
+    }
+
     private func applyMagnify(_ magnification: CGFloat) {
         stage.camera.magnify(scale: Float(magnification))
         stage.noteMagnify()
@@ -243,6 +289,15 @@ final class StageContent {
     var colourMode: ColourMode = .confidence
     var residues: [AminoAcid] = []
     var residueCount: Int = 0
+    /// This frame's alpha carbons, in the protein's own space, for `ResiduePicking`.
+    ///
+    /// Kept rather than recovered from the packed mesh: the mesh is tube vertices, several
+    /// dozen per residue, and working backwards from it to a residue centre would be
+    /// reconstructing something the frame already carried.
+    private(set) var caPositions: [SIMD3<Float>] = []
+    /// The residue whose label is pinned, if any.
+    private(set) var pinnedResidue: Int?
+    private let label = ModelEntity()
 
     /// Accessibility, pushed in from the view.
     ///
@@ -545,9 +600,61 @@ final class StageContent {
                                       rotation: rotation,
                                       translation: rotation.act(-(centre + camera.target) * scale))
         refreshOutline()
+        applyLabelScale()
         // After the transform, not before: the sound follows the picture, and reporting the
         // rotation the picture is about to have would put them a frame apart.
         onStageTransformChanged?(rotation, extent)
+    }
+
+    // MARK: - Pinning a residue
+
+    /// Which residue a pinch in the scene landed on.
+    ///
+    /// The point is converted into the protein's own space rather than the coordinates into
+    /// the world: one conversion instead of a few hundred, and `ResiduePicking`'s tolerance is
+    /// in angstroms, which only means anything there.
+    func residue(atScenePoint point: SIMD3<Float>) -> Int? {
+        ResiduePicking.residue(at: protein.convert(position: point, from: nil),
+                               in: caPositions)
+    }
+
+    /// Pin a label to a residue, or clear it.
+    ///
+    /// The label is a child of the protein, so it follows the orbit without anything having to
+    /// drive it - and it carries the inverse of the protein's scale, so it renders at a
+    /// constant size in the room whether the protein is 20 residues or 300 and whether or not
+    /// somebody has walked into it. A label that scaled with the protein would be a wall of
+    /// text at room scale and invisible in a volume.
+    func pin(residue: Int?, name: String?) {
+        pinnedResidue = residue
+        guard let residue, caPositions.indices.contains(residue) else {
+            label.removeFromParent()
+            label.model = nil
+            return
+        }
+        let text = name.map { "\($0)\(residue + 1)" } ?? "\(residue + 1)"
+        let mesh = MeshResource.generateText(
+            text, extrusionDepth: 0.002,
+            font: .systemFont(ofSize: 0.05), containerFrame: .zero,
+            alignment: .center, lineBreakMode: .byTruncatingTail)
+        var material = UnlitMaterial(color: .white)
+        material.faceCulling = .none
+        label.model = ModelComponent(mesh: mesh, materials: [material])
+        #if os(visionOS)
+        // Faces the wearer wherever they stand, which for a label inside a protein at room
+        // scale is the difference between a word and an edge.
+        label.components.set(BillboardComponent())
+        #endif
+        if label.parent !== protein { protein.addChild(label) }
+        label.position = caPositions[residue]
+        applyLabelScale()
+    }
+
+    /// Undo the protein's own scale, so the label is the same size in the room at any framing.
+    private func applyLabelScale() {
+        guard label.parent != nil else { return }
+        let scale = protein.transform.scale.x
+        label.scale = SIMD3<Float>(repeating: scale > 0.000001 ? 1 / scale : 1)
     }
 
     /// Keep the box a pinch has to hit in step with the protein it is meant to be.
@@ -584,6 +691,7 @@ final class StageContent {
     func apply(frame: PreparedFrame, flashes: [FlashInstance]) {
         let mesh = frame.mesh
         guard !mesh.vertices.isEmpty else { return }
+        caPositions = frame.caPositions
 
         let options = ColourOptions(residueCount: residueCount, residues: residues,
                                     accessiblePalette: accessiblePalette)

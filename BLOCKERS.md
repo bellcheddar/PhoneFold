@@ -979,3 +979,15 @@ surface to synthesise a drag against.
 - [ ] Check the hydrophobicity colouring reads from inside. Walking in switches to it and
       switches back on the way out, on the grounds that a core you cannot see the
       hydrophobicity of is just the middle of something
+
+- [ ] Look at a residue and pinch it. Everything downstream of the pinch is tested - which
+      residue a point picks, what a solo lets through, where the label goes - and the one thing
+      that cannot be is whether the pinch lands where you were looking. The dial is
+      `ResiduePicking.defaultTolerance`, 6 A: large enough to clear the tube's own radius,
+      small enough not to reach across the 4.8 A between two strands of a sheet
+- [ ] Check the pinned label is legible from inside the protein at room scale as well as from
+      outside it in a volume. It carries the inverse of the protein's scale so it should be the
+      same size in the room either way, which is the sort of thing that is obviously wrong the
+      moment you see it and invisible until then
+- [ ] Listen to a soloed residue. A contact is audible from either of its ends, deliberately -
+      say whether that is the right answer or whether soloing should be one residue only

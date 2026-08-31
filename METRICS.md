@@ -3589,3 +3589,44 @@ nothing from outside - the tube is a closed surface, so no back face is ever vis
 (screenshots taken); 5 `RoomScaleTests` plus the full package suite.
 **Not measured:** whether three metres of protein around your head is wonderful or unpleasant,
 and whether half a metre of personal space is the right number. Both are in `BLOCKERS.md`.
+
+## P5c-06, look-and-pinch a residue (2026-08-31)
+
+PLAN: "look-and-pinch on a residue to pin a label and solo its note."
+
+**One collision box, not one per residue.** The obvious reading is an input target per residue,
+which for a 300-residue protein is 300 entities with 300 collision shapes rebuilt as the fold
+changes shape sixty times a second. The pinch already arrives with a point in space; turning
+that into a residue is a search over a few hundred coordinates. So `ResiduePicking` is a pure
+function in `FoldGeometry` with 6 tests, and three of its rules are not free:
+
+- **A miss returns nil, never the least-far residue.** A protein is mostly empty space at this
+  scale and a pinch into a hollow is a pinch at nothing; answering it with whatever happens to
+  be nearest pins a label where the hand was not pointing.
+- **The tolerance is 6 Å and has a reason.** The tube is drawn about 2 Å in radius, so a couple
+  of angstroms of slack either side is generous - and it stays under the ~4.8 Å between
+  neighbouring strands of a beta sheet, so a pinch aimed between two strands does not silently
+  take one.
+- **Ties break to the earlier residue.** A symmetric structure genuinely puts two residues
+  equidistant from a pinch, and an answer that depended on iteration order would flicker.
+
+The point is converted into the protein's space rather than the coordinates into the world: one
+conversion per pinch instead of a few hundred, and the tolerance only means anything in
+angstroms.
+
+**Soloing is filtered where notes start, not by muting voices.** A muted voice is still a voice
+allocated, and there are sixteen: in a busy passage a soloed residue would find them all taken
+by notes nobody can hear. And **a contact counts for both of its residues** - a contact belongs
+to a pair, and most of what a residue sounds like is the contacts it forms, so soloing one end
+and hearing silence would be the wrong answer to the question being asked.
+
+The label is a child of the protein, so it follows the orbit with nothing driving it, and
+carries the inverse of the protein's scale so it is the same size in the room whether the
+protein is 20 residues or 300 and whether or not somebody has walked into it. A label that
+scaled with the protein would be a wall of text at room scale and invisible in a volume.
+
+**Measured:** `PHONEFOLD_VISION_PIN=9` on trp-cage TC5b renders **GLY10** at the residue in the
+concert hall, at a legible size, which is right: the sequence is NLYIQWLKDG..., so index 9 is
+glycine 10. All five surfaces build; 23 tests across the four new suites.
+**Not measured:** whether a pinch aimed by eye actually lands on the residue somebody meant,
+which is the whole question and needs a headset. In `BLOCKERS.md`.

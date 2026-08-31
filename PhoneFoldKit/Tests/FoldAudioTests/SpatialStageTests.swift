@@ -101,3 +101,42 @@ struct SpatialStageTests {
         #expect(placed == SIMD3<Float>(0, 0, -1.5))
     }
 }
+
+/// PLAN.md Phase 5c: "look-and-pinch on a residue to pin a label and solo its note."
+@Suite("Soloing one residue")
+struct SoloTests {
+
+    static func note(residue: Int, partner: Int? = nil) -> NoteEvent {
+        NoteEvent(voice: partner == nil ? .pad : .contact,
+                  note: MIDINote(pitch: 60, velocity: 90),
+                  residue: residue, partner: partner)
+    }
+
+    @Test("with nothing soloed every note is audible")
+    func noSolo() {
+        #expect(FoldAudioEngine.isAudible(Self.note(residue: 4), solo: nil))
+        #expect(FoldAudioEngine.isAudible(Self.note(residue: 4, partner: 30), solo: nil))
+    }
+
+    @Test("a solo silences every other residue")
+    func soloSilencesOthers() {
+        #expect(FoldAudioEngine.isAudible(Self.note(residue: 12), solo: 12))
+        #expect(!FoldAudioEngine.isAudible(Self.note(residue: 13), solo: 12))
+    }
+
+    /// The one that decides whether soloing is useful at all. A contact belongs to a pair, and
+    /// most of what a residue sounds like *is* the contacts it forms: soloing one end and
+    /// hearing silence would be the wrong answer to the question being asked.
+    @Test("a contact is audible from either of its ends")
+    func contactsCountForBothEnds() {
+        let contact = Self.note(residue: 12, partner: 40)
+        #expect(FoldAudioEngine.isAudible(contact, solo: 12))
+        #expect(FoldAudioEngine.isAudible(contact, solo: 40))
+        #expect(!FoldAudioEngine.isAudible(contact, solo: 41))
+    }
+
+    @Test("soloing a residue that is not in the structure is silence, not everything")
+    func soloingNothing() {
+        #expect(!FoldAudioEngine.isAudible(Self.note(residue: 3), solo: 9_999))
+    }
+}
