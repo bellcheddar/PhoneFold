@@ -25,6 +25,9 @@ targets:
     supportedDestinations: [iOS, macOS]
     sources:
       - path: Sources
+      # The Live Activity's state type, compiled into the app and the widget extension from
+      # the same file. See FoldActivityAttributes.swift for why it is not duplicated.
+      - path: ../Shared/Sources
       - path: Resources
         buildPhase: resources
       # The Genie 2 step model. Xcode compiles the .mlpackage to a .mlmodelc in the bundle,
@@ -46,12 +49,17 @@ targets:
     dependencies:
       - package: PhoneFoldKit
         products: [FoldCore, FoldGeometry, FoldEngine, FoldRender, FoldAudio, FoldCapture]
+      # iOS only, and filtered rather than conditioned: PhoneFold is one target for two
+      # platforms, and a macOS build that tries to embed an iOS app extension fails outright.
+      - target: PhoneFoldWidgets
+        destinationFilters: [iOS]
     info:
       path: Info.plist
       properties:
         CFBundleDisplayName: PhoneFold
         CFBundleShortVersionString: $(MARKETING_VERSION)
         UILaunchScreen: {}
+        NSSupportsLiveActivities: true
         # Required for the external display scene to be delivered at all: a scene role other
         # than the application role is only offered to an app that declares it supports more
         # than one. On iPad this also permits a second app window, which shows the same fold
@@ -84,3 +92,32 @@ targets:
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.education
         ENABLE_HARDENED_RUNTIME: YES
         CODE_SIGN_STYLE: Automatic
+
+  # The Live Activity's UI. A widget extension is not optional for this feature: ActivityKit
+  # renders the Lock Screen banner and the Dynamic Island out of process, and without an
+  # extension `areActivitiesEnabled` is false and every request throws.
+  PhoneFoldWidgets:
+    type: app-extension
+    supportedDestinations: [iOS]
+    sources:
+      - path: Widgets
+      - path: ../Shared/Sources
+    dependencies:
+      - sdk: WidgetKit.framework
+      - sdk: SwiftUI.framework
+      # For FoldActivitySnapshot, which the extension decodes and the app encodes. One
+      # definition of the wire format, not two.
+      - package: PhoneFoldKit
+        products: [FoldCore]
+    info:
+      path: PhoneFoldWidgets-Info.plist
+      properties:
+        CFBundleDisplayName: PhoneFold
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.mdeller.phonefold.widgets
+        CODE_SIGN_STYLE: Automatic
+        SKIP_INSTALL: YES

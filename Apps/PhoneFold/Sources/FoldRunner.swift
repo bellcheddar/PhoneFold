@@ -31,6 +31,14 @@ final class FoldRunner: ObservableObject {
     }
 
     @Published private(set) var state: State = .idle
+
+    /// What is being folded, known before the player has a trajectory to name.
+    ///
+    /// The Live Activity starts at the first `.folding(progress: 0)`, which is several seconds
+    /// before the player is handed a provider - so asking the player for the title there gets
+    /// "PhoneFold", the fallback, and the Lock Screen banner names the app instead of the
+    /// protein. Measured: the first banner of every run read "PhoneFold on Simulate".
+    @Published private(set) var subject = ""
     /// The engine the user has chosen. Persisted for the session only.
     @Published var engine: FoldingEngine = .structureBased
 
@@ -60,6 +68,7 @@ final class FoldRunner: ObservableObject {
         cancel()
         let trimmed = accession.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
+        subject = trimmed.uppercased()
         state = .fetching(accession: trimmed.uppercased())
         task = Task { [weak self] in
             guard let self else { return }
@@ -85,6 +94,7 @@ final class FoldRunner: ObservableObject {
     ///   known to complete costs nothing and saves the user two of those.
     func generate(seed: UInt64 = 3, into player: FoldPlayer) {
         cancel()
+        subject = "Generated backbone"
         state = .folding(progress: 0)
         let report: @Sendable (Double) -> Void = { [weak self] fraction in
             Task { @MainActor in
@@ -158,6 +168,7 @@ final class FoldRunner: ObservableObject {
             state = .failed("\(error)")
             return
         }
+        subject = "\(reference.name) and \(mutation)"
         state = .folding(progress: 0)
 
         let metadata = TrajectoryMetadata(
@@ -244,6 +255,7 @@ final class FoldRunner: ObservableObject {
             state = .failed("\(engine.displayName) does not fold toward a reference structure.")
             return
         }
+        subject = reference.name
         state = .folding(progress: 0)
 
         let metadata = TrajectoryMetadata(

@@ -742,3 +742,15 @@ PLAN.md already classes this as human-verifiable and a halt.
 - [ ] AirPlay to a real Apple TV shows the clean external scene, with the audio in sync
 - [ ] Connect and disconnect a display mid-fold: the music should not pause, restart or glitch
 - [ ] The mirroring fallback (AirPlay "Mirror" rather than the app scene) still looks acceptable
+
+
+## Phase 4: the Lock Screen banner has not been seen (2026-08-31)
+
+The Live Activity is verified running - `chronod` accepts the archive, the widget extension is
+launched to draw it, and the Dynamic Island renders correctly with the protein, the progress and
+the confidence. The **Lock Screen** presentation is the same view in a different container and
+has never been looked at, because the Simulator's Device > Lock does nothing on this machine: the
+menu item presses and reports success, and the screen stays unlocked.
+
+- [ ] Lock a real phone mid-fold and check the banner: protein name, progress bar, and the
+      "Folding · Simulate · recycle N" line all legible without tapping

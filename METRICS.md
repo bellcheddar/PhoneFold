@@ -2873,3 +2873,30 @@ would have been silent.
 finds none of the app's own strings. Xcode 26 debug builds put the code in
 `PhoneFold.debug.dylib` and leave a 40 KB launcher in its place, so inspecting the executable by
 that name says "the file was never compiled in" about code that is demonstrably running.
+
+## P4-11 Live Activity (2026-08-31, Simulator, iPhone 17 / iOS 26.5)
+
+| What | Measured |
+|---|---|
+| `Activity.request` succeeded | yes — "live activity for Trp-cage TC5b on Simulate: true" |
+| System accepted it | `chronod` "Consuming activity archive size 22680.0 B", "reload: succeeded" |
+| Widget extension hosted to draw it | yes — `runningboardd` launched `com.mdeller.phonefold.widgets` (pid 76719) |
+| Dynamic Island, app backgrounded | atom glyph + "48%", captured |
+| Publishes over a 45 s fold at 60 fps | 99 of 2,700 snapshots (`ActivityReportTests`) |
+
+The publish count is the point of the rate limit: 2,700 updates is far past the system's budget,
+and pushing them all freezes the banner at whatever got through rather than failing loudly.
+99 is measured, not derived - a whole percent of 2,700 frames is 27 of them and the arithmetic
+says 100, but the comparison accumulates in a `Double` and a couple of intervals land a hair
+under 0.01.
+
+**Not verified here:** the Lock Screen banner. The Simulator's Device > Lock does nothing on this
+machine - the menu item presses, the screen does not lock - so the banner's own layout has never
+been seen, only the Dynamic Island's. Same view code, different container.
+
+**Two things that cost time and are worth writing down.** `#if canImport(ActivityKit)` is true on
+macOS: the module is present and every symbol in it is `@available(macOS, unavailable)`, so the
+block compiles and fails inside on eight lines. The guard has to be `os(iOS)`. And
+`ActivityKit.Activity` is a plain non-Sendable class whose `update` and `end` are nonisolated -
+held in a `@MainActor` property it can never be passed to them, and no amount of `Task { }`
+helps, because the value carries the isolation. It has to live outside any actor.

@@ -1,5 +1,7 @@
 import Foundation
 import SwiftUI
+import Combine
+import FoldCore
 
 /// The one fold the app is playing, owned above any scene.
 ///
@@ -27,5 +29,68 @@ final class PhoneFoldModel: ObservableObject {
     /// hand that anything reached it.
     @Published var isOnExternalDisplay = false
 
-    private init() {}
+    /// The Lock Screen banner. Driven from here rather than from a view, because a fold runs
+    /// whether or not anything is on screen - which is the entire point of a Live Activity -
+    /// and a `.onChange` in `StageView` would stop reporting the moment the app was backgrounded
+    /// and the view stopped updating.
+    let activity = FoldActivityController()
+
+    private var observers: Set<AnyCancellable> = []
+
+    private init() {
+        observeForActivity()
+    }
+
+    /// Mirror the run into the Live Activity.
+    ///
+    /// Two sources, because a run has two halves: the runner while the model computes, then the
+    /// player while the piece plays. The controller rate-limits, so subscribing to a sixty-a-
+    /// second progress publisher here is deliberate rather than careless.
+    private func observeForActivity() {
+        runner.$state
+            .sink { [weak self] state in
+                guard let self else { return }
+                switch state {
+                case .fetching(let accession):
+                    activity.begin(protein: accession, engine: runner.engine.displayName)
+                    activity.update(FoldActivitySnapshot(phase: .fetching, progress: 0))
+                case .folding(let progress):
+                    if progress <= 0 {
+                        // The runner's own subject, not the player's title: the player has no
+                        // provider yet at progress zero and would answer "PhoneFold".
+                        activity.begin(protein: runner.subject,
+                                       engine: runner.engine.displayName)
+                    }
+                    activity.update(FoldActivitySnapshot(phase: .folding, progress: progress))
+                case .failed:
+                    activity.end()
+                case .idle:
+                    break
+                }
+            }
+            .store(in: &observers)
+
+        player.$progress
+            .sink { [weak self] progress in
+                guard let self, player.isPlaying else { return }
+                let sample = player.history.samples.last
+                activity.update(FoldActivitySnapshot(
+                    phase: .playing,
+                    progress: progress,
+                    // A single-recycle fold reports nothing rather than "recycle 1", which
+                    // would be a number that never changes taking up a line.
+                    recycle: (sample?.recycle).flatMap { $0 > 0 ? $0 : nil },
+                    meanConfidence: sample.map { Double($0.meanConfidence) },
+                    confidenceLabel: player.confidenceSource.displayName))
+            }
+            .store(in: &observers)
+
+        player.$isPlaying
+            .sink { [weak self] isPlaying in
+                // Ended rather than left stale: a banner that says a fold is playing after the
+                // music has stopped is worse than no banner.
+                if !isPlaying { self?.activity.end() }
+            }
+            .store(in: &observers)
+    }
 }
