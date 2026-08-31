@@ -1,0 +1,272 @@
+<h1>🧬 PhoneFold</h1>
+<blockquote>
+<p><strong>Fold a protein on your phone's Neural Engine, and listen to it happen.</strong></p>
+</blockquote>
+<p><img alt="swift" src="https://img.shields.io/badge/swift-6.3.3-F05138?logo=swift&amp;logoColor=white"> <img alt="xcode" src="https://img.shields.io/badge/xcode-26.6-1575F9?logo=xcode&amp;logoColor=white"> <img alt="iOS" src="https://img.shields.io/badge/iOS-18%2B-000000?logo=apple&amp;logoColor=white"> <img alt="macOS" src="https://img.shields.io/badge/macOS-15%2B-000000?logo=apple&amp;logoColor=white"> <img alt="Core ML" src="https://img.shields.io/badge/Core%20ML-Neural%20Engine-0A84FF?logo=apple&amp;logoColor=white"> <img alt="RealityKit" src="https://img.shields.io/badge/RealityKit-LowLevelMesh-467FF7"> <img alt="AVFoundation" src="https://img.shields.io/badge/AVFoundation-spatial%20audio-467FF7"> <img alt="ActivityKit" src="https://img.shields.io/badge/ActivityKit-Live%20Activity-467FF7"> <img alt="dependencies" src="https://img.shields.io/badge/dependencies-Apple%20frameworks%20only-00897B"> <img alt="swift-testing" src="https://img.shields.io/badge/swift--testing-479%20passing-30B0C7"> <img alt="models" src="https://img.shields.io/badge/models-Genie%202%20%C2%B7%20ESMFold%20%C2%B7%20FoldingDiff-9b51e0"> <img alt="data" src="https://img.shields.io/badge/data-RCSB%20PDB%20%C2%B7%20AlphaFold%20DB%20%C2%B7%20UniProt-9b51e0"> <img alt="phase" src="https://img.shields.io/badge/phase-5%20of%205%20(Fleet)-fcb900"> <img alt="licence" src="https://img.shields.io/badge/licence-MIT-1C244B"> <img alt="author" src="https://img.shields.io/badge/author-Marc%20C.%20Deller%2C%20D.Phil.-1C244B"></p>
+<table class="emd-info-table">
+<tr>
+<td>🌐 <b>Website</b></td><td><a href="https://marcdeller.com" target="_blank" rel="noopener noreferrer">marcdeller.com</a></td>
+<td>✉️ <b>Contact</b></td><td><a href="mailto:marc@marcdeller.com">marc@marcdeller.com</a></td>
+<td>🐙 <b>GitHub</b></td><td><a href="https://github.com/bellcheddar/PhoneFold" target="_blank" rel="noopener noreferrer">bellcheddar/PhoneFold</a></td>
+</tr>
+</table>
+
+<hr>
+<p><img alt="Trp-cage TC5b folded on an iPhone: the pink and cyan ribbon sits on a dark indigo stage above live readouts (Rg 7.0 Å, compactness 1.02, 33 contacts, 100% native, 45/5/50 helix-sheet-coil), with structure and radius-of-gyration traces beneath and the protein gallery along the bottom" src="https://raw.githubusercontent.com/bellcheddar/PhoneFold/main/docs/screenshots/phonefold-iphone.png"></p>
+<p>PhoneFold folds a protein on the device in front of you and turns the trajectory into music. Every note comes from the fold itself rather than from the sequence: a contact forming is an onset, how far apart in the chain its two halves are sets how high it sounds, helices are a sustained pad, sheets a staccato figure, coils an arpeggio. As the chain compacts the tempo rises, and when the structure settles the harmony resolves. Confidence is audible, so an uncertain region is dull and out of tune and a disordered protein never resolves at all.</p>
+<p><strong>Why it matters:</strong> structure prediction is something almost everyone experiences as a still picture at the end of a progress bar, which throws away the part that is actually interesting, namely how the answer was arrived at. Rendering the trajectory as sound puts a second, temporal channel on the same data, and a trained ear can hear a bad prediction before reading a single pLDDT value. It is useful for teaching how a model converges, for talks where a folding protein beats another slide, for protein engineers who want to hear where a mutation pushes a fold off course, and for anyone who wants a piece of music that no one has heard before because nobody has folded that sequence yet.</p>
+<blockquote>
+<p><strong>What PhoneFold is not.</strong> PhoneFold visualises how a neural network converges on a structure. It is not a physical folding pathway, and no protein folds this way. The app says this on its third onboarding card and keeps a short form of it permanently in About, because it is the first question a structural biologist will ask.</p>
+</blockquote>
+<h2>✨ Features</h2>
+<p><strong>Three engines, and each one states its own claim in the interface</strong> so a viewer is never left to assume:</p>
+<div class="emd-table-wrap"><table class="emd-data-table">
+<thead>
+<tr>
+<th>Engine</th>
+<th>What it does</th>
+<th>What it is not</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td data-label="Engine"><strong>Simulate</strong></td>
+<td data-label="What it does">A CA-level structure-based (Gō) model relaxing a named protein into its known structure</td>
+<td data-label="What it is not">Not a prediction: the answer is supplied</td>
+</tr>
+<tr>
+<td data-label="Engine"><strong>Morph</strong></td>
+<td data-label="What it does">Geometric interpolation toward a known structure</td>
+<td data-label="What it is not">Not physics at all</td>
+</tr>
+<tr>
+<td data-label="Engine"><strong>Generate</strong></td>
+<td data-label="What it does">Genie 2 denoising a backbone out of Gaussian noise, on the Neural Engine</td>
+<td data-label="What it is not">Not a named protein: it has never existed</td>
+</tr>
+</tbody>
+</table></div>
+<ul>
+<li><strong>The score.</strong> Five style profiles (Fantasy, Jazz, Pop, Rock, Surf), switchable while the piece is playing, with swing as a piecewise-linear beat warp and a tempo map driven by compaction</li>
+<li><strong>Spatial audio.</strong> <code>AVAudioEnvironmentNode</code> with HRTF, so notes arrive from where their residues are</li>
+<li><strong>Haptics</strong> layered on the score, and a Watch surface planned to carry them to the wrist</li>
+<li><strong>The mutation duet.</strong> Fold wild type and mutant in the same key on two channels, with the per-residue confidence difference driving the interval between them: agreement is unison, disagreement is displaced along a consonance ladder until it reaches a tritone. The readout names the residues where the two folds diverge most</li>
+<li><strong>Exports</strong> that all validate against something other than this repository's own reader</li>
+<li><strong>The lecture theatre.</strong> A dedicated external display scene renders a clean full-bleed stage with no controls while the phone becomes the control surface</li>
+<li><strong>Live Activity and Dynamic Island</strong> carrying progress, the current recycle and mean confidence</li>
+<li><strong>Accessibility.</strong> VoiceOver labels, hints and selection traits throughout, Reduce Motion, Reduce Transparency, Differentiate Without Color, a colour-blind-safe secondary-structure palette, and Dynamic Type</li>
+</ul>
+<h2>📦 Exports</h2>
+<div class="emd-table-wrap"><table class="emd-data-table">
+<thead>
+<tr>
+<th>Format</th>
+<th>Contents</th>
+<th>Validated by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td data-label="Format"><code>.mp4</code></td>
+<td data-label="Contents">The fold rendered offscreen at export resolution with its music, ProRes and 4K planned</td>
+<td data-label="Validated by"><code>ffprobe</code>, in the phase gate</td>
+</tr>
+<tr>
+<td data-label="Format"><code>.mid</code></td>
+<td data-label="Contents">Standard MIDI file, one track per voice, with the tempo map</td>
+<td data-label="Validated by">Round-trip through <code>AVAudioSequencer</code></td>
+</tr>
+<tr>
+<td data-label="Format"><code>.cif</code></td>
+<td data-label="Contents">Final model, confidence in the B-factor column</td>
+<td data-label="Validated by">Biotite, in the phase gate</td>
+</tr>
+<tr>
+<td data-label="Format"><code>.cif</code></td>
+<td data-label="Contents">Multi-model trajectory of the raw frames, for PyMOL</td>
+<td data-label="Validated by">Biotite, in the phase gate</td>
+</tr>
+<tr>
+<td data-label="Format"><code>.wav</code></td>
+<td data-label="Contents">The score alone, loudness-normalised to ITU-R BS.1770-4</td>
+<td data-label="Validated by">Both gates of the standard</td>
+</tr>
+</tbody>
+</table></div>
+<h2>🧱 Stack</h2>
+<p><strong>Apple frameworks only.</strong> No third-party code ships in the binary. SwiftLint and XcodeGen are build-time tools and are not linked into it.</p>
+<div class="emd-table-wrap"><table class="emd-data-table">
+<thead>
+<tr>
+<th>Package</th>
+<th>Responsibility</th>
+<th>Platform code</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td data-label="Package"><code>FoldCore</code></td>
+<td data-label="Responsibility">Frames, trajectories, amino acids, provenance</td>
+<td data-label="Platform code">None, enforced by lint</td>
+</tr>
+<tr>
+<td data-label="Package"><code>FoldGeometry</code></td>
+<td data-label="Responsibility">Contacts, secondary structure, superposition, interpolation</td>
+<td data-label="Platform code">None, enforced by lint</td>
+</tr>
+<tr>
+<td data-label="Package"><code>FoldEngine</code></td>
+<td data-label="Responsibility">The three engines, the Genie 2 sampler, mutations</td>
+<td data-label="Platform code">None, enforced by lint</td>
+</tr>
+<tr>
+<td data-label="Package"><code>FoldRender</code></td>
+<td data-label="Responsibility">Tube geometry, colouring, the stage's lighting rig</td>
+<td data-label="Platform code">RealityKit</td>
+</tr>
+<tr>
+<td data-label="Package"><code>FoldAudio</code></td>
+<td data-label="Responsibility">Sonifier, synthesiser, clock, MIDI, offline render</td>
+<td data-label="Platform code">AVFoundation</td>
+</tr>
+<tr>
+<td data-label="Package"><code>FoldCapture</code></td>
+<td data-label="Responsibility">Offscreen stage, film writer, burned-in caption</td>
+<td data-label="Platform code">RealityKit, AVFoundation</td>
+</tr>
+<tr>
+<td data-label="Package"><code>FoldSync</code></td>
+<td data-label="Responsibility">Cross-device state</td>
+<td data-label="Platform code">WatchConnectivity</td>
+</tr>
+</tbody>
+</table></div>
+<p><code>FoldCore</code>, <code>FoldEngine</code> and <code>FoldGeometry</code> contain <strong>zero</strong> <code>#if os(...)</code>. That is checked on every phase gate rather than trusted: if one appears, the design is wrong, not the lint.</p>
+<h2>🚀 Building</h2>
+<pre><code class="language-bash"># The Xcode project is generated, not committed.
+export APPLE_TEAM_ID=&lt;your team&gt;
+cd Apps/PhoneFold &amp;&amp; xcodegen generate
+
+# DerivedData must live outside ~/Documents: iCloud puts extended attributes on
+# everything there and codesign then fails with &quot;resource fork, Finder information,
+# or similar detritus not allowed&quot;.
+xcodebuild -project Apps/PhoneFold/PhoneFold.xcodeproj -scheme PhoneFold \
+  -destination &quot;platform=iOS Simulator,name=iPhone 17&quot; \
+  -derivedDataPath ~/Library/Developer/PhoneFold-DerivedData build
+
+swift test --package-path PhoneFoldKit          # 479 tests, 79 suites
+bash Tools/verify_phase.sh 4                    # the phase's machine gate
+</code></pre>
+<p>The Genie 2 weights are <strong>not</strong> in this repository. Obtain them from <a href="https://github.com/aqlaboratory/genie2">aqlaboratory/genie2</a> under its own licence and run <code>Tools/export_genie2_coreml.py</code>.</p>
+<h2>🔧 Command-line tools</h2>
+<p><code>PhoneFoldKit</code> ships four executables, each of which exists because a question could not be answered by reasoning about the code:</p>
+<div class="emd-table-wrap"><table class="emd-data-table">
+<thead>
+<tr>
+<th>Tool</th>
+<th>Question it answers</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td data-label="Tool"><code>preview-style</code></td>
+<td data-label="Question it answers">What does this trajectory sound like in this style? Writes WAV, MIDI, mmCIF, a still or a whole film</td>
+</tr>
+<tr>
+<td data-label="Tool"><code>foldaudio-probe</code></td>
+<td data-label="Question it answers">Does the audio path allocate on the render thread?</td>
+</tr>
+<tr>
+<td data-label="Tool"><code>genie2-probe</code></td>
+<td data-label="Question it answers">Does the reverse diffusion stay on the zero-centre-of-mass subspace?</td>
+</tr>
+<tr>
+<td data-label="Tool"><code>leak-probe</code></td>
+<td data-label="Question it answers">Does the footprint grow across consecutive folds?</td>
+</tr>
+</tbody>
+</table></div>
+<h2>📊 Measured, not estimated</h2>
+<p>Every number in <code>METRICS.md</code> was measured on this machine, and the entries that mattered most were the ones that contradicted an assumption:</p>
+<ul>
+<li><strong>Genie 2 diverged on half its seeds</strong> because the sampler centred the coordinates it recorded and never the ones it fed back in. The centre of mass random-walked to 114 Å on a chain whose radius of gyration is 11 Å, far outside anything the network saw in training, and the posterior mean's <code>1/sqrt(alpha_t)</code> factor amplified the resulting nonsense at every later step. Projecting it out each step takes 3 of 6 seeds failing to 6 of 6 passing, and tightens CA-CA spacing from 3.86 to 3.94 Å down to 3.85 to 3.86 Å</li>
+<li><strong>Twenty consecutive folds cannot tell a cache from a leak.</strong> The footprint sawtooths, climbing to about 400 MB by fold 17 and being reclaimed to 260 MB by fold 26, so a twenty-fold window sees only the climb. Over forty folds the second half sits 47 to 60 MB <em>below</em> the first</li>
+<li><strong>A destabilising mutation does not necessarily fold less completely.</strong> Weakening villin's most buried residue produced a <em>higher</em> final native fraction than the wild type. The duet is therefore presented as a comparison of two folds rather than as a stability prediction, which would be a claim about free energy that nothing here computes</li>
+</ul>
+<h2>🧭 Project state</h2>
+<p>Phases 0 to 4 hold a green machine gate. Phase 5 is in progress.</p>
+<div class="emd-table-wrap"><table class="emd-data-table">
+<thead>
+<tr>
+<th>Phase</th>
+<th>Surface</th>
+<th>State</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td data-label="Phase">0 to 3</td>
+<td data-label="Surface">Engines, stage, score</td>
+<td data-label="State">Gate green</td>
+</tr>
+<tr>
+<td data-label="Phase">4</td>
+<td data-label="Surface">Exports, accessibility, the lecture theatre, iPhone ship</td>
+<td data-label="State">Gate green</td>
+</tr>
+<tr>
+<td data-label="Phase">5a</td>
+<td data-label="Surface">PhoneFold Studio (macOS)</td>
+<td data-label="State">In progress</td>
+</tr>
+<tr>
+<td data-label="Phase">5b</td>
+<td data-label="Surface">Apple Watch</td>
+<td data-label="State">Planned</td>
+</tr>
+<tr>
+<td data-label="Phase">5c</td>
+<td data-label="Surface">Vision Pro</td>
+<td data-label="State">Planned</td>
+</tr>
+</tbody>
+</table></div>
+<p><code>PLAN.md</code> is the specification and is read-only. <code>STATE.md</code> is the task ledger, <code>METRICS.md</code> holds only measured numbers, and <code>BLOCKERS.md</code> holds what needs a human and a piece of hardware.</p>
+<h2>✅ To Do</h2>
+<p>Roadmap for PhoneFold, in dependency order. Completed items keep their detail: the reasoning behind a finished decision is usually the most useful thing to still have.</p>
+<ul class="emd-tasklist">
+<li><span class="emd-check">&#9989;</span> <strong>The three engines.</strong> A structure-based Gō model, a geometric morph, and Genie 2 denoising on the Neural Engine, each declaring in the interface what it is and is not</li>
+<li><span class="emd-check">&#9989;</span> <strong>The stage.</strong> <code>LowLevelMesh</code> tube geometry rewritten in place each frame rather than rebuilding a <code>MeshResource</code>, with an explicit key-and-fill lighting rig shared by the live view and the offscreen renderer</li>
+<li><span class="emd-check">&#9989;</span> <strong>The score.</strong> Contact onsets, hydropathy-ranked pitch, secondary structure as texture, a compaction-driven tempo map, five styles switchable mid-piece, and spatial audio with HRTF</li>
+<li><span class="emd-check">&#9989;</span> <strong>Exports that validate elsewhere.</strong> mmCIF read back by Biotite, MIDI round-tripped, MP4 probed by ffprobe. A file only this repository can open has validated nothing</li>
+<li><span class="emd-check">&#9989;</span> <strong>The mutation duet.</strong> Two folds in one key with the confidence delta driving dissonance, after measurement refused the first version of the claim behind it</li>
+<li><span class="emd-check">&#9989;</span> <strong>The lecture theatre.</strong> An external display scene and an audio route picker, with the fold lifted above every scene so connecting a display mid-fold does not restart it</li>
+<li><span class="emd-check">&#9989;</span> <strong>Live Activity and Dynamic Island.</strong> Rate-limited to 99 publishes over a 45-second fold, because pushing all 2,700 frames freezes the banner rather than failing loudly</li>
+<li><span class="emd-check">&#9989;</span> <strong>Accessibility.</strong> VoiceOver, Reduce Motion, Reduce Transparency, a colour-blind-safe palette, and Dynamic Type capped at accessibility 3 (above that the controls leave no room for the protein, and PhoneFold is a stage)</li>
+<li><span class="emd-check">&#9989;</span> <strong>Genie 2's divergence traced to its cause</strong> rather than worked around with a seed retry</li>
+<li><span class="emd-check">&#9989;</span> <strong>PhoneFold Studio.</strong> A native macOS target compiling the same stage with its own entry point, a menu bar, and multi-window where each window owns its own fold</li>
+<li><span class="emd-check">&#11036;</span> <strong>Studio batch mode.</strong> A multi-record FASTA or a list of accessions in, a film per protein out, headless. This is the feature that makes the Mac useful rather than a larger phone</li>
+<li><span class="emd-check">&#11036;</span> <strong>CoreMIDI virtual source</strong>, so a DAW can record the fold live. Nothing else in this space does this</li>
+<li><span class="emd-check">&#11036;</span> <strong>ProRes, 4K and image-sequence export</strong> for anyone who wants to grade the result</li>
+<li><span class="emd-check">&#11036;</span> <strong>Drag and drop PDB and mmCIF</strong> to superpose a prediction against an experimental structure with per-residue RMSD. The one analytical concession, because on a Mac it is expected</li>
+<li><span class="emd-check">&#11036;</span> <strong>Handoff</strong>, so a fold started on the phone continues on the Mac</li>
+<li><span class="emd-check">&#11036;</span> <strong>Apple Watch.</strong> A transport remote with the Digital Crown scrubbing the timeline, wrist haptics of the fold while the phone plays the audio, and a standalone Fold of the Day</li>
+<li><span class="emd-check">&#11036;</span> <strong>Vision Pro.</strong> Volume mode on a desk, an immersive concert hall at room scale, and SharePlay so a department can stand inside the same protein</li>
+<li><span class="emd-check">&#11036;</span> <strong>The app icon</strong>, which is blocked on a house-style skill this machine does not have</li>
+<li><span class="emd-check">&#11036;</span> <strong>The human gates.</strong> AirPlay to a real Apple TV, the Lock Screen banner, a VoiceOver audit driven by ear, cold launch on device, and a fold recorded into a DAW to confirm the MIDI is musically usable</li>
+</ul>
+<h2>📄 Licence</h2>
+<p>MIT, in <code>LICENSE</code>. PhoneFold builds on work under other licences, all compatible with it and none overridden by it: Genie 2 (Apache-2.0), ESMFold and FoldingDiff (MIT), DSSP (BSD-2-Clause), and structures from the RCSB PDB (CC0), AlphaFold DB and UniProt (CC BY 4.0). Every one is named in <a href="THIRD-PARTY.md">THIRD-PARTY.md</a> with what it is used for and, for Genie 2, what was changed.</p>
+<hr>
+<h2>👤 Author</h2>
+<p><strong>Marc C. Deller, D.Phil.</strong><br>
+Structural biologist &amp; drug discovery scientist  </p>
+<table class="emd-info-table">
+<tr>
+<td>🌐</td><td><a href="https://marcdeller.com" target="_blank" rel="noopener noreferrer">marcdeller.com</a></td>
+<td>✉️</td><td><a href="mailto:marc@marcdeller.com">marc@marcdeller.com</a></td>
+<td>🐙</td><td><a href="https://github.com/bellcheddar/PhoneFold" target="_blank" rel="noopener noreferrer">github.com/bellcheddar/PhoneFold</a></td>
+</tr>
+</table>
+<p></content>
+</invoke></p>
