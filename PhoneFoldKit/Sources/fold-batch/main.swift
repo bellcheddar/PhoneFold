@@ -26,6 +26,9 @@ struct Options {
     var midi = false
     var wav = false
     var film = false
+    var frames_png = false
+    var codec = "h264"
+    var size = "1080"
     var quiet = false
 }
 
@@ -39,7 +42,7 @@ func usage() -> Never {
                           record is a network fetch.
       --engine <name>     simulate | morph        (default simulate)
       --steps <n>         steps for the structure-based model
-      --frames <n>        readouts captured per fold (default 180). This is NOT the cost of a
+      --readouts <n>      readouts captured per fold (default 180). This is NOT the cost of a
                           run: the piece is paced to a target duration, so fewer readouts are
                           simply held on screen for longer. Measured: 180 to 48 moved a
                           five-protein run by 1.6%
@@ -52,7 +55,13 @@ func usage() -> Never {
       --cif               write a multi-model mmCIF per protein
       --midi              write a MIDI file per protein
       --wav               write the score per protein
-      --film              write an MP4 per protein, with its music. The expensive one
+      --film              write a film per protein, with its music. The expensive one
+      --image-sequence    write a numbered PNG sequence per protein, for grading. Not
+                          --frames: that name meant the readout count until 2026-08-31 and
+                          reusing it would silently change what an old command line does
+      --codec <name>      h264 | hevc | prores422hq | prores4444   (default h264)
+                          ProRes writes a .mov with uncompressed audio, not a .mp4
+      --size <name>       1080 | vertical | 4k                     (default 1080)
       --quiet             only the final report
 
     With no output flag it folds and reports without writing anything, which is the cheapest
@@ -79,7 +88,7 @@ while index < arguments.count {
     case "--library": options.library = value()
     case "--engine": options.engine = value()
     case "--steps": options.steps = Int(value())
-    case "--frames": options.frames = Int(value()) ?? 180
+    case "--readouts": options.frames = Int(value()) ?? 180
     case "--seconds": options.seconds = Double(value())
     case "--style": options.style = value()
     case "--styles": options.styles = URL(fileURLWithPath: value())
@@ -87,6 +96,9 @@ while index < arguments.count {
     case "--midi": options.midi = true
     case "--wav": options.wav = true
     case "--film": options.film = true
+    case "--image-sequence": options.frames_png = true
+    case "--codec": options.codec = value().lowercased()
+    case "--size": options.size = value().lowercased()
     case "--quiet": options.quiet = true
     case "-h", "--help": usage()
     default:
@@ -137,6 +149,19 @@ do {
     let engine: FoldingEngine = options.engine == "morph" ? .morph : .structureBased
     let outputDirectory = URL(fileURLWithPath: options.out)
     let wantsOutput = options.cif || options.midi || options.wav || options.film
+        || options.frames_png
+
+    let codec: FilmWriter.Codec = switch options.codec {
+    case "hevc": .hevc
+    case "prores422hq", "prores": .proRes422HQ
+    case "prores4444": .proRes4444
+    default: .h264
+    }
+    let filmSize: OffscreenStage.Size = switch options.size {
+    case "vertical": .vertical
+    case "4k", "uhd": .ultraHD
+    default: .landscape
+    }
 
     let profiles = try StyleLibrary.profiles(in: options.styles)
     guard let style = profiles[options.style] else {
@@ -161,9 +186,11 @@ do {
 
     let delivery = BatchDelivery(
         formats: .init(mmCIF: options.cif, midi: options.midi,
-                       wav: options.wav, film: options.film),
+                       wav: options.wav, film: options.film,
+                       imageSequence: options.frames_png),
         style: style, directory: outputDirectory,
-        targetSeconds: options.seconds ?? Sonifier.targetSeconds)
+        targetSeconds: options.seconds ?? Sonifier.targetSeconds,
+        filmSize: filmSize, codec: codec)
 
     let runner = BatchRunner(engine: engine, steps: options.steps,
                              frameCount: options.frames)

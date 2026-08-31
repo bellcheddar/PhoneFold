@@ -28,6 +28,14 @@ public struct FilmExporter {
         public var tail: Double = 2.5
         /// The burned-in caption, or nil for a clean frame.
         public var caption: FilmOverlay.Caption?
+        /// The target duration the score is paced to.
+        ///
+        /// **It has to match the rule the frames were built with.** The exporter derives its
+        /// own score from the trajectory, so if the caller paced the frame stream to a
+        /// different target the picture and the sound are different lengths and the export is
+        /// refused - correctly, by the check below, which is how this was found: a batch asked
+        /// for a two-second film and got "the picture is 9.7 s and the sound is 44.0 s".
+        public var targetSeconds: Double = Sonifier.targetSeconds
 
         public init() {}
     }
@@ -62,7 +70,8 @@ public struct FilmExporter {
         // places every note at its residue's position *at the moment it was written*, and by
         // the time the note sounds the fold has moved on.
         let readouts = frames.count { !$0.isInterpolated }
-        let pacing = Sonifier.pacing(readouts: readouts, style: style)
+        let pacing = Sonifier.pacing(readouts: readouts, style: style,
+                                     targetSeconds: options.targetSeconds)
         var sonifier = Sonifier(style: style, residues: residues,
                                 beatsPerMoment: pacing.beatsPerMoment,
                                 readoutsPerMoment: pacing.readoutsPerMoment)

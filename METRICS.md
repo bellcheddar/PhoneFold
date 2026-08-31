@@ -3113,3 +3113,29 @@ recorded take up against the exported `.mid` hours later.
 here is approximate by construction - each note is dispatched by sleeping until its beat, which
 carries task-scheduler jitter of a few milliseconds, where the synthesiser's own notes sit on the
 audio clock exactly.
+
+## P5-04 ProRes and image sequence (2026-08-31, machine loaded — see BLOCKERS)
+
+One record, morph engine, 3-second target, verified with ffprobe rather than by reading back
+this repository's own writer:
+
+| What | Measured |
+|---|---|
+| `--codec prores422hq --film` | `codec_name=prores`, `format_name=mov`, 124 MB for 3 s |
+| Audio track in that file | `pcm_s16le` — uncompressed, as a mastering codec deserves |
+| `--image-sequence` | 580 PNGs, `frame.000000.png` upward, plus a README |
+| Film-writer suite with the new codecs | 5 passing |
+| Image-sequence suite | 5 passing |
+
+**A real bug, caught by an existing guard.** The first ProRes run failed with "the picture is
+9.7 s and the sound is 44.0 s; the frames were not paced from the same rule as the score".
+`BatchDelivery` paced the frame stream to the requested target while `FilmExporter` derived its
+own score at the default 45 s. The exporter's drift check is what refused it, which is exactly
+what that check exists for: it had never fired in anger before. `FilmExporter.Options` now
+carries `targetSeconds` and the batch passes its own through.
+
+This never surfaced in the batch gate because that gate writes mmCIF only, so no score was built.
+A cheap check can be silent about the thing an expensive one exercises.
+
+**Not to be trusted as a timing:** 363 s for a single three-second ProRes film. The machine was
+saturated by another project's job. Flagged in BLOCKERS.md with the rest.

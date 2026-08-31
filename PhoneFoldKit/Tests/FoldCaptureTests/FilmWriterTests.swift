@@ -126,11 +126,24 @@ struct FilmWriterTests {
         return count > 0 ? (sum / Double(count)).squareRoot() : 0
     }
 
+    /// The four-character code each codec must actually write, spelled out rather than derived
+    /// from the enum. Asserting `codec.videoCodec` against itself would pass however wrong the
+    /// mapping was.
+    static func expectedSubtype(_ codec: FilmWriter.Codec) -> CMVideoCodecType {
+        switch codec {
+        case .h264: kCMVideoCodecType_H264
+        case .hevc: kCMVideoCodecType_HEVC
+        case .proRes422HQ: kCMVideoCodecType_AppleProRes422HQ
+        case .proRes4444: kCMVideoCodecType_AppleProRes4444
+        }
+    }
+
     @MainActor
-    @Test("both codecs produce a readable film")
+    @Test("every codec produces a readable film in the right container")
     func bothCodecsWork() async throws {
         for codec in FilmWriter.Codec.allCases {
             let url = Self.temporaryURL(codec.rawValue)
+                .deletingPathExtension().appendingPathExtension(codec.fileExtension)
             defer { try? FileManager.default.removeItem(at: url) }
             let size = OffscreenStage.Size(width: 640, height: 360)
             let stage = try Self.stage(size)
@@ -146,9 +159,37 @@ struct FilmWriterTests {
             #expect(tracks.count == 1, "\(codec.rawValue) produced no video track")
             let formats = try await tracks[0].load(.formatDescriptions)
             let subtype = formats.first.map { CMFormatDescriptionGetMediaSubType($0) }
-            let expected = codec == .hevc
-                ? kCMVideoCodecType_HEVC : kCMVideoCodecType_H264
-            #expect(subtype == expected, "\(codec.rawValue) wrote the wrong codec")
+            #expect(subtype == Self.expectedSubtype(codec),
+                    "\(codec.rawValue) wrote the wrong codec")
+
+            // ProRes belongs in a QuickTime container. An MP4 holding it writes without
+            // complaint and then will not open in the thing it was made for.
+            #expect(codec.fileExtension == (codec.isProRes ? "mov" : "mp4"))
+
+            // A mastering codec with a lossy soundtrack is a strange object, so ProRes carries
+            // linear PCM. Checked on the file rather than on the settings dictionary.
+            let audioTracks = try await asset.loadTracks(withMediaType: .audio)
+            if let audio = audioTracks.first,
+               let format = try await audio.load(.formatDescriptions).first {
+                let audioSubtype = CMFormatDescriptionGetMediaSubType(format)
+                if codec.isProRes {
+                    #expect(audioSubtype == kAudioFormatLinearPCM,
+                            "\(codec.rawValue) should carry uncompressed audio")
+                } else {
+                    #expect(audioSubtype == kAudioFormatMPEG4AAC,
+                            "\(codec.rawValue) should carry AAC")
+                }
+            }
+        }
+    }
+
+    @Test("ProRes has no bitrate to set, and says so rather than guessing one")
+    func proResHasNoBitrate() {
+        for codec in FilmWriter.Codec.allCases where codec.isProRes {
+            #expect(FilmWriter.bitrate(for: .ultraHD, frameRate: 60, codec: codec) == 0)
+        }
+        for codec in FilmWriter.Codec.allCases where !codec.isProRes {
+            #expect(FilmWriter.bitrate(for: .ultraHD, frameRate: 60, codec: codec) > 0)
         }
     }
 

@@ -23,16 +23,46 @@ public final class FilmWriter: @unchecked Sendable {
     public enum Codec: String, Sendable, CaseIterable {
         case h264
         case hevc
+        /// PLAN.md Phase 5a: ProRes for Studio, so a fold can be graded rather than watched.
+        case proRes422HQ
+        case proRes4444
 
         var videoCodec: AVVideoCodecType {
             switch self {
             case .h264: .h264
             case .hevc: .hevc
+            case .proRes422HQ: .proRes422HQ
+            case .proRes4444: .proRes4444
             }
         }
 
-        /// What a container will accept. HEVC in an MP4 is fine; the file type is the same.
-        public var fileType: AVFileType { .mp4 }
+        /// Whether this is a mastering codec: intra-frame, constant quality, no bitrate to set.
+        public var isProRes: Bool {
+            switch self {
+            case .h264, .hevc: false
+            case .proRes422HQ, .proRes4444: true
+            }
+        }
+
+        /// **ProRes goes in a QuickTime container, not an MP4.** HEVC in an MP4 is fine, which
+        /// is why this used to return `.mp4` for everything; ProRes in an MP4 is not a standard
+        /// pairing, and the failure is the bad kind - the file writes without complaint and
+        /// then will not open in the thing it was made for.
+        public var fileType: AVFileType { isProRes ? .mov : .mp4 }
+
+        /// The extension that matches the container. A `.mp4` holding QuickTime is a file that
+        /// lies about itself to every tool that sniffs by extension.
+        public var fileExtension: String { isProRes ? "mov" : "mp4" }
+
+        /// What a person picking from a menu should see.
+        public var displayName: String {
+            switch self {
+            case .h264: "H.264"
+            case .hevc: "HEVC"
+            case .proRes422HQ: "ProRes 422 HQ"
+            case .proRes4444: "ProRes 4444"
+            }
+        }
     }
 
     public enum Failure: Error, CustomStringConvertible {
@@ -78,6 +108,10 @@ public final class FilmWriter: @unchecked Sendable {
     /// protein on a near-black stage compresses far better than camera footage.
     public static func bitrate(for size: OffscreenStage.Size, frameRate: Int32,
                                codec: Codec) -> Int {
+        // ProRes is constant-quality and intra-frame: it has no bitrate to be told. Returning
+        // zero rather than a plausible number, so a caller that uses this to size a disk budget
+        // is obviously wrong rather than quietly wrong.
+        guard !codec.isProRes else { return 0 }
         let pixels = Double(size.width * size.height) * Double(frameRate)
         // HEVC does the same job at roughly two thirds the rate.
         let perPixel = codec == .hevc ? 0.07 : 0.10
@@ -102,17 +136,23 @@ public final class FilmWriter: @unchecked Sendable {
             throw Failure.couldNotCreate(error.localizedDescription)
         }
 
-        video = AVAssetWriterInput(mediaType: .video, outputSettings: [
+        // ProRes takes no bitrate and no key-frame interval: every frame is a key frame and
+        // the quality is fixed by the variant. Handing it the inter-frame keys is at best
+        // ignored and at worst refused, and neither is worth finding out at export time.
+        var videoSettings: [String: Any] = [
             AVVideoCodecKey: codec.videoCodec,
             AVVideoWidthKey: size.width,
             AVVideoHeightKey: size.height,
-            AVVideoCompressionPropertiesKey: [
+        ]
+        if !codec.isProRes {
+            videoSettings[AVVideoCompressionPropertiesKey] = [
                 AVVideoAverageBitRateKey: Self.bitrate(for: size, frameRate: frameRate,
                                                        codec: codec),
                 AVVideoExpectedSourceFrameRateKey: frameRate,
                 AVVideoMaxKeyFrameIntervalKey: Int(frameRate) * 2,
-            ],
-        ])
+            ]
+        }
+        video = AVAssetWriterInput(mediaType: .video, outputSettings: videoSettings)
         video.expectsMediaDataInRealTime = false
         adaptor = AVAssetWriterInputPixelBufferAdaptor(
             assetWriterInput: video,
@@ -126,12 +166,26 @@ public final class FilmWriter: @unchecked Sendable {
         writer.add(video)
 
         if includesAudio {
-            let track = AVAssetWriterInput(mediaType: .audio, outputSettings: [
-                AVFormatIDKey: kAudioFormatMPEG4AAC,
-                AVSampleRateKey: sampleRate,
-                AVNumberOfChannelsKey: 2,
-                AVEncoderBitRateKey: 192_000,
-            ])
+            // **Uncompressed audio alongside ProRes.** A mastering codec with a lossy
+            // soundtrack is a strange object: the picture survives grading intact and the sound
+            // has already been thrown away once before anyone touches it.
+            let audioSettings: [String: Any] = codec.isProRes
+                ? [
+                    AVFormatIDKey: kAudioFormatLinearPCM,
+                    AVSampleRateKey: sampleRate,
+                    AVNumberOfChannelsKey: 2,
+                    AVLinearPCMBitDepthKey: 16,
+                    AVLinearPCMIsFloatKey: false,
+                    AVLinearPCMIsBigEndianKey: false,
+                    AVLinearPCMIsNonInterleaved: false,
+                ]
+                : [
+                    AVFormatIDKey: kAudioFormatMPEG4AAC,
+                    AVSampleRateKey: sampleRate,
+                    AVNumberOfChannelsKey: 2,
+                    AVEncoderBitRateKey: 192_000,
+                ]
+            let track = AVAssetWriterInput(mediaType: .audio, outputSettings: audioSettings)
             track.expectsMediaDataInRealTime = false
             guard writer.canAdd(track) else { throw Failure.cannotAddInput("audio") }
             writer.add(track)

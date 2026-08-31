@@ -20,17 +20,22 @@ public struct BatchDelivery: Sendable {
         public var midi = false
         public var wav = false
         public var film = false
+        /// PLAN.md Phase 5a's image sequence, for grading. Its own flag rather than a film
+        /// option: someone taking frames into a compositor wants the frames and not a movie.
+        public var imageSequence = false
 
-        public var wantsAnything: Bool { mmCIF || midi || wav || film }
-        /// The score is needed for three of the four, so it is built once when any of them is on.
+        public var wantsAnything: Bool { mmCIF || midi || wav || film || imageSequence }
+        /// The score is needed for three of these, so it is built once when any of them is on.
+        /// An image sequence has no soundtrack and does not need it.
         public var needsScore: Bool { midi || wav || film }
 
         public init(mmCIF: Bool = false, midi: Bool = false, wav: Bool = false,
-                    film: Bool = false) {
+                    film: Bool = false, imageSequence: Bool = false) {
             self.mmCIF = mmCIF
             self.midi = midi
             self.wav = wav
             self.film = film
+            self.imageSequence = imageSequence
         }
     }
 
@@ -51,15 +56,18 @@ public struct BatchDelivery: Sendable {
     /// film, not the same film computed faster.
     public var targetSeconds: Double
     public var filmSize: OffscreenStage.Size
+    public var codec: FilmWriter.Codec
 
     public init(formats: Formats, style: StyleProfile, directory: URL,
                 targetSeconds: Double = Sonifier.targetSeconds,
-                filmSize: OffscreenStage.Size = .landscape) {
+                filmSize: OffscreenStage.Size = .landscape,
+                codec: FilmWriter.Codec = .h264) {
         self.formats = formats
         self.style = style
         self.directory = directory
         self.targetSeconds = targetSeconds
         self.filmSize = filmSize
+        self.codec = codec
     }
 
     /// Files written for one protein, so a caller can say what it produced rather than guessing.
@@ -136,6 +144,10 @@ public struct BatchDelivery: Sendable {
             if formats.film {
                 var options = FilmExporter.Options()
                 options.size = filmSize
+                options.codec = codec
+                // The same target the frames above were paced to. The exporter builds its own
+                // score and refuses a mismatch, which is what caught this.
+                options.targetSeconds = targetSeconds
                 options.caption = FilmOverlay.Caption(
                     name: bundle.metadata.name,
                     accession: bundle.metadata.accession,
@@ -143,11 +155,22 @@ public struct BatchDelivery: Sendable {
                     confidence: frames.last?.meanPLDDT,
                     confidenceSource: bundle.metadata.provenance.confidenceSource,
                     provenance: bundle.metadata.provenance.isGenerated ? "generated" : nil)
-                let url = base.appendingPathExtension("mp4")
+                // The extension follows the container, which follows the codec. A ProRes
+                // film named .mp4 lies to every tool that sniffs by extension.
+                let url = base.appendingPathExtension(codec.fileExtension)
                 _ = try await FilmExporter(options: options).export(
                     frames: frames, residues: bundle.residues, style: style, to: url)
                 written.urls.append(url)
             }
+        }
+
+        if formats.imageSequence {
+            var options = ImageSequenceExporter.Options()
+            options.size = filmSize
+            let directory = base.appendingPathExtension("frames")
+            _ = try await ImageSequenceExporter(options: options).export(
+                frames: frames, residues: bundle.residues, to: directory)
+            written.urls.append(directory)
         }
         return written
     }
