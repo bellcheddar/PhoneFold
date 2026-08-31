@@ -43,8 +43,10 @@ Five surfaces: iPhone, iPad, Mac ("PhoneFold Studio"), Apple Watch, Vision Pro.
 
 ## Apple identity (settled, never ask)
 
-- Team: `${APPLE_TEAM_ID}` (the value lives in the credentials file outside this repo), sourced from `~/.claude/skills/marcs-vibe-coding/credentials.env` as
-  `${APPLE_TEAM_ID}`. **Never hard-code it in this repo** — XcodeGen expands the variable.
+- Team: `${APPLE_TEAM_ID}`, sourced from `~/.claude/skills/marcs-vibe-coding/credentials.env`.
+  **The value is never written into this repository** — XcodeGen expands the variable, and the
+  generated `.xcodeproj` is gitignored. It was in this file until 2026-08-31 and was taken out
+  of the history before the first push.
 - Bundle IDs: `com.mdeller.phonefold`, `com.mdeller.phonefold.studio`,
   `com.mdeller.phonefold.watchkitapp`, `com.mdeller.phonefold.vision`.
   `com.marcdeller.*` is wrong.
