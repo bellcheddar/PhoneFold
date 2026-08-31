@@ -807,3 +807,35 @@ What no test here can answer is whether the result is *music* when it lands on a
       the fix is a sample-accurate MIDI scheduler and it should be raised as its own task
 - [ ] Check the five voices land on sensible separate channels for instrument assignment, and
       that a duet's two folds are distinguishable
+
+
+## Re-check on a quiet machine (2026-08-31)
+
+Marc's Boltz run is saturating this Mac: load average 22.8, much of it uninterruptible I/O wait
+rather than CPU. Per his instruction, failures and timings attributable to that are **flagged
+here rather than chased**, because a saturated machine produces both false failures and
+meaningless numbers, and debugging either is debugging the load.
+
+Everything below is unresolved *evidence*, not known-bad code.
+
+- [ ] **The CoreMIDI tests under a full-suite load.** They pass 5/5 alone and failed 4/5 inside
+      a 953-second parallel run with `OSStatus -2`, which is not a CoreMIDI error code. It is
+      not a resource limit: a quiet process created 80 clients and 40 virtual sources in a row
+      without a failure. `MIDISource.init` now retries four times with a 120 ms backoff, which
+      is justified on its own merits - a user toggling the switch on a busy Mac would otherwise
+      get "CoreMIDI refused the virtual source" - but **the retry has not been confirmed to fix
+      the under-load case**, because the confirming run was killed to stop adding load. Re-run
+      `swift test --package-path PhoneFoldKit` on a quiet machine before believing it.
+- [ ] **Every timing in METRICS.md taken today.** The batch-mode figures (1237 s, 1217 s, 271 s,
+      0.1 s) were measured under this load. The *ratios* are what the conclusions rest on and
+      those were measured under the same load, so they stand; the absolute seconds are an upper
+      bound and should be retaken.
+- [ ] **The frame-budget print, 1494 ms/frame for 314 residues.** The test asserts `< 3000` in
+      debug deliberately and passed honestly, but the figure recorded in its own comment for a
+      debug build is 511 ms. Three times that is consistent with the load and not with a
+      regression, which is worth confirming rather than assuming.
+- [ ] **Phase 4's and phase 5's gates end to end.** Both were green before today's saturation;
+      neither has been run clean since. Use `PHONEFOLD_GATE_FAST=1` in the meantime, which skips
+      the forty-fold leak run and the five-record batch, the two long checks.
+
+Nothing here blocks building. It blocks *believing a number*.

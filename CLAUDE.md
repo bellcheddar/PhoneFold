@@ -39,6 +39,12 @@ Five surfaces: iPhone, iPad, Mac ("PhoneFold Studio"), Apple Watch, Vision Pro.
    `PHONEFOLD_GATE_FAST=1 bash Tools/verify_phase.sh <n>` between commits and keep the full run
    for a phase exit. The escape hatch exists; it was built and then not used six times in a row.
 
+11. **A saturated machine is not a failing build.** When another job holds this Mac (check
+   `uptime`: load well above the core count, especially with processes in uninterruptible
+   state), timings are meaningless and system services fail transiently. Flag those in
+   `BLOCKERS.md` under "Re-check on a quiet machine" rather than debugging them, use
+   `PHONEFOLD_GATE_FAST=1`, and do not add a full test suite to the contention.
+
 ## This machine
 
 - **DerivedData must live outside `~/Documents`.** iCloud puts extended attributes on everything
