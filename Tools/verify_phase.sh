@@ -395,6 +395,32 @@ assert last.b_factor.max() > 0, 'the confidence column is empty'
       fail "the CoreMIDI loopback tests failed - see /tmp/pf_gate_midi.log"
       tail -20 /tmp/pf_gate_midi.log >&2
     fi
+
+    # PLAN.md Phase 5b's machine gate: "builds, connectivity handshake unit-tested with a mock
+    # session, complication timeline entries generated correctly."
+    if [[ -f "$APP_DIR/PhoneFold.xcodeproj/project.pbxproj" ]]; then
+      if (cd "$APP_DIR" && xcodebuild build -project PhoneFold.xcodeproj \
+            -scheme PhoneFoldWatch -configuration Release \
+            -destination "platform=watchOS Simulator,name=Apple Watch Series 11 (46mm)" \
+            -derivedDataPath "$DD" CODE_SIGNING_ALLOWED=NO \
+            >/tmp/pf_gate_watch.log 2>&1); then
+        pass "the Watch app and its complication build for watchOS"
+      else
+        fail "the Watch app failed to build - see /tmp/pf_gate_watch.log"
+      fi
+    fi
+
+    # The handshake and the timeline, which are the two things 5b names by hand. Run together
+    # because they are the same claim: the wrist shows what the phone said, and the face shows
+    # what the wrist last heard.
+    if swift test --package-path PhoneFoldKit \
+         --filter "RemoteLinkTests|FoldComplicationTests" \
+         >/tmp/pf_gate_watchlink.log 2>&1; then
+      pass "the Watch handshake and the complication timeline hold up"
+    else
+      fail "the Watch link tests failed - see /tmp/pf_gate_watchlink.log"
+      tail -20 /tmp/pf_gate_watchlink.log >&2
+    fi
     ;;
   *)
     echo "unknown phase: $PHASE" >&2; exit 2

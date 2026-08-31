@@ -47,6 +47,10 @@ final class WatchModel: ObservableObject {
     private func apply(_ state: FoldRemote.State) {
         self.state = state
         refreshReachability()
+        // Leave it where the complication can find it. That is a separate process WidgetKit
+        // wakes on its own schedule, long after this app has gone, so it cannot be told - it
+        // has to be able to look.
+        FoldComplicationStore.save(state)
     }
 
     func refreshReachability() {

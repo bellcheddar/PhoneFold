@@ -186,6 +186,7 @@ targets:
       # protein, and the style and colour lists arrive from the phone in the state it publishes.
       - package: PhoneFoldKit
         products: [FoldSync]
+      - target: PhoneFoldWatchWidgets
     info:
       path: PhoneFoldWatch-Info.plist
       properties:
@@ -199,5 +200,33 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.mdeller.phonefold.watchkitapp
+        CODE_SIGN_ENTITLEMENTS: PhoneFoldWatch.entitlements
+        CODE_SIGN_STYLE: Automatic
+        SKIP_INSTALL: YES
+
+  # PLAN.md Phase 5b's complication. The identifier ends `.widget`: `.complication` is reserved
+  # in Apple's App ID namespace and is rejected at any depth, with an error naming the
+  # identifier rather than the reason.
+  PhoneFoldWatchWidgets:
+    type: app-extension
+    platform: watchOS
+    sources:
+      - path: ../PhoneFold-watchOS/Widgets
+    dependencies:
+      - sdk: WidgetKit.framework
+      - sdk: SwiftUI.framework
+      - package: PhoneFoldKit
+        products: [FoldSync]
+    info:
+      path: PhoneFoldWatchWidgets-Info.plist
+      properties:
+        CFBundleDisplayName: PhoneFold
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.mdeller.phonefold.watchkitapp.widget
+        CODE_SIGN_ENTITLEMENTS: PhoneFoldWatch.entitlements
         CODE_SIGN_STYLE: Automatic
         SKIP_INSTALL: YES

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- The Watch app and its complication are separate processes; the complication is woken by
+         WidgetKit long after the app has gone, so the last state has to live somewhere both can
+         reach. The group must also be created in the developer portal and assigned to both
+         identifiers by hand: the App Store Connect API has no app-group resource, and enabling
+         the capability without assigning the group changes nothing while failing identically. -->
+    <key>com.apple.security.application-groups</key>
+    <array>
+        <string>group.com.mdeller.phonefold</string>
+    </array>
+</dict>
+</plist>
