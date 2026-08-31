@@ -2653,3 +2653,26 @@ materially different introduction can be shown again rather than silently skippe
 first version of that comment justified avoiding `@AppStorage` with a cold-launch race I had
 never observed - a plausible-sounding measurement that did not happen. Every number in this
 file is measured; an invented reason in a source comment is the same offence in a quieter place.
+
+### P4-07, the gallery's listening notes (2026-08-31)
+
+Thirteen notes, one per bundled trajectory, as JSON in `Apps/Shared/Resources/Notes` - data
+rather than a table in the app, for the same reason the styles are: they are editorial, Marc is
+the one qualified to write them, and a word should be changeable without a recompile.
+`TrajectoryMetadata` already had a `listeningNote` field that nothing filled; a bundle carrying
+its own note still wins, so a trajectory generated in future can describe itself.
+
+**The headline replaces the length on the gallery tile.** Thirteen proteins all captioned
+"N residues" tells a visitor nothing about which one to press. "It never resolves - and that is
+correct" does.
+
+The notes are held to the same standard as the rest: they say what a listener would otherwise
+get wrong. Alpha-synuclein's says it never resolves *and that this is correct*, because the
+protein really is disordered and the prediction is right. GFP's says the barrel is not reached -
+that trajectory's mean confidence is 34 - rather than describing a structure the film does not
+show. Genie 2's says the protein has never existed. Tested, so a note that stopped saying those
+things would fail rather than quietly mislead.
+
+The tests read the shipping file and cross-check it against the trajectories actually present:
+every protein has a note, no note describes a protein that is not there, and a headline is
+short enough for a tile.

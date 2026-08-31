@@ -25,6 +25,8 @@ struct StageView: View {
     @State private var isShowingAbout = false
     @StateObject private var film = FilmExportController()
     @State private var isShowingOnboarding = !Onboarding.hasBeenSeen
+    /// What to listen for, by trajectory. Empty is not a failure - the gallery still works.
+    private let listeningNotes = ListeningNotes.bundled()
 
     /// All three engines run. Kept as a hook because an engine can still become unavailable -
     /// a missing model in the bundle, say - and a disabled control with a reason beats one
@@ -178,6 +180,14 @@ struct StageView: View {
                         .font(.caption)
                         .foregroundStyle(Color(hex: 0xFCB900))
                 }
+                // What to listen for, once there is something to listen to.
+                if let note = selection.flatMap({ listeningNotes[$0.id] }) {
+                    Text(note.note)
+                        .font(.caption)
+                        .foregroundStyle(Color(hex: 0x8A93A8))
+                        .lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
             Spacer()
             Picker("Colour", selection: $player.colourMode) {
@@ -206,8 +216,14 @@ struct StageView: View {
                     Button { start(entry) } label: {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(entry.displayName).font(.caption.weight(.medium))
-                            Text(entry.subtitle).font(.system(size: 10))
+                            // The headline where the length used to be. A gallery of thirteen
+                            // proteins all captioned "N residues" tells the visitor nothing
+                            // about which one to press; "It never resolves - and that is
+                            // correct" does.
+                            Text(listeningNotes[entry.id]?.headline ?? entry.subtitle)
+                                .font(.system(size: 10))
                                 .foregroundStyle(Color(hex: 0x6B7C93))
+                                .lineLimit(1)
                         }
                         .padding(.horizontal, 12).padding(.vertical, 8)
                         .background(

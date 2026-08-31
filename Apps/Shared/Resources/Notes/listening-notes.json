@@ -1,0 +1,54 @@
+{
+  "trp_cage": {
+    "headline": "The smallest thing that folds",
+    "note": "Twenty residues, and one of the fastest folders known. A single short helix packs against a proline-rich tail to bury one tryptophan. There is almost nothing here but the arpeggio and one late cadence - listen for how little the piece needs to say."
+  },
+  "villin_hp36": {
+    "headline": "Three helices, microseconds",
+    "note": "The villin headpiece subdomain: 36 residues, three helices, and a folding time measured in microseconds. Almost all pad and no rhythm, because there is no sheet in it at all."
+  },
+  "ww_domain": {
+    "headline": "All sheet, no helix",
+    "note": "Three antiparallel strands and nothing else. The staccato figure carries the whole piece and the pad never enters - the clearest demonstration that the voices really are reading secondary structure."
+  },
+  "protein_g_b1": {
+    "headline": "Both voices at once",
+    "note": "One helix lying across a four-stranded sheet, in 56 residues. Pad and staccato figure together, which is what an alpha-beta protein sounds like."
+  },
+  "ubiquitin": {
+    "headline": "The beta-grasp",
+    "note": "Seventy-six residues wrapping a mixed sheet around one helix. Listen for the long-range contacts low in the register as the two halves of the chain find each other."
+  },
+  "alpha3d": {
+    "headline": "Designed, not evolved",
+    "note": "A de novo three-helix bundle - a protein somebody drew rather than found. It folds cleanly because it was designed to, and the piece is correspondingly tidy."
+  },
+  "proinsulin": {
+    "headline": "A disordered middle",
+    "note": "The A and B chains are confident; the C-peptide joining them is not, and is cut out during maturation. Mean confidence sits near 55, so the whole piece stays somewhat out of tune - the connecting peptide is the reason."
+  },
+  "lysozyme": {
+    "headline": "A core pinned by disulfides",
+    "note": "Hen egg white lysozyme: 129 residues, mostly helical with a small sheet, and four disulfide bonds holding the core together. High confidence throughout, so it is the brightest and most in-tune of the set."
+  },
+  "alpha_synuclein": {
+    "headline": "It never resolves - and that is correct",
+    "note": "Intrinsically disordered: in isolation it has no fixed structure to find. Confidence stays near 35 from beginning to end, so the piece is a detuned wash that never cadences. This is the one to play to hear what a bad prediction sounds like - except that here the prediction is right, and the protein really is like this."
+  },
+  "myoglobin": {
+    "headline": "Eight helices, no sheet",
+    "note": "The globin fold: 153 residues in eight helices around a haem pocket. Sustained pad almost throughout, and a late cadence as the bundle closes."
+  },
+  "gfp": {
+    "headline": "A barrel the model did not find",
+    "note": "Green fluorescent protein is an eleven-stranded beta barrel with a helix threaded down its axis. This trajectory does not get there: mean confidence is 34, and it never resolves. Worth hearing next to lysozyme, which does."
+  },
+  "beta2ar_7tm": {
+    "headline": "Seven helices across a membrane",
+    "note": "The transmembrane bundle of the beta-2 adrenergic receptor: 314 residues, seven long helices. The largest thing in the gallery, and the pad has the most to hold."
+  },
+  "genie2_76aa_seed1": {
+    "headline": "A protein that has never existed",
+    "note": "Not a prediction and not a simulation: a backbone sampled from noise by a diffusion model. There is nothing to converge on, so it never cadences - what the confidence tracks here is how far along the denoising is, not how right anything is."
+  }
+}

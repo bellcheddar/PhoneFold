@@ -38,6 +38,11 @@ targets:
       - path: ../Shared/Resources/Styles
         buildPhase: resources
         type: folder
+      # The gallery's listening notes, referenced where they live rather than copied, for the
+      # same reason as the styles: a second copy is free to drift.
+      - path: ../Shared/Resources/Notes
+        buildPhase: resources
+        type: folder
     dependencies:
       - package: PhoneFoldKit
         products: [FoldCore, FoldGeometry, FoldEngine, FoldRender, FoldAudio, FoldCapture]
