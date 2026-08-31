@@ -991,3 +991,23 @@ surface to synthesise a drag against.
       moment you see it and invisible until then
 - [ ] Listen to a soloed residue. A contact is audible from either of its ends, deliberately -
       say whether that is the right answer or whether soloing should be one residue only
+
+## Phase 5c: SharePlay needs two devices and a real call (2026-08-31)
+
+Built and building on all five surfaces; a custom `GroupActivity` needs a live FaceTime call to
+do anything at all, which no simulator provides. What travels is what to fold - the same
+`FoldHandoff` payload Phase 5a already defined - and never the fold itself, because every device
+has the engines and a fold is a deterministic function of protein, engine and seed.
+
+- [ ] Start a fold on one device, press Fold Together during a FaceTime call, and confirm the
+      other device starts the *same* protein on the same engine
+- [ ] Confirm a latecomer joining mid-session gets the fold from the activity itself rather than
+      an empty stage waiting for the next message
+- [ ] Change the style on one device and confirm it changes on the other, once, without the two
+      bouncing it back and forth
+- [ ] **An open design question, not a bug: what should "together" mean?** Progress is
+      deliberately not synchronised. Each device folds at its own speed, so after a minute two
+      headsets are at different frames of the same protein. Frame-locking has several defensible
+      answers - the presenter's progress is authoritative and everyone scrubs to it; everyone
+      waits for the slowest; or nobody syncs and the point is the protein rather than the
+      instant - and which is right is a question about teaching, not about code

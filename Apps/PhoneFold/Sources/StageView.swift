@@ -254,6 +254,9 @@ struct StageView: View {
             activity.title = payload.subject
             activity.userInfo = payload.userInfo
             activity.isEligibleForHandoff = true
+            // The fold this device is playing, in one place, so the SharePlay offer and the
+            // Handoff advertisement cannot disagree about what is on screen.
+            model.currentHandoff = payload
         }
         .onContinueUserActivity(FoldHandoff.activityType) { activity in
             guard let payload = FoldHandoff.from(userInfo: activity.userInfo) else { return }

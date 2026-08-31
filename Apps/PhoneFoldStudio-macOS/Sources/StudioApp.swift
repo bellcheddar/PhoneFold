@@ -122,6 +122,24 @@ struct StudioCommands: Commands {
                 // would arm something invisible.
                 Text("No fold window").disabled(true)
             }
+            Divider()
+            // PLAN.md Phase 5c: SharePlay on Vision Pro and Mac. A menu item for the same
+            // reason MIDI is one - it belongs to the session rather than to the fold on screen
+            // - and, like MIDI, it acts on the window in front rather than on a shared model
+            // nothing is showing.
+            if let model {
+                if model.together.state.isSharing {
+                    Button("Stop Sharing This Fold") { model.together.leave() }
+                    Text("\(model.together.state.participants) in the room")
+                } else {
+                    Button("Fold Together…") { model.shareCurrentFold() }
+                        .disabled(model.currentHandoff == nil
+                                  || model.together.state.isSettling)
+                }
+                if let problem = model.together.problem {
+                    Text(problem)
+                }
+            }
         }
 
         CommandGroup(replacing: .appInfo) {

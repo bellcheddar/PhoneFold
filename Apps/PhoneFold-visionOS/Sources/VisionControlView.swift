@@ -10,11 +10,15 @@ struct VisionControlView: View {
     @ObservedObject private var library = PhoneFoldModel.shared.library
     @ObservedObject private var player = PhoneFoldModel.shared.player
     @ObservedObject private var runner = PhoneFoldModel.shared.runner
+    @ObservedObject private var model = PhoneFoldModel.shared
+    @ObservedObject private var together = PhoneFoldModel.shared.together
 
     @Environment(\.openWindow) private var openWindow
     @Environment(\.openImmersiveSpace) private var openImmersiveSpace
     @Environment(\.dismissImmersiveSpace) private var dismissImmersiveSpace
     @State private var immersion = ImmersiveSession.State.closed
+    /// The gallery entry this device started, so it can say what it is playing.
+    @State private var started: TrajectoryLibrary.Entry?
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -44,6 +48,29 @@ struct VisionControlView: View {
                 // the answer is not known, and a second press would ask again for a room that
                 // may be about to appear.
                 .disabled(immersion.isSettling)
+            }
+
+            // PLAN.md Phase 5c: "SharePlay: two or more people in the same fold. This is the
+            // teaching mode." What travels is what to fold, never the fold - see FoldTogether.
+            HStack(spacing: 10) {
+                Button(model.together.state.isSharing ? "Stop sharing" : "Fold together") {
+                    if model.together.state.isSharing {
+                        model.together.leave()
+                    } else if let payload = handoffPayload {
+                        model.share(payload)
+                    }
+                }
+                .disabled(model.together.state.isSettling || handoffPayload == nil)
+
+                if model.together.state.isSharing {
+                    Text("\(model.together.state.participants) in the room")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                // Said rather than swallowed: the commonest reason this does nothing is that
+                // there is no FaceTime call, and a button that silently fails is a broken one.
+                if let problem = model.together.problem {
+                    Text(problem).font(.caption).foregroundStyle(.orange).lineLimit(2)
+                }
             }
 
             // Only while there is a room to be inside. An ornament would have been the tidier
@@ -78,6 +105,11 @@ struct VisionControlView: View {
         // visionOS closes the space when the headset comes off or another immersive app takes
         // over, and tells nobody directly. Without this the button would still offer to leave a
         // room that has already gone.
+        .onChange(of: model.requestedHandoff) { _, requested in
+            guard let requested else { return }
+            model.requestedHandoff = nil
+            adopt(requested)
+        }
         .onChange(of: scenePhase) { _, phase in
             if phase == .background, immersion == .open {
                 immersion = ImmersiveSession.afterSystemDismissal()
@@ -107,7 +139,28 @@ struct VisionControlView: View {
 
     private func start(_ entry: TrajectoryLibrary.Entry) {
         guard let provider = try? library.provider(for: entry) else { return }
+        started = entry
         player.play(provider)
+    }
+
+    /// What this device would tell the room about the fold it is playing.
+    ///
+    /// The gallery only, on this surface: the visionOS control window has no accession field
+    /// and no generative seed of its own, so naming one would be describing a fold this app
+    /// cannot start.
+    private var handoffPayload: FoldHandoff? {
+        guard let started else { return nil }
+        return FoldHandoff(subject: player.title, galleryID: started.id,
+                           engine: runner.engine, styleID: player.styleID,
+                           progress: player.progress)
+    }
+
+    /// Somebody else in the room started a fold.
+    private func adopt(_ fold: FoldHandoff) {
+        player.styleID = fold.styleID
+        guard let galleryID = fold.galleryID,
+              let entry = library.entries.first(where: { $0.id == galleryID }) else { return }
+        start(entry)
     }
 
     /// Open or close the immersive space, through the state machine `FoldSync` tests.

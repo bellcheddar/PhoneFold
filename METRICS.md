@@ -3671,3 +3671,36 @@ across two places, where one place is complete and reads as authoritative, and t
 declaration nobody assigned or a computed property nobody called. Neither a build nor a test
 suite can see it: the code is correct, it is simply never reached. What finds it is asking of
 each half "who calls this?" - `grep` for the symbol and count the lines.
+
+## P5c-08, SharePlay: the teaching mode (2026-08-31)
+
+PLAN: "two or more people in the same fold. This is the teaching mode, and the reason a
+department might buy it."
+
+**Nobody streams a trajectory.** A fold is megabytes of coordinates and none of it needs to
+travel: every device already has the engines, and a fold is a deterministic function of the
+protein, the engine and the seed. That is exactly what `FoldHandoff` was built to carry for
+Phase 5a - "a description of what to fold, not the fold itself" - so the Phase 5a design pays
+for itself a second time and there is one definition of what a fold is rather than two. The
+transport messages reuse `FoldRemote.Command`, the vocabulary the Watch already speaks: a third
+vocabulary for the same six verbs would be a third place to add a seventh.
+
+`SharePlaySession` is the state machine, in `FoldSync` beside `ImmersiveSession` and for the
+same reason - the system ends a session behind your back when the FaceTime call does. 7 tests.
+The one that matters: **zero participants is not a session.** The count drops to nothing when
+the last person leaves, and treating that as "still sharing" leaves a button offering to leave
+a room that has emptied.
+
+`canImport(GroupActivities)` rather than a platform test, and the difference is real: it does
+not exist on watchOS at all, so `canImport` is false and the guard works. Contrast `ActivityKit`,
+which *does* import on macOS and then marks every symbol unavailable.
+
+**What is deliberately not synchronised: progress.** Every device computes its own fold from the
+same protein, engine and seed, so they agree on *what* and not on exactly where they are in it -
+two headsets fold at different speeds. Frame-locking them is a real design question about what
+"together" should mean in a lecture, with several defensible answers, and it needs a headset and
+Marc's judgement rather than a guess. It is in `BLOCKERS.md` as an open question, not as a bug.
+
+**Measured:** all five surfaces build; 7 `SharePlaySessionTests`.
+**Not measured:** anything at all about two devices. A custom `GroupActivity` also needs a real
+FaceTime call to do anything, which no simulator provides.

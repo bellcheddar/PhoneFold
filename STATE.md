@@ -395,7 +395,7 @@ first and the rest is built to be *ready* for judgement rather than claimed.
 | P5c-05 | Spatial audio placed where the residues are, which the Phase 3 design always intended | P5c-02 | done: `SpatialStage` (8 tests), the sound turns with the stage, a volume sounds from the volume; hearing it is Marc's |
 | P5c-06 | Look-and-pinch a residue to pin a label and solo its note | P5c-04 | done: `ResiduePicking` (6 tests) + a solo filter (4 tests); GLY10 verified rendering in the simulator |
 | P5c-07 | "Walk into the core" | P5c-02 | done: `RoomScale` from two measured fractions (5 tests), verified at both scales in the simulator; comfort is Marc's |
-| P5c-08 | SharePlay, the teaching mode | P5c-02 | todo |
+| P5c-08 | SharePlay, the teaching mode | P5c-02 | done in code: `SharePlaySession` (7 tests), `FoldTogether`, offers on Vision Pro and Mac; two devices and a FaceTime call needed (BLOCKERS.md) |
 
 **Machine gate (5c):** builds for visionOS, the renderer runs in the Simulator from the sample
 provider, the immersive space lifecycle is unit-tested.

@@ -3,6 +3,7 @@ import SwiftUI
 import Combine
 import FoldCore
 import FoldRender
+import FoldEngine
 import FoldSync
 
 /// The one fold the app is playing, owned above any scene.
@@ -59,6 +60,21 @@ final class PhoneFoldModel: ObservableObject {
     /// things deciding what is playing.
     @Published var requestedGalleryID: String?
 
+    /// PLAN.md Phase 5c's teaching mode. See `FoldTogether`.
+    let together = FoldTogether()
+
+    /// A fold somebody else in the session is playing, for the same reason and by the same
+    /// route as `requestedGalleryID`: the view owns the selection, so the model asks.
+    @Published var requestedHandoff: FoldHandoff?
+
+    /// What this device is playing, as the other end would need it. Kept by the stage, which
+    /// owns the selection, so the Handoff advertisement and the SharePlay offer describe the
+    /// same fold rather than two guesses at it.
+    @Published var currentHandoff: FoldHandoff?
+
+    /// True while a change arrived from somewhere else, so it is not sent straight back.
+    private var isApplyingRemoteChange = false
+
     /// The last state sent to the wrist, for the same rate limit the Live Activity uses.
     private var lastPublishedToWatch: FoldRemote.State?
 
@@ -79,6 +95,63 @@ final class PhoneFoldModel: ObservableObject {
     init() {
         observeForActivity()
         connectWatch()
+        connectSharePlay()
+    }
+
+    // MARK: - The room
+
+    private func connectSharePlay() {
+        together.onFold = { [weak self] fold in
+            Task { @MainActor in self?.requestedHandoff = fold }
+        }
+        together.onCommand = { [weak self] command in
+            Task { @MainActor in
+                guard let self else { return }
+                // Applied, not echoed. Two devices bouncing the same pause off each other is
+                // the classic way a shared session locks up.
+                self.isApplyingRemoteChange = true
+                self.handle(command)
+                self.isApplyingRemoteChange = false
+            }
+        }
+        observeForSharePlay()
+    }
+
+    /// Send the choices that are choices.
+    ///
+    /// **Style and colour mode and the transport, and nothing else.** Progress is deliberately
+    /// not synchronised: every device computes its own fold from the same protein, engine and
+    /// seed, so they agree on *what* but not on exactly where they are in it - two headsets
+    /// fold at different speeds. Frame-locking them is a real design question about what
+    /// "together" should mean in a lecture, and it needs a headset and Marc's judgement rather
+    /// than a guess. It is in `BLOCKERS.md`.
+    private func observeForSharePlay() {
+        player.$styleID
+            .sink { [weak self] id in self?.broadcast(.style(id)) }
+            .store(in: &observers)
+        player.$colourMode
+            .sink { [weak self] mode in self?.broadcast(.colourMode(mode.rawValue)) }
+            .store(in: &observers)
+        player.$isPlaying
+            .sink { [weak self] isPlaying in self?.broadcast(isPlaying ? .play : .pause) }
+            .store(in: &observers)
+    }
+
+    private func broadcast(_ command: FoldRemote.Command) {
+        guard together.state.isSharing, !isApplyingRemoteChange else { return }
+        together.send(.command(command))
+    }
+
+    /// Offer whatever this device is playing to everyone on the call.
+    func shareCurrentFold() {
+        guard let fold = currentHandoff else { return }
+        share(fold)
+    }
+
+    /// Offer the fold this device is playing to everyone on the call.
+    func share(_ fold: FoldHandoff) {
+        Task { await together.share(fold) }
+        together.send(fold)
     }
 
     // MARK: - The wrist
