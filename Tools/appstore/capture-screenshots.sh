@@ -27,25 +27,37 @@ shot() {
     # SIMCTL_CHILD_ is how environment reaches the app; `--setenv` is rejected outright with
     # "Invalid device: --setenv", which reads like the device is wrong rather than the flag.
     env "$@" xcrun simctl launch "$UDID" "$BUNDLE" >/dev/null
-    python3 -c "import time; time.sleep(${SETTLE:-26})"
+    python3 -c "import time; time.sleep(${SETTLE})"
     xcrun simctl io "$UDID" screenshot --type=png "$OUT/$name.png" >/dev/null 2>&1
     echo "  $name.png  $(sips -g pixelWidth -g pixelHeight "$OUT/$name.png" 2>/dev/null \
         | awk '/pixel/{printf "%s ", $2}')"
 }
 
-echo "Capturing PhoneFold from $UDID into $OUT"
-# A fold in progress, in the app's own colouring: the picture the app is for.
-shot "1-fold"      SIMCTL_CHILD_PHONEFOLD_TRAJECTORY=ubiquitin
-# Confidence colouring on a bigger protein - the orange-to-blue pLDDT ramp is the one image a
-# structural biologist recognises instantly.
-shot "2-confidence" SIMCTL_CHILD_PHONEFOLD_TRAJECTORY=gfp \
+# **The settle has to outlast the fold, and the fold is not fast.** Every gallery entry is a
+# *native state* rather than a trajectory to replay: choosing one makes the device fold it, so
+# the stage is empty until the physics arrives. The first run of this used 26 seconds against
+# ubiquitin, which takes about 150, and produced five screenshots of an empty stage with a
+# progress bar reading 0.0 ms. Nothing about that looks like a timing problem - it looks like
+# the app failing to draw.
+#
+# So the proteins here are the short ones, chosen by their measured fold times (METRICS.md,
+# P5b-06): trp-cage 9 s, WW domain and villin about 30, protein G 77. The settle clears the
+# longest of them with room for the piece to start playing.
+SETTLE="${SETTLE:-115}"
+
+echo "Capturing PhoneFold from $UDID into $OUT (settle ${SETTLE}s)"
+# The demo structure folding, in the app's own colouring: the picture the app is for.
+shot "1-fold"       SIMCTL_CHILD_PHONEFOLD_TRAJECTORY=trp_cage
+# Confidence colouring - the orange-to-blue pLDDT ramp is the one image a structural biologist
+# recognises instantly - on a protein with a real secondary structure to show.
+shot "2-confidence" SIMCTL_CHILD_PHONEFOLD_TRAJECTORY=protein_g_b1 \
                     SIMCTL_CHILD_PHONEFOLD_COLOUR=confidence
 # The generative engine: a backbone that did not exist until the device made it.
-shot "3-generated" SIMCTL_CHILD_PHONEFOLD_ENGINE=generative
-# Hydrophobicity on the demo structure, which is the core packing made visible.
-shot "4-core"      SIMCTL_CHILD_PHONEFOLD_TRAJECTORY=trp_cage \
-                   SIMCTL_CHILD_PHONEFOLD_COLOUR=hydrophobicity
-# A different voice on a long protein, so the score controls are in a different state.
-shot "5-voice"     SIMCTL_CHILD_PHONEFOLD_TRAJECTORY=lysozyme \
-                   SIMCTL_CHILD_PHONEFOLD_STYLE=surf \
-                   SIMCTL_CHILD_PHONEFOLD_COLOUR=rainbow
+shot "3-generated"  SIMCTL_CHILD_PHONEFOLD_ENGINE=generative
+# Hydrophobicity, which is the core packing made visible.
+shot "4-core"       SIMCTL_CHILD_PHONEFOLD_TRAJECTORY=villin_hp36 \
+                    SIMCTL_CHILD_PHONEFOLD_COLOUR=hydrophobicity
+# A different voice, so the score controls are in a different state.
+shot "5-voice"      SIMCTL_CHILD_PHONEFOLD_TRAJECTORY=ww_domain \
+                    SIMCTL_CHILD_PHONEFOLD_STYLE=surf \
+                    SIMCTL_CHILD_PHONEFOLD_COLOUR=rainbow

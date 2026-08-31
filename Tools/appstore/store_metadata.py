@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Fill in the App Store Connect listing for PfamIE.
+Fill in the App Store Connect listing for PhoneFold.
 
 Everything here is metadata: names, descriptions, categories, pricing and
 screenshots. It never submits for review, and it never touches a build.
@@ -17,268 +17,80 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from asc_api import call, token
 
-BUNDLE_ID = "com.mdeller.pfamie"
+BUNDLE_ID = "com.mdeller.phonefold"
 LOCALE = "en-US"
 
-PRIVACY_POLICY_URL = "https://bellcheddar.github.io/PfamIE/privacy.html"
-SUPPORT_URL = "https://github.com/bellcheddar/PfamIE"
+PRIVACY_POLICY_URL = "https://bellcheddar.github.io/PhoneFold/privacy.html"
+SUPPORT_URL = "https://github.com/bellcheddar/PhoneFold"
 MARKETING_URL = "https://marcdeller.com"
 
 # Required before review. Year and holder, no (c) symbol: Apple adds it.
 COPYRIGHT = "2026 Marc C. Deller"
 
-PRIMARY_CATEGORY = "REFERENCE"
-SECONDARY_CATEGORY = "EDUCATION"
+# Education first and Music second, in that order deliberately: PLAN.md's first line is that
+# PhoneFold is "a concert, not a workbench", and a listing filed under Reference would be
+# promising a tool it explicitly refuses to be.
+PRIMARY_CATEGORY = "EDUCATION"
+SECONDARY_CATEGORY = "MUSIC"
 
 # 30 characters.
-SUBTITLE = "Protein families, offline"
+SUBTITLE = "Fold a protein. Hear it fold."
 
 # 100 characters, comma separated, no spaces after commas (they count).
-KEYWORDS = ("pfam,protein,bioinformatics,domain,sequence,esm2,alphafold,"
-            "structural biology,uniprot,proteomics")
+KEYWORDS = ("protein,folding,music,sonification,alphafold,structural biology,"
+            "biochemistry,teaching,visionos")
 
 # 170 characters. Changeable without a new build.
 PROMOTIONAL_TEXT = (
-    "All 30,031 Pfam families on your device. Paste a sequence, get a family, "
-    "a clan and a domain architecture. No server, no queue, no network."
+    "Choose a protein and watch it fold on your device, in real time, while the fold "
+    "plays itself as music. Nothing is uploaded. Nothing is precomputed."
 )
 
 DESCRIPTION = """\
-PfamIE turns the entire Pfam universe into an inference engine that runs on your device. Paste a protein sequence and get a family assignment, a clan and a domain architecture in about a second, with no server, no queue and no account.
+PhoneFold folds a protein on the device in your hand and turns the trajectory into music. Choose one, watch it collapse out of an extended chain into its structure, and hear the contacts forming as they form.
 
-A quantised ESM-2 protein language model runs on the Apple Neural Engine and classifies your sequence against all 30,031 Pfam families. Everything is bundled: the model, the family index, 151,818 domain architectures and a searchable atlas of every family description. Airplane mode changes nothing.
+It is a concert rather than a workbench. Nothing is uploaded, nothing is queued, and nothing is precomputed: the fold happens while you watch it, on your device, and the piece is generated from that fold rather than played over it.
 
-FIVE VIEWS
+THREE ENGINES, EACH SAYING WHAT IT IS
 
-Galaxy. Every Pfam family as a three-dimensional map you can fly through, clans as coloured regions, the dark proteome drawn dim. On Apple Vision Pro it becomes a volume you can walk around, or an immersive space at room scale.
+Simulate. A coarse-grained structure-based model relaxes a named protein from a random coil into its known structure. Real physics, arriving where the prediction says it should.
 
-Oracle. Paste a sequence, open a FASTA file, or read a printed one with the camera. Multi-scale scanning returns the family, the clan and the N-to-C domain architecture, and says which residues it read the answer from.
+Morph. A geometric interpolation in torsion space, which keeps bond lengths honest where a straight line through Cartesian space would collapse them.
 
-Grammarian. Which domains travel with which, in what order, and how often, drawn from 151,818 real domain architectures. Domain order turns out to be strongly conserved: 97.7 per cent of pairs always appear the same way round.
+Generate. Genie 2, a diffusion model, running on the device and inventing a backbone that did not exist before you pressed the button.
 
-Prospector. The 6,925 Pfam families with no assigned function, each with its nearest annotated neighbours offered as a lead rather than an answer.
+Each engine says on screen what it is and is not. None of them is a measurement of how a real protein folds, and the app never implies otherwise.
 
-Field Guide. The offline Pfam atlas, searched in plain English. "Breaks down plastic" finds PETase. No network required.
+THE MUSIC
 
-STRUCTURES
+Contacts forming become note onsets. Hydropathy sets pitch, secondary structure sets texture, and how compact the protein has become sets the tempo, so a fold that arrives quickly sounds like one. Five voices, switchable mid-piece. Spatial audio places every note where its residue actually is, so the protein collapses around you on headphones. PhoneFold can appear as a MIDI device so a DAW can record the fold live, and it exports MIDI, mmCIF and 4K film with the music attached.
 
-Any family opens a predicted AlphaFold structure with its Pfam domain highlighted. AlphaFold models use UniProt numbering, so domain boundaries map onto the structure directly. Models are downloaded once and cached.
+ON EVERY SCREEN YOU HAVE
 
-HONEST ABOUT ACCURACY
+iPhone and iPad. The stage, the score and a gallery of twelve proteins, plus any UniProt accession you care to type.
 
-Measured on 2,500 real UniProt proteins ranked against all 30,031 families, PfamIE's top answer is correct 49 per cent of the time. It is a fast first pass and a way to explore, not a replacement for a profile HMM search, and it never pretends otherwise.
+Mac. PhoneFold Studio: multiple windows for two proteins side by side, batch mode that folds a whole FASTA overnight, ProRes and image-sequence export, a CoreMIDI device, and drag-and-drop comparison of a prediction against an experimental structure.
 
-Every result carries the measured accuracy of its own confidence band. A high-confidence call is right about 94 per cent of the time. When nothing reaches the threshold, the app says "no confident family" rather than naming the least bad of thirty thousand options. If you want the authoritative answer, one tap sends the sequence to InterProScan at EMBL-EBI, and the app asks first.
+Apple Watch. A transport remote with the Digital Crown scrubbing the timeline, the fold's rhythm on your wrist, a complication, and a Fold of the Day that runs with no phone at all.
+
+Apple Vision Pro. The protein in a volume on your desk, or an immersive concert hall at room scale where you can scale it up until the hydrophobic core closes around you. Pinch a residue to pin its label and solo its note. SharePlay puts a room full of people inside the same fold.
+
+HONEST ABOUT WHAT IT IS
+
+PhoneFold is not a structure predictor and not a molecular dynamics package. The physics is coarse-grained, the generative model is unconditional, and the app tells you which you are watching and what that means. It is for the moment a protein stops being a diagram and becomes a thing that moves.
 
 PRIVACY
 
-PfamIE collects nothing. No accounts, no analytics, no advertising, no tracking. Sequences are never written to disk and never leave your device unless you explicitly ask for online verification.
+PhoneFold collects nothing. No account, no analytics, no advertising, no tracking. The only network request it ever makes is for a structure you ask for by accession.
 
-BUILT FOR
-
-Bench scientists triaging a hit, structural biologists sizing up a construct, anyone with an uncharacterised protein and a hypothesis to form, and teachers who want the shape of protein sequence space on a screen they can spin.
-
-Data from Pfam 38.2 and InterPro at EMBL-EBI. Open source under the MIT licence.
+Open source under the MIT licence.
 """
 
 WHATS_NEW = """\
 First release.
-
-All 30,031 Pfam families, classified on device against an ESM-2 protein language model running on the Apple Neural Engine. Five views: a 3D map of the whole Pfam universe, a sequence oracle with calibrated confidence, a domain architecture explorer, a browser for the families with no known function, and an offline atlas you can search in plain English.
-
-Universal across iPhone, iPad, Mac and Apple Vision Pro, with an Apple Watch companion.
 """
 
 
-def app_id(auth: str) -> str:
-    for a in call("GET", "/apps?limit=200", auth=auth)["data"]:
-        if a["attributes"].get("bundleId") == BUNDLE_ID:
-            return a["id"]
-    sys.exit(f"No app record for {BUNDLE_ID}. Create it in App Store Connect first.")
-
-
-def set_categories(auth: str, app: str) -> None:
-    info = call("GET", f"/apps/{app}/appInfos", auth=auth)["data"][0]
-    call("PATCH", f"/appInfos/{info['id']}", {
-        "data": {
-            "type": "appInfos",
-            "id": info["id"],
-            "relationships": {
-                "primaryCategory": {
-                    "data": {"type": "appCategories", "id": PRIMARY_CATEGORY}
-                },
-                "secondaryCategory": {
-                    "data": {"type": "appCategories", "id": SECONDARY_CATEGORY}
-                },
-            },
-        }
-    }, auth=auth)
-    print(f"  categories: {PRIMARY_CATEGORY} / {SECONDARY_CATEGORY}")
-
-
-def set_app_info_localisation(auth: str, app: str) -> None:
-    info = call("GET", f"/apps/{app}/appInfos", auth=auth)["data"][0]
-    locs = call("GET", f"/appInfos/{info['id']}/appInfoLocalizations", auth=auth)["data"]
-    target = next((l for l in locs if l["attributes"]["locale"] == LOCALE), None)
-    body = {
-        "subtitle": SUBTITLE,
-        "privacyPolicyUrl": PRIVACY_POLICY_URL,
-    }
-    if target:
-        call("PATCH", f"/appInfoLocalizations/{target['id']}", {
-            "data": {"type": "appInfoLocalizations", "id": target["id"],
-                     "attributes": body}
-        }, auth=auth)
-        print(f"  subtitle + privacy policy set ({LOCALE})")
-    else:
-        call("POST", "/appInfoLocalizations", {
-            "data": {"type": "appInfoLocalizations",
-                     "attributes": {"locale": LOCALE, **body},
-                     "relationships": {"appInfo": {
-                         "data": {"type": "appInfos", "id": info["id"]}}}}
-        }, auth=auth)
-        print(f"  created localisation ({LOCALE})")
-
-
-def versions(auth: str, app: str) -> list[dict]:
-    return call("GET", f"/apps/{app}/appStoreVersions?limit=10", auth=auth)["data"]
-
-
-def set_copyright(auth: str, app: str) -> None:
-    """Copyright sits on the version, so a multiplatform record needs it thrice."""
-    for version in versions(auth, app):
-        call("PATCH", f"/appStoreVersions/{version['id']}", {
-            "data": {"type": "appStoreVersions", "id": version["id"],
-                     "attributes": {"copyright": COPYRIGHT}}
-        }, auth=auth)
-        print(f"  {version['attributes']['platform']}: copyright set")
-
-
-def set_version_localisations(auth: str, app: str) -> None:
-    for version in versions(auth, app):
-        platform = version["attributes"].get("platform")
-        locs = call("GET",
-                    f"/appStoreVersions/{version['id']}/appStoreVersionLocalizations",
-                    auth=auth)["data"]
-        target = next((l for l in locs if l["attributes"]["locale"] == LOCALE), None)
-        body = {
-            "description": DESCRIPTION,
-            "keywords": KEYWORDS,
-            "promotionalText": PROMOTIONAL_TEXT,
-            "supportUrl": SUPPORT_URL,
-            "marketingUrl": MARKETING_URL,
-        }
-        # "What's New" cannot be set on a first release: there is nothing to be
-        # new against, and Apple rejects the attribute outright rather than
-        # ignoring it. WHATS_NEW is kept for version 1.1 onwards.
-        if (version["attributes"].get("versionString") or "1.0") != "1.0":
-            body["whatsNew"] = WHATS_NEW
-        if target:
-            call("PATCH", f"/appStoreVersionLocalizations/{target['id']}", {
-                "data": {"type": "appStoreVersionLocalizations",
-                         "id": target["id"], "attributes": body}
-            }, auth=auth)
-            print(f"  {platform}: description, keywords and URLs set")
-        else:
-            call("POST", "/appStoreVersionLocalizations", {
-                "data": {"type": "appStoreVersionLocalizations",
-                         "attributes": {"locale": LOCALE, **body},
-                         "relationships": {"appStoreVersion": {
-                             "data": {"type": "appStoreVersions",
-                                      "id": version["id"]}}}}
-            }, auth=auth)
-            print(f"  {platform}: created localisation")
-
-
-def set_free(auth: str, app: str) -> None:
-    """
-    Free in every territory.
-
-    The price schedule wants a base territory and a price point on the free
-    tier, which is the one whose customerPrice is 0.0.
-    """
-    points = call("GET",
-                  f"/apps/{app}/appPricePoints?filter[territory]=USA&limit=200",
-                  auth=auth)["data"]
-    free = next((p for p in points
-                 if float(p["attributes"]["customerPrice"]) == 0.0), None)
-    if not free:
-        sys.exit("no free price point offered for this app")
-
-    call("POST", "/appPriceSchedules", {
-        "data": {
-            "type": "appPriceSchedules",
-            "relationships": {
-                "app": {"data": {"type": "apps", "id": app}},
-                "baseTerritory": {"data": {"type": "territories", "id": "USA"}},
-                "manualPrices": {"data": [{"type": "appPrices", "id": "${price}"}]},
-            },
-        },
-        "included": [{
-            "type": "appPrices",
-            "id": "${price}",
-            "relationships": {
-                "appPricePoint": {"data": {"type": "appPricePoints",
-                                           "id": free["id"]}}
-            },
-        }],
-    }, auth=auth)
-    print("  pricing: free in all territories")
-
-
-def set_age_rating(auth: str, app: str) -> None:
-    """
-    A scientific reference tool with no objectionable content of any kind.
-    Every field is declared explicitly rather than left to a default.
-    """
-    info = call("GET", f"/apps/{app}/appInfos", auth=auth)["data"][0]
-    declaration = call("GET", f"/appInfos/{info['id']}/ageRatingDeclaration",
-                       auth=auth)["data"]
-    attributes = {
-        "alcoholTobaccoOrDrugUseOrReferences": "NONE",
-        "contests": "NONE",
-        "gamblingSimulated": "NONE",
-        "horrorOrFearThemes": "NONE",
-        "matureOrSuggestiveThemes": "NONE",
-        "medicalOrTreatmentInformation": "NONE",
-        "profanityOrCrudeHumor": "NONE",
-        "sexualContentGraphicAndNudity": "NONE",
-        "sexualContentOrNudity": "NONE",
-        "violenceCartoonOrFantasy": "NONE",
-        "violenceRealistic": "NONE",
-        "violenceRealisticProlongedGraphicOrSadistic": "NONE",
-        "gambling": False,
-        # The structure viewer is a bundled Mol* build reading a cached file,
-        # not a browser, so this is genuinely false.
-        "unrestrictedWebAccess": False,
-        "kidsAgeBand": None,
-        # Everything below was discovered by asking: the API rejects the
-        # request naming one missing attribute at a time, so the full set is
-        # only visible by iterating. Types are not guessable either, and are
-        # not consistent: ageAssurance is a BOOLEAN despite reading like an
-        # enum, while gunsOrOtherWeapons is an enum despite sitting among the
-        # booleans. Both were found by sending the wrong type and reading the
-        # complaint.
-        "ageAssurance": False,
-        "messagingAndChat": False,
-        "advertising": False,
-        "healthOrWellnessTopics": False,
-        "userGeneratedContent": False,
-        "parentalControls": False,
-        "lootBox": False,
-        "gunsOrOtherWeapons": "NONE",
-    }
-    call("PATCH", f"/ageRatingDeclarations/{declaration['id']}", {
-        "data": {"type": "ageRatingDeclarations", "id": declaration["id"],
-                 "attributes": attributes}
-    }, auth=auth)
-    print("  age rating: no objectionable content declared")
-
-
-# Which folder of captures goes to which display type, per platform version.
-# APP_IPHONE_67 accepts the 6.9 inch 1320x2868 captures, and
-# APP_IPAD_PRO_3GEN_129 accepts the 13 inch 2064x2752 ones: Apple did not add
-# new display types for those sizes, which is not obvious from the names.
 SCREENSHOT_PLAN = {
     # Both iPhone slots are filled. App Store Connect dims and locks whichever
     # size it decides to derive from another, so supplying only one leaves the
@@ -409,7 +221,7 @@ def order_screenshots(auth: str, set_id: str) -> None:
 
 
 EULA_TEXT = """\
-PfamIE is free and open-source software, licensed under the MIT Licence.
+PhoneFold is free and open-source software, licensed under the MIT Licence.
 
 Copyright (c) 2026 Marc C. Deller
 
@@ -419,15 +231,15 @@ The above copyright notice and this permission notice shall be included in all c
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-Source code: https://github.com/bellcheddar/PfamIE
+Source code: https://github.com/bellcheddar/PhoneFold
 
 BUNDLED THIRD-PARTY COMPONENTS
 
-This app includes the ESM-2 protein language model (MIT, Meta Platforms), the all-MiniLM-L6-v2 sentence embedding model (Apache Licence 2.0, modified for Core ML), the Mol* structure viewer (MIT), and data derived from Pfam 38.2 (CC0 1.0 public domain dedication) and InterPro at EMBL-EBI. Full attribution is at https://github.com/bellcheddar/PfamIE/blob/main/THIRD-PARTY-NOTICES.md
+This app includes a Core ML export of Genie 2 (Apache Licence 2.0, aqlaboratory), trajectories captured from ESMFold (MIT, Meta Platforms), and structures derived from the RCSB PDB (CC0 1.0), the AlphaFold Protein Structure Database and UniProt (CC BY 4.0). Full attribution, including what was changed in the Genie 2 export, is at https://github.com/bellcheddar/PhoneFold/blob/main/THIRD-PARTY.md
 
 SCIENTIFIC USE
 
-PfamIE produces predictions, not assignments. Measured on 2,500 real UniProt proteins, its top answer is correct about 49% of the time, and every result states the measured accuracy of its confidence band. It is not a medical device and is not intended for diagnostic use.
+PhoneFold shows a simulation or a generative model, not a measurement of how a real protein folds, and it states which on screen for every engine. It is not a structure prediction service, not a molecular dynamics package, not a medical device, and is not intended for diagnostic use.
 """
 
 
@@ -527,28 +339,26 @@ REVIEW_CONTACT = {
 }
 
 REVIEW_NOTES = """\
-PfamIE classifies protein sequences against all 30,031 Pfam families entirely on the device. A quantised ESM-2 protein language model runs on the Apple Neural Engine. There is no account, no sign-in, and no sequence leaves the device unless the reviewer explicitly asks for online verification.
+PhoneFold folds a protein on the device and turns the trajectory into music. Everything runs locally. There is no account, no sign-in and no server: the only network request the app can make is fetching one predicted structure from the AlphaFold database, and only when the reviewer types an accession.
 
 TO TRY IT
-1. Open the Oracle tab.
-2. Paste this human SRC kinase sequence, or any protein sequence in one-letter amino-acid codes or FASTA:
+1. Launch the app. It opens on Trp-cage TC5b and begins folding immediately - the stage is empty for a few seconds while the physics runs, which is the app working rather than failing.
+2. Wait for the fold to arrive, then press play. The music is generated from the fold; it is not a soundtrack.
+3. Tap any protein in the gallery at the bottom to fold a different one. Villin HP36 and the WW domain are quick; lysozyme takes longer.
+4. Tap Generate to have the device invent a backbone that did not exist before, with Genie 2 running locally.
+5. Optionally type a UniProt accession (for example P69905) in the field at the bottom. This is the one action that uses the network.
 
-MGSNKSKPKDASQRRRSLEPAENVHGAGGGAFPASQTPSKPASADGHRGPSAAFAPAAAEPKLFGGFNSSDTVTSPQRAGPLAGGVTTFVALYDYESRTETDLSFKKGERLQIVNNTEGDWWLAHSLSTGQTGYIPSNYVAPSDSIQAEEWYFGKITRRESERLLLNAENPRGTFLVRESETTKGAYCLSVSDFDNAKGLNVKHYKIRKLDSGGFYITSRTQFNSLQQLVAYYSKHADGLCHRLTTVCPTSKPQTQGLAKDAWEIPRESLRLEVKLGQGCFGEVWMGTWNGTTRVAIKTLKPGTMSPEAFLQEAQVMKKLRHEKLVQLYAVVSEEPIYIVTEYMSKGSLLDFLKGETGKYLRLPQLVDMAAQIASGMAYVERMNYVHRDLRAANILVGENLVCKVADFGLARLIEDNEYTARQGAKFPIKWTAPEAALYGRFTIKSDVWSFGILLTELTTKGRVPYPGMVNREVLDQVERGYRMPCPPECPESLHDLMCQCWRKEPEERPTFEYLQAFLEDYFTSTEPQYQPGENL
+WHAT IT IS NOT
+PhoneFold is not a structure prediction service and not a medical or diagnostic tool. The folding it shows is a coarse-grained simulation or a generative model, and the app states which on screen for every engine. No health claim is made anywhere.
 
-3. Tap Classify. It should report PK_Tyr_Ser-Thr at high confidence.
-4. The Galaxy, Grammarian, Prospector and Field Guide tabs then explore the same 30,031 families. In the Field Guide, try the phrase "breaks down plastic".
+APPLE WATCH
+The watch app is a remote for the phone and a standalone Fold of the Day. It runs no inference.
 
-TIMING
-A classification scans the sequence at four window widths, so a 500-residue protein takes a second or two. That is expected, not a hang.
-
-OFFLINE
-Everything above works in Airplane Mode. Two features use the network and neither is required: opening a predicted structure fetches a model from the AlphaFold database at EMBL-EBI, and the Oracle can optionally verify a call against InterProScan at EMBL-EBI. The latter is off unless an email address is entered in Settings, and it asks for confirmation each time, naming exactly what it will send.
+APPLE VISION PRO
+The protein appears in a volume, or in an immersive space at room scale.
 
 PRIVACY
-The app collects nothing. No accounts, no analytics, no advertising, no tracking. Sequences are never written to disk.
-
-RESEARCH USE
-PfamIE is a research and teaching tool. It produces predictions, not assignments, and states the measured accuracy of every confidence band. It is not a medical device and nothing it reports is intended for diagnostic use.
+Nothing is collected. The privacy policy is at https://bellcheddar.github.io/PhoneFold/privacy.html and the source is at https://github.com/bellcheddar/PhoneFold.
 """
 
 
