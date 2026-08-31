@@ -85,30 +85,45 @@ struct FoldHUD: View {
 
     // MARK: - Counters
 
-    /// The counter strip, laid out for whatever width it is given.
+    /// The counter strip: the readings scroll, the compute meter stays put.
     ///
-    /// It used to be a horizontal `ScrollView` with the compute meter beside it, which on a
-    /// phone clipped the last counter mid-value - "H/E/C 45/1" - and left it touching the
-    /// meter's "0.7 ms". A reading cut in half is worse than no reading: it looks like a
-    /// layout fault and it cannot be trusted. `ViewThatFits` takes the one-row form when the
-    /// width allows and drops the meter onto its own line when it does not, so nothing is ever
-    /// truncated and nothing has to be scrolled to be seen.
+    /// **`ViewThatFits` was making the whole app wider than the phone, and this is the fix.**
+    /// It was introduced to avoid a scroll view clipping the last counter mid-value - "H/E/C
+    /// 45/1" reads as a layout fault rather than a reading - by dropping the meter onto a second
+    /// line when one row would not fit. The trap is that `ViewThatFits` measures each candidate
+    /// at its *ideal* size, a scroll view's ideal size is its whole content, and when no
+    /// candidate fits it uses the last one at that ideal. At the largest accessibility text size
+    /// neither candidate fitted, so this view reported 465.67 points on a 402-point screen, the
+    /// stage grew to match and was centred, and the entire app bled off both edges. Measured:
+    /// the root view's own `GeometryReader` read 465.67 while `UIScreen.main.bounds` read 402,
+    /// and a red border on the root was not visible on any edge.
+    ///
+    /// A plain row with a scrolling half and a pinned half cannot do that: the scrolling half
+    /// accepts whatever width is left. It is the same shape as every other control row here.
     private var counters: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .top, spacing: 0) {
-                countersRow
-                Spacer(minLength: 12)
-                computeMeter
-            }
-            VStack(alignment: .leading, spacing: 6) {
-                countersRow
-                computeMeter
-            }
+        HStack(alignment: .top, spacing: 0) {
+            countersRow
+                // The only part that may be squeezed. The meter keeps its intrinsic width.
+                .layoutPriority(-1)
+            Spacer(minLength: 12)
+            computeMeter
         }
     }
 
+    /// The five readings, scrolling.
+    ///
+    /// **This row was making the whole app wider than the phone.** `fixedSize(horizontal: true)`
+    /// is right for the numbers themselves - without it "7.5 Å" wraps mid-value and reads as a
+    /// layout fault rather than a reading - but applied to the row it made the row
+    /// unshrinkable, and at the largest accessibility text size five counters demanded 465.67
+    /// points on a 402-point screen. A VStack takes the widest ideal any child reports, so the
+    /// entire control column grew to match and was then centred, and the layout bled off both
+    /// edges at once while looking perfect at the default size. Measured with `.measured(_:)`
+    /// after three rounds of fixing rows that turned out to be passengers.
+    ///
+    /// Scrolling keeps the numbers unwrapped and lets the row give back the width.
     private var countersRow: some View {
-        HStack(alignment: .top, spacing: 14) {
+        ControlRow(spacing: 14) {
             if let now = scrubbed ?? history.latest {
                 counter("Rg", String(format: "%.1f Å", now.radiusOfGyration))
                 counter("Compact", String(format: "%.2f", now.compactness),
@@ -123,7 +138,8 @@ struct FoldHUD: View {
             }
         }
         // Every counter on one line: without this the values wrap mid-number and "7.5 Å"
-        // becomes two lines, which reads as a layout fault rather than a reading.
+        // becomes two lines, which reads as a layout fault rather than a reading. Inside a
+        // scrolling row it costs nothing, because the row can now be narrower than its content.
         .lineLimit(1)
         .fixedSize(horizontal: true, vertical: false)
     }
@@ -132,10 +148,10 @@ struct FoldHUD: View {
                          tint: Color = .white) -> some View {
         VStack(alignment: .leading, spacing: 1) {
             Text(label.uppercased())
-                .font(.system(size: 8, weight: .semibold, design: .monospaced))
+                .scaledFont(8, weight: .semibold, design: .monospaced, relativeTo: .caption)
                 .foregroundStyle(Color(hex: 0x6B7C93))
             Text(value)
-                .font(.system(size: 14, design: .monospaced))
+                .scaledFont(14, design: .monospaced, relativeTo: .subheadline)
                 .foregroundStyle(tint)
         }
     }
@@ -150,12 +166,12 @@ struct FoldHUD: View {
         // from the number it belongs to.
         VStack(alignment: .leading, spacing: 3) {
             Text(meter.label.uppercased())
-                .font(.system(size: 8, weight: .semibold, design: .monospaced))
+                .scaledFont(8, weight: .semibold, design: .monospaced, relativeTo: .caption)
                 .foregroundStyle(Color(hex: 0x6B7C93))
                 .lineLimit(1)
             HStack(spacing: 6) {
                 Text(String(format: "%.1f ms", meter.averageFrameCost))
-                    .font(.system(size: 13, design: .monospaced))
+                    .scaledFont(13, design: .monospaced, relativeTo: .footnote)
                     .foregroundStyle(.white)
                 GeometryReader { geometry in
                     let fraction = min(max(meter.budgetFraction, 0), 1)
@@ -217,7 +233,7 @@ struct FoldHUD: View {
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [2, 3]))
                     .annotation(position: .top, alignment: .leading, spacing: 1) {
                         Text("recycle \(boundary.recycle)")
-                            .font(.system(size: 7, weight: .medium, design: .monospaced))
+                            .scaledFont(7, weight: .medium, design: .monospaced, relativeTo: .caption)
                             .foregroundStyle(Color(hex: 0xFCB900).opacity(0.7))
                     }
             }
@@ -248,7 +264,7 @@ struct FoldHUD: View {
 
     private func traceLabel(_ text: String) -> some View {
         Text(text.uppercased())
-            .font(.system(size: 8, weight: .semibold, design: .monospaced))
+            .scaledFont(8, weight: .semibold, design: .monospaced, relativeTo: .caption)
             .foregroundStyle(Color(hex: 0x6B7C93))
             .padding(.leading, 2)
     }

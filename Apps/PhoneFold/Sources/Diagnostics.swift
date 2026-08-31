@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// The on-glass diagnostic channel.
 ///
@@ -11,4 +12,12 @@ import Foundation
 ///     xcrun simctl launch --setenv PHONEFOLD_DIAGNOSTICS=1 <udid> com.mdeller.phonefold
 enum Diagnostics {
     static let isEnabled = ProcessInfo.processInfo.environment["PHONEFOLD_DIAGNOSTICS"] == "1"
+
+    /// For diagnostics that are numbers rather than pictures.
+    ///
+    /// The on-glass channel above is for things you have to *see* - a mesh drawing in pieces.
+    /// A measured width is just a number, and putting it in a `@State` from inside a
+    /// `GeometryReader`'s `onAppear` mutates state during a layout pass: measured, it took the
+    /// app down before it drew anything. `Logger` writes from wherever it is called.
+    static let log = Logger(subsystem: "com.mdeller.phonefold", category: "Layout")
 }

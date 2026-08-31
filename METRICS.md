@@ -2934,3 +2934,46 @@ comparison cannot see.
 
 Consequence: the app's Genie 2 seed default goes back to **1**, from the 3 it had been moved to
 in order to skip the two seeds that failed.
+
+## P4-15 Dynamic Type (2026-08-31, Simulator, iPhone 17 / iOS 26.5, screen 402 pt @3×)
+
+Thirty-three `.font(.system(size:))` calls in the app were replaced with a `.scaledFont` that
+honours Dynamic Type. Making the text scale exposed a layout that could not.
+
+The control column's laid-out width, measured with `.measured(_:)` at each content size:
+
+| content size | before | after |
+|---|---|---|
+| large (default) | 402.00 | 402.00 |
+| extra-extra-extra-large | 402.00 | 402.00 |
+| accessibility-medium | 402.00 | 402.00 |
+| accessibility-large | 402.00 | 402.00 |
+| accessibility-extra-large | 402.00 | 402.00 |
+| accessibility-extra-extra-large | 405.00 | 402.00 |
+| accessibility-extra-extra-extra-large | **465.67** | 402.00 |
+
+465.67 pt on a 402 pt screen is 1,397 px of a 1,206 px display: the stage was 16% wider than the
+phone and centred, so it bled off **both** edges and the title's left half was off-screen.
+
+**Three plausible fixes in a row changed nothing at all** — the engine row, the gallery and the
+HUD counters were each fixed and each turned out to be a passenger. What settled it was
+measuring rather than reasoning:
+
+- `.measured(_:)` on every row: all of them reported 465.67 or 465.67 minus their own padding,
+  so none of them was the cause.
+- The root's own `GeometryReader` read **465.67 while `UIScreen.main.bounds.width` read 402** —
+  proving the overflow was above the whole view tree, not inside one row.
+- A 4 pt red border on the root was **not visible on any edge**.
+- Settings.app at the same content size rendered perfectly, so it was PhoneFold, not the
+  Simulator.
+
+The cause was three `fixedSize()` labels — Sound, MIDI and Export film — plus the 32 pt route
+picker. `fixedSize` is right for them (otherwise "Export film" wraps mid-word) but it makes them
+unshrinkable, and at the largest size those four alone wanted 425.67 pt of a 402 pt screen.
+They now drop to icon-only at accessibility sizes, where they all carry `accessibilityLabel`s
+already.
+
+**Capped at `accessibility3`, and stated as a cap.** Above that the column fits horizontally but
+not vertically: the controls alone are taller than the phone, the title gets pushed up under the
+Dynamic Island, and no room is left for the protein. PhoneFold is a stage. The onboarding cards
+and About are sheets, are text and nothing else, and are deliberately not capped.

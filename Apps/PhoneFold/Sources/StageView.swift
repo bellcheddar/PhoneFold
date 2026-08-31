@@ -6,6 +6,9 @@ import FoldEngine
 import FoldAudio
 import FoldCapture
 import UniformTypeIdentifiers
+#if os(iOS)
+import UIKit
+#endif
 
 /// The Aurora Stage: a deep indigo ground, the protein, and the readouts beneath it.
 struct StageView: View {
@@ -40,6 +43,20 @@ struct StageView: View {
 
     var body: some View {
         ZStack {
+            if Diagnostics.isEnabled {
+                GeometryReader { window in
+                    Color.clear.onAppear {
+                        #if os(iOS)
+                        let screen = UIScreen.main.bounds.width
+                        let scale = UIScreen.main.scale
+                        Diagnostics.log.notice(
+                            "zstack \(window.size.width) screen \(screen) scale \(scale)")
+                        #else
+                        Diagnostics.log.notice("zstack \(window.size.width)")
+                        #endif
+                    }
+                }
+            }
             // PLAN.md section 2: deep indigo to near-black, and the body must paint it or
             // the stage borrows whatever the host window is.
             LinearGradient(colors: [Color(hex: 0x181432), Color(hex: 0x0B0A1F)],
@@ -58,10 +75,13 @@ struct StageView: View {
 
             VStack(spacing: 0) {
                 header
+                    .measured("header")
                 // Its own row. Sharing the header with the title and the colour control left
                 // the buttons a few points wide on a phone, and SwiftUI rendered their labels
                 // one letter per line.
                 EnginePicker(engine: $runner.engine, unavailable: unavailableEngines)
+                    .measured("engine")
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 20)
                 // Its own row again, below the engine: the two are separate choices - what
                 // computes the fold, and what the fold sounds like - and putting them on one
@@ -72,6 +92,8 @@ struct StageView: View {
                               diagnostic: midiMessage.isEmpty ? player.audioDiagnostic
                                                               : midiMessage,
                               onExportMIDI: exportMIDI)
+                    .measured("score")
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 20)
                     .padding(.top, 6)
                 // Only for the structure-based engine: a morph has no contact energies for a
@@ -79,12 +101,15 @@ struct StageView: View {
                 if runner.engine == .structureBased {
                     DuetControls(mutation: $mutation, divergence: player.duetDivergence,
                                  isBusy: runner.state.isBusy, onFold: foldDuet)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, 20)
                         .padding(.top, 6)
                 }
                 ExportControls(preset: $film.preset, state: film.state,
                                canExport: player.exportProvider != nil,
                                onExport: exportFilm, onCancel: film.cancel)
+                    .measured("export")
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 20)
                     .padding(.top, 6)
                 // The accession field is meaningless for Genie 2 - it invents a protein and
@@ -104,10 +129,13 @@ struct StageView: View {
                         }
                     }
                 }
+                .measured("accession-or-generate")
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 20)
                 .padding(.top, 6)
                 .padding(.bottom, 6)
                 FoldCanvas(player: player, diagnostic: $meshDiagnostic)
+                    .measured("canvas")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .overlay {
                         switch runner.state {
@@ -126,7 +154,7 @@ struct StageView: View {
                     .overlay(alignment: .topTrailing) {
                         if model.isOnExternalDisplay {
                             Label("On display", systemImage: "tv")
-                                .font(.system(size: 11, weight: .medium))
+                                .scaledFont(11, weight: .medium, relativeTo: .caption)
                                 .padding(.horizontal, 9)
                                 .padding(.vertical, 5)
                                 .background(Capsule().fill(.black.opacity(0.45)))
@@ -143,12 +171,38 @@ struct StageView: View {
                         scrubbed: player.scrubbedSample,
                         onScrub: { player.scrub(to: $0) },
                         onScrubEnd: { player.endScrub() })
+                    .measured("hud")
                     // Without priority the RealityView above, which takes all the space it
                     // is offered, squeezes the panel until the charts collapse to zero
                     // height and simply vanish.
                     .layoutPriority(1)
                 gallery
+                    .measured("gallery")
             }
+            .background(
+                Diagnostics.isEnabled
+                    ? AnyView(GeometryReader { column in
+                        Color.clear.onAppear {
+                            Diagnostics.log.notice("column \(column.size.width)")
+                        }
+                    })
+                    : AnyView(Color.clear))
+            // **The stage caps Dynamic Type at accessibility 3, and the sheets do not.**
+            //
+            // Measured across every content size after the width was fixed: the control column
+            // lays out at exactly 402 points, the screen's width, at every size up to
+            // accessibility-extra-large. Above that it fits horizontally but not vertically -
+            // the controls alone are taller than the phone, so SwiftUI centres the column and
+            // the title is pushed up under the Dynamic Island, and there is no room left for
+            // the protein at all.
+            //
+            // PhoneFold is a stage, and the picture is the point. Text large enough to leave no
+            // room for the fold has not made the app accessible, it has removed the thing the
+            // app is for. Capping here keeps every control legible at three accessibility sizes
+            // and keeps the protein on screen. The reading matter - the onboarding cards and
+            // About, which are text and nothing else - is presented as a sheet and is
+            // deliberately not capped.
+            .dynamicTypeSize(...DynamicTypeSize.accessibility3)
         }
         .preferredColorScheme(.dark)
         .task {
@@ -181,9 +235,43 @@ struct StageView: View {
         }
     }
 
+    /// The title, the colour control and About.
+    ///
+    /// **`ViewThatFits` rather than one row.** At an accessibility text size the title, a
+    /// four-segment picker and the info button together are wider than a phone, and SwiftUI's
+    /// response to that is to clip - measured: the title rendered as "Phon..." with its left
+    /// edge off-screen, and the picker's right edge off the other side. Given a second
+    /// arrangement it picks the one that fits instead, which puts the colour control on its own
+    /// line exactly when it needs one and leaves the compact layout alone otherwise.
     private var header: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 4) {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top) {
+                titleBlock
+                Spacer()
+                colourPicker
+                aboutButton
+            }
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .top) {
+                    titleBlock
+                    Spacer()
+                    aboutButton
+                }
+                colourPicker
+            }
+        }
+        // Accepts the offered width. In a VStack every child is proposed the same width and the
+        // stack takes the widest reported ideal, so one child that asks for more makes the
+        // whole column wider than the phone - and the column is then centred, which is why the
+        // layout bled off *both* edges at the largest accessibility size rather than just the
+        // right.
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 20)
+        .padding(.top, 14)
+    }
+
+    private var titleBlock: some View {
+        VStack(alignment: .leading, spacing: 4) {
                 Text(player.title)
                     .font(.system(.title2, design: .default).weight(.semibold))
                     .foregroundStyle(.white)
@@ -197,7 +285,7 @@ struct StageView: View {
                 // place it was needed. Env-gated is already opt-in enough.
                 if Diagnostics.isEnabled {
                     Text(player.diagnostic + "  " + meshDiagnostic)
-                        .font(.system(size: 10, design: .monospaced))
+                        .scaledFont(10, design: .monospaced, relativeTo: .caption)
                         .foregroundStyle(Color(hex: 0xFCB900))
                 }
                 // Whatever this trajectory's claim is, stated. A generated protein has never
@@ -217,25 +305,27 @@ struct StageView: View {
                         .lineLimit(3)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-            }
-            Spacer()
-            Picker("Colour", selection: $player.colourMode) {
-                ForEach(ColourMode.allCases, id: \.self) { mode in
-                    Text(mode.shortName).tag(mode)
-                }
-            }
-            .pickerStyle(.segmented)
-            .frame(maxWidth: 380)
-            Button { isShowingAbout = true } label: {
-                Image(systemName: "info.circle")
-                    .font(.system(size: 16))
-                    .foregroundStyle(Color(hex: 0x6B7C93))
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("About PhoneFold")
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 14)
+    }
+
+    private var colourPicker: some View {
+        Picker("Colour", selection: $player.colourMode) {
+            ForEach(ColourMode.allCases, id: \.self) { mode in
+                Text(mode.shortName).tag(mode)
+            }
+        }
+        .pickerStyle(.segmented)
+        .frame(maxWidth: 380)
+    }
+
+    private var aboutButton: some View {
+        Button { isShowingAbout = true } label: {
+            Image(systemName: "info.circle")
+                .scaledFont(16, relativeTo: .body)
+                .foregroundStyle(Color(hex: 0x6B7C93))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("About PhoneFold")
     }
 
     private var gallery: some View {
@@ -250,7 +340,7 @@ struct StageView: View {
                             // about which one to press; "It never resolves - and that is
                             // correct" does.
                             Text(listeningNotes[entry.id]?.headline ?? entry.subtitle)
-                                .font(.system(size: 10))
+                                .scaledFont(10, relativeTo: .caption)
                                 .foregroundStyle(Color(hex: 0x6B7C93))
                                 .lineLimit(1)
                         }
@@ -267,6 +357,15 @@ struct StageView: View {
             }
             .padding(.horizontal, 20)
         }
+        // **`maxWidth` as well as `height`, and the width is the load-bearing half.** A
+        // horizontal scroll view reports its *content's* width as its ideal, and thirteen
+        // gallery cards are far wider than a phone. In a VStack the stack takes the widest
+        // ideal any child reports, so this one row made the entire control column 465.67 points
+        // on a 402-point screen - and the column was then centred, which is why the layout bled
+        // off *both* edges at the largest accessibility text size while looking fine at the
+        // default. Measured with `.measured(_:)`: every other row came back at 425.67, which is
+        // 465.67 less its own padding, so every one of them was a passenger.
+        .frame(maxWidth: .infinity)
         .frame(height: 62)
         .padding(.bottom, 8)
     }

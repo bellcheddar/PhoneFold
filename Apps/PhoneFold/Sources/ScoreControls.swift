@@ -28,8 +28,8 @@ struct ScoreControls: View {
                 } label: {
                     Label(isSoundOn ? "Sound" : "Silent",
                           systemImage: isSoundOn ? "speaker.wave.2.fill" : "speaker.slash.fill")
-                        .labelStyle(.titleAndIcon)
-                        .font(.system(size: 12, weight: .semibold))
+                        .labelStyle(.adaptive)
+                        .scaledFont(12, weight: .semibold, relativeTo: .caption)
                         .lineLimit(1)
                         .fixedSize()
                         .padding(.horizontal, 12)
@@ -51,14 +51,13 @@ struct ScoreControls: View {
                 // so "Fantasy" rendered one letter per line and clipped, and Pop, Rock and Surf
                 // each broke across two. Scrolling keeps every style one tap away, which is the
                 // point of being able to change it while the piece is playing.
-                ScrollView(.horizontal) {
-                    HStack(spacing: 8) {
-                        ForEach(styles) { style in
+                ControlRow {
+                    ForEach(styles) { style in
                             Button {
                                 styleID = style.id
                             } label: {
                                 Text(style.name)
-                                    .font(.system(size: 12, weight: .semibold))
+                                    .scaledFont(12, weight: .semibold, relativeTo: .caption)
                                     .lineLimit(1)
                                     .fixedSize()
                                     .padding(.horizontal, 12)
@@ -82,15 +81,10 @@ struct ScoreControls: View {
                             .accessibilityLabel("\(style.name) style")
                             .accessibilityHint(style.summary)
                             .accessibilityAddTraits(styleID == style.id ? [.isSelected] : [])
-                        }
                     }
-                    // Room for the capsules' shadows and the focus ring, which a scroll view
-                    // clips to its bounds.
-                    .padding(.vertical, 2)
                 }
-                .scrollIndicators(.hidden)
-                // The scroll view is the only thing here that may be squeezed. Everything else
-                // keeps its intrinsic width, which is what stopped the wrapping.
+                // The scrolling row is the only thing here that may be squeezed. Everything
+                // else keeps its intrinsic width, which is what stopped the wrapping.
                 .layoutPriority(-1)
 
                 // Where the music goes. Next to the sound controls rather than in a menu,
@@ -100,7 +94,8 @@ struct ScoreControls: View {
                 if let onExportMIDI {
                     Button(action: onExportMIDI) {
                         Label("MIDI", systemImage: "square.and.arrow.up")
-                            .font(.system(size: 12, weight: .semibold))
+                            .labelStyle(.adaptive)
+                            .scaledFont(12, weight: .semibold, relativeTo: .caption)
                             .lineLimit(1)
                             .fixedSize()
                             .padding(.horizontal, 12)
@@ -119,7 +114,7 @@ struct ScoreControls: View {
             // sounds like, and the reference behind it where there is one.
             Text(diagnostic.isEmpty ? (selected?.summary ?? "No style profiles are bundled.")
                                     : diagnostic)
-                .font(.system(size: 10))
+                .scaledFont(10, relativeTo: .caption)
                 .foregroundStyle(Color(hex: 0x6B7C93))
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
@@ -233,7 +228,7 @@ struct AboutView: View {
     private func section(_ title: String, _ body: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
-                .font(.system(size: 12, weight: .semibold))
+                .scaledFont(12, weight: .semibold, relativeTo: .caption)
                 .textCase(.uppercase)
                 .foregroundStyle(.secondary)
             Text(body)
@@ -258,12 +253,16 @@ struct ExportControls: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
+            // The presets scroll; the action does not. Inside the scroll view a `Spacer` has
+            // nothing to push against and collapses, which would leave "Export film" reachable
+            // only by scrolling past the presets at a large text size.
+            ControlRow {
                 ForEach(FilmExportController.Preset.allCases) { candidate in
                     Button {
                         preset = candidate
                     } label: {
                         Text(candidate.rawValue)
-                            .font(.system(size: 12, weight: .semibold))
+                            .scaledFont(12, weight: .semibold, relativeTo: .caption)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
                             .background(
@@ -279,13 +278,16 @@ struct ExportControls: View {
                     .accessibilityLabel("\(candidate.rawValue) export size")
                     .accessibilityAddTraits(preset == candidate ? [.isSelected] : [])
                 }
-
-                Spacer(minLength: 0)
+            }
+            .layoutPriority(-1)
 
                 Button(action: state.isBusy ? onCancel : onExport) {
                     Label(state.isBusy ? "Cancel" : "Export film",
                           systemImage: state.isBusy ? "xmark" : "film")
-                        .font(.system(size: 12, weight: .semibold))
+                        .labelStyle(.adaptive)
+                        .scaledFont(12, weight: .semibold, relativeTo: .caption)
+                        .lineLimit(1)
+                        .fixedSize()
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
                         .background(Capsule().fill(state.isBusy
@@ -315,7 +317,7 @@ struct ExportControls: View {
                 // VoiceOver user is waiting for and cannot see.
                 Text(state.message)
                     .accessibilityAddTraits(.updatesFrequently)
-                    .font(.system(size: 10))
+                    .scaledFont(10, relativeTo: .caption)
                     .foregroundStyle(Color(hex: 0x6B7C93))
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
@@ -341,7 +343,7 @@ struct DuetControls: View {
             HStack(spacing: 8) {
                 TextField("Mutation, e.g. F11A", text: $mutation)
                     .textFieldStyle(.plain)
-                    .font(.system(size: 12, design: .monospaced))
+                    .scaledFont(12, design: .monospaced, relativeTo: .caption)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
                     .background(Capsule().fill(Color.white.opacity(0.08)))
@@ -357,7 +359,7 @@ struct DuetControls: View {
 
                 Button(action: onFold) {
                     Label("Duet", systemImage: "person.2")
-                        .font(.system(size: 12, weight: .semibold))
+                        .scaledFont(12, weight: .semibold, relativeTo: .caption)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
                         .background(Capsule().fill(mutation.isEmpty || isBusy
@@ -378,7 +380,7 @@ struct DuetControls: View {
             if divergence.isEmpty {
                 Text("Folds the wild type and a mutant together. Where the two agree the mutant "
                      + "sings in unison; where they diverge it is pushed toward a tritone.")
-                    .font(.system(size: 10))
+                    .scaledFont(10, relativeTo: .caption)
                     .foregroundStyle(Color(hex: 0x6B7C93))
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
@@ -386,7 +388,7 @@ struct DuetControls: View {
                 Text("Most divergent: " + divergence.prefix(5)
                     .map { String(format: "%d %+.0f", $0.residue + 1, $0.delta) }
                     .joined(separator: "   "))
-                    .font(.system(size: 10, design: .monospaced))
+                    .scaledFont(10, design: .monospaced, relativeTo: .caption)
                     .foregroundStyle(Color(hex: 0xFCB900))
                     .lineLimit(1)
             }

@@ -317,14 +317,14 @@ struct EnginePicker: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
+            ControlRow {
                 ForEach(FoldingEngine.allCases, id: \.self) { candidate in
                     let blocked = unavailable[candidate]
                     Button {
                         if blocked == nil { engine = candidate }
                     } label: {
                         Text(candidate.displayName)
-                            .font(.system(size: 12, weight: .semibold))
+                            .scaledFont(12, weight: .semibold, relativeTo: .caption)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
                             .background(
@@ -345,7 +345,7 @@ struct EnginePicker: View {
             // what it claims. Shown always rather than behind a tap: the difference between
             // simulating toward a known answer and predicting one is the whole point.
             Text(unavailable[engine] ?? engine.summary)
-                .font(.system(size: 10))
+                .scaledFont(10, relativeTo: .caption)
                 .foregroundStyle(Color(hex: 0x6B7C93))
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
@@ -362,7 +362,7 @@ struct FoldingProgressView: View {
     var body: some View {
         VStack(spacing: 10) {
             Text(caption)
-                .font(.system(size: 13, weight: .semibold))
+                .scaledFont(13, weight: .semibold, relativeTo: .footnote)
                 .foregroundStyle(.white)
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
@@ -373,7 +373,7 @@ struct FoldingProgressView: View {
             }
             .frame(width: 220, height: 4)
             Text(engine.summary)
-                .font(.system(size: 10))
+                .scaledFont(10, relativeTo: .caption)
                 .foregroundStyle(Color(hex: 0x6B7C93))
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 260)
@@ -398,7 +398,7 @@ struct AccessionField: View {
         HStack(spacing: 8) {
             TextField("UniProt accession, e.g. P69905", text: $accession)
                 .textFieldStyle(.plain)
-                .font(.system(size: 12, design: .monospaced))
+                .scaledFont(12, design: .monospaced, relativeTo: .caption)
                 .foregroundStyle(.white)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
@@ -410,7 +410,7 @@ struct AccessionField: View {
                 .autocorrectionDisabled()
                 #endif
             Button("Fold", action: onSubmit)
-                .font(.system(size: 12, weight: .semibold))
+                .scaledFont(12, weight: .semibold, relativeTo: .caption)
                 .buttonStyle(.plain)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
@@ -419,7 +419,7 @@ struct AccessionField: View {
                 .disabled(accession.trimmingCharacters(in: .whitespaces).isEmpty)
             if case .fetching(let which) = state {
                 Text("fetching \(which)…")
-                    .font(.system(size: 10))
+                    .scaledFont(10, relativeTo: .caption)
                     .foregroundStyle(Color(hex: 0x6B7C93))
             }
             if case .failed(let message) = state {
@@ -427,7 +427,7 @@ struct AccessionField: View {
                 // hides the half of the sentence that says which of several causes it was,
                 // which is the only part worth showing.
                 Text(message)
-                    .font(.system(size: 10))
+                    .scaledFont(10, relativeTo: .caption)
                     .foregroundStyle(Color(hex: 0xFF3D9A))
                     .lineLimit(3)
                     .fixedSize(horizontal: false, vertical: true)
@@ -450,18 +450,18 @@ struct GenerateControls: View {
     var body: some View {
         HStack(spacing: 10) {
             Button("New backbone", action: onGenerate)
-                .font(.system(size: 12, weight: .semibold))
+                .scaledFont(12, weight: .semibold, relativeTo: .caption)
                 .buttonStyle(.plain)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
                 .background(Capsule().fill(Color(hex: 0x2B5CE6)))
                 .foregroundStyle(.white)
             Text("seed \(seed)")
-                .font(.system(size: 11, design: .monospaced))
+                .scaledFont(11, design: .monospaced, relativeTo: .caption)
                 .foregroundStyle(Color(hex: 0x6B7C93))
             if case .failed(let message) = state {
                 Text(message)
-                    .font(.system(size: 10))
+                    .scaledFont(10, relativeTo: .caption)
                     .foregroundStyle(Color(hex: 0xFF3D9A))
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
