@@ -4,8 +4,11 @@
 **Current task:** P5-03 (P5-02 needs an investigation first). **Phase 4's machine gate is GREEN**, including the two checks it used to skip: the exported MP4 now probes clean in ffprobe, and forty consecutive folds show no leak. What is left of Phase 4 is human and is in `BLOCKERS.md` - AirPlay to a real Apple TV, the Lock Screen banner, the exported-video comparison, cold launch on device, the VoiceOver audit, signing and TestFlight - plus P4-16, the app icon, which is blocked on a skill this machine does not have. Marc is deferring the sign-offs and will say when.
 **Last updated:** 2026-08-31
 
-**No git remote.** Everything is committed locally on `main`; nothing has been pushed because
-there is nowhere to push to yet.
+**Published 2026-08-31: <https://github.com/bellcheddar/PhoneFold>, public, MIT.** The history was
+rewritten once before the first push, to take out two committed Claude Code session transcripts
+and the Apple team id: unpushed was the one cheap moment to do it. `.gitignore` now catches the
+transcript filename shape, which is dated and prompt-derived and does not look like a transcript
+in a `git status` listing.
 
 Status vocabulary: `todo` / `doing` / `blocked` / `done`.
 A task must be small enough that one loop iteration can finish it, build, test and commit.
@@ -285,6 +288,7 @@ that already exists, and because three of the four gate criteria are about them.
 | P4-16 | App icon — **blocked**: `marcs-vibe-icon` is not installed on this machine | — | blocked |
 | P4-13 | Leak check across 20 consecutive folds | P4-03 | done: no leak, 40-fold run in the gate |
 | P4-18 | The style row wrapped one letter per line on a phone | — | done |
+| P4-19 | The RealityView handed its own 451 pt width to every sibling; counters row reverted | P4-15 | done |
 
 **Needs Marc, not a machine:** AirPlay to a real Apple TV, the exported-video comparison, cold
 launch on device, and signing and TestFlight. Those are the phase's human halt.

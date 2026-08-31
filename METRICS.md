@@ -3025,3 +3025,36 @@ labels exist would pass an app that is unusable.
 from window" because this terminal has not been granted Screen Recording. That is Marc's to
 grant in System Settings → Privacy & Security, and until then every macOS check here is
 structural rather than visual.
+
+## P4-19 the stage's width (2026-08-31, Simulator, iPhone 17, screen 402 pt)
+
+Found by taking the README screenshot. Widths from `.measured(_:)`, in points:
+
+| Row | Before | With `FoldCanvas` replaced by `Color.clear` | After the fix |
+|---|---|---|---|
+| `zstack` | 402.00 | 402.00 | 402.00 |
+| `column` | 402.33 | 402.33 | 402.33 |
+| `header` | **451.33** | 402.00 | 402.00 |
+| `canvas` | **451.33** | 402.00 | 402.00 |
+| `hud` | **451.33** | 402.00 | 402.00 |
+| `gallery` | **451.33** | 402.00 | 402.00 |
+| `engine` / `score` / `export` | 411.33 | 362.00 | 362.00 |
+
+A `RealityView` reports an intrinsic width of its own, and as a direct child of the stage's
+`VStack` it handed that ideal to every sibling. The substitution is the proof: swapping that one
+view for `Color.clear` put every row back to 402, so it was the canvas and not any of the rows.
+Drawing it in an `.overlay` on `Color.clear` keeps it there, because a colour has no intrinsic
+size and an overlay never influences what it is drawn on. Verified at every content size from
+default to accessibility-extra-extra-extra-large: every row is 402.
+
+**Two instruments lied before this was found, and both are now fixed.** The on-glass diagnostic
+overlay is one long unwrapped monospaced line, so it reported its full length as an ideal width
+and widened the column itself: a debug overlay that breaks the layout it exists to diagnose. And
+`.measured(_:)` reported only `onAppear`, so a row that is empty at launch and full once the fold
+has readouts reported its empty width for ever, which sent a real investigation after a counters
+row "measured at 0 points".
+
+The counters row itself is reverted to `ViewThatFits`. P4-15 had replaced it with a scrolling row
+on the theory that it caused the accessibility overflow; it did not, and the scroll view was
+worse, because it has no intrinsic width to contribute and the enclosing row then sized itself to
+the compute meter alone.
