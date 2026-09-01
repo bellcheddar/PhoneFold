@@ -4031,3 +4031,66 @@ a single App Store listing. Deleted. `orphans` reports and `delete-orphans` dele
 orphan is defined narrowly - ours, under `com.mdeller.phonefold`, and unreferenced - because a
 match on a bare "phonefold" substring would be right today and start deleting somebody else's
 identifiers the moment a second PhoneFold-something existed.
+
+## Three App Store rejections, all invisible until the upload (2026-09-01)
+
+Both builds are on App Store Connect: iOS 35,373,508 bytes
+(`7718a603-3e65-4703-81b3-c3e448fb68da`) and visionOS 35,038,314 bytes
+(`d7bf4a92-71da-4e93-bac9-da8545494873`), both VALID and attached to their versions. Getting
+there took three refusals, and every one of them passed the build, the tests, the gate and the
+archive first.
+
+### 90474: no orientations
+
+```
+Invalid bundle. No orientations were specified in the com.mdeller.phonefold bundle.
+To support iPad multitasking, specify the ... UISupportedInterfaceOrientations Info.plist key.
+```
+
+PhoneFold had never declared an orientation. iOS defaults, so it builds, runs and rotates
+correctly, and nothing before the upload checks. **The trigger is
+`UIApplicationSupportsMultipleScenes`**, which exists only because Phase 4 needed the external
+display scene - so a Phase 4 requirement produced an App Store rejection two phases later, with
+nothing in between to connect them.
+
+iPhone gets three orientations (upside-down omitted, Apple's own convention: a phone rotated
+180 degrees puts the speaker at the bottom); iPad gets four, because multitasking requires four
+and an iPad has no upright.
+
+### 90967: the visionOS icon layers are 2x
+
+**Two tools describing one mistake from opposite ends, and the first is satisfiable by a wrong
+fix.** Xcode refuses a 1024 px layer:
+
+```
+must exactly fill the image stack. Its current frame is {{0, 0}, {1024, 1024}}
+while the visionOS App Icon's size is {512, 512}
+```
+
+That reads as "make it 512", and shrinking the image silences Xcode. The upload then refuses it:
+
+```
+90967: must contain a background layer with a scale value of 2
+```
+
+What satisfies both is the *original* 1024 px artwork declared at **2x** - 512 points, at 2x,
+which is what a visionOS icon is. Neither error mentions the other's constraint.
+
+That makes three separate visionOS icon rules, none of them together in one place: the stack is
+512 pt, at least two layers must carry content, and the layers are 2x.
+
+### And one refusal that was mine
+
+`verify-bundle.sh` demanded a Watch app and an iOS widget extension from the visionOS archive,
+which correctly contains neither, and printed "FAILED: do not upload this archive." It is now
+conditional on `DTPlatformName`, so iOS still asserts both embeds - that is the check that
+caught the watch app genuinely missing from the phone archive - and visionOS reports what it
+carries instead. **A check that cries wolf gets ignored**, and this one had already earned its
+keep once.
+
+### What the upload does not check
+
+Export compliance was already answered by `ITSAppUsesNonExemptEncryption: false` in the
+Info.plist: both builds report `usesNonExemptEncryption=false`, so there is no prompt at
+submission. Worth knowing because the absence of a question looks identical to a question
+nobody has answered yet.

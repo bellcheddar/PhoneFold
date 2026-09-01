@@ -1016,20 +1016,41 @@ the encoded log is a few kilobytes against `NSUbiquitousKeyValueStore`'s 1 MB.
 with the entitlement but nobody signed into iCloud it does exactly the same. The app now says
 which, using `FileManager.ubiquityIdentityToken`, rather than showing an empty list either way.
 
-- [ ] **Create the iCloud container `iCloud.com.mdeller.phonefold` and assign it** to
-      `com.mdeller.phonefold` in the developer portal. The `ICLOUD` capability is already
-      enabled through the API and **that is not enough**: verified on 2026-09-01 by decoding the
-      installed profile, which carries five default entitlements and no iCloud at all. A
-      capability with no container attached reads as enabled and produces nothing, exactly as
-      `APP_GROUPS` does with no group attached. The archive fails with "Provisioning profile
-      doesn't include the iCloud capability", which names the symptom
-- [ ] Then re-run `Tools/appstore/asc_api.py refresh-profiles`, because profiles are immutable
-      snapshots and the existing ones were minted before the container existed
+- [x] **DONE 2026-09-01.** Marc created the iCloud container `iCloud.com.mdeller.phonefold` and
+      assigned it, and created and assigned the App Group. Verified the only way that does not
+      lie - by decoding a freshly minted profile - and the iOS binary now ships
+      `com.apple.developer.ubiquity-kvstore-identifier` and the watch binary
+      `com.apple.security.application-groups`. Before that the capability read as enabled
+      through the API and carried nothing, which is what failed the first archive
+- [x] **DONE.** Profiles regenerated after the containers existed: they are immutable snapshots,
+      so the ones minted beforehand carried neither
 - [ ] Run a fold on two devices signed into one iCloud account and confirm each sees the
       other's in the list, and that a fold run on both appears once rather than twice
 - [ ] Run folds on both devices while one is offline, then reconnect, and confirm neither
       device's afternoon has been overwritten by the other's. That is the merge's whole job and
       the failure is silent and permanent
+
+## RESOLVED 2026-09-01: the four App Store Connect steps
+
+All four are done, and PhoneFold is on App Store Connect with both builds attached and VALID:
+
+- the app record (`PhoneFold: Protein Folding`, 6807353058) - `POST /v1/apps` is 403 for every
+  key, so this was always Marc's
+- the App Group `group.com.mdeller.phonefold`, assigned to both watch identifiers
+- the iCloud container `iCloud.com.mdeller.phonefold`
+- the App Privacy questionnaire
+
+What is left is **submitting for review**, which is deliberately not automated: creating a
+review submission and attaching an item is not submitting, and nothing reaches Apple until a
+PATCH sets `submitted: true`.
+
+- [ ] Read the listing before submitting - the description and the twenty screenshots are the
+      parts that were authored and captured rather than measured
+- [ ] **Screenshots freeze at `WAITING_FOR_REVIEW`.** Deleting one afterwards returns "Can't
+      Delete Screenshot After Submit for review", and the way back is withdrawing the
+      submission, which loses the queue position. If any of the twenty is wrong, before
+      submitting is the cheap moment
+- [ ] Submit: `Tools/appstore/store_metadata.py submit`, or the button
 
 ## Cross-platform: universal purchase (2026-08-31)
 

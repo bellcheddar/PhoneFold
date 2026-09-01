@@ -116,7 +116,7 @@ Every number in `METRICS.md` was measured on this machine, and the entries that 
 
 ## 🧭 Project state
 
-Phases 0 to 4 hold a green machine gate. Phase 5 is in progress.
+All five phases hold a green machine gate, and PhoneFold is on App Store Connect with both builds attached, awaiting review.
 
 | Phase | Surface | State |
 |---|---|---|
@@ -125,6 +125,7 @@ Phases 0 to 4 hold a green machine gate. Phase 5 is in progress.
 | 5a | PhoneFold Studio (macOS) | Gate green |
 | 5b | Apple Watch | Gate met: builds, handshake and complication timeline tested. Remote and haptics wired; a paired Watch confirms them |
 | 5c | Vision Pro | Gate met: builds, renders in a volume, lifecycle tested. Hand interaction wired; a headset confirms it |
+| — | App Store | iOS and visionOS builds uploaded, attached and VALID; listing, pricing and 20 screenshots in place |
 
 `PLAN.md` is the specification and is read-only. `STATE.md` is the task ledger, `METRICS.md` holds only measured numbers, and `BLOCKERS.md` holds what needs a human and a piece of hardware.
 
@@ -149,7 +150,7 @@ Roadmap for PhoneFold, in dependency order. Completed items keep their detail: t
 - [x] **Handoff**, so a fold started on the phone continues on the Mac. It carries what to fold rather than the fold, and a missing field yields nothing rather than a default: a continuation that quietly substitutes the default engine starts something else and looks like it worked. Crossing between two real devices is still unconfirmed
 - [x] **Apple Watch.** A transport remote with the Digital Crown scrubbing the timeline, wrist haptics of the fold while the phone plays the audio, and a standalone Fold of the Day. Moments travel as messages rather than in the state, because the state channel coalesces and a coalesced moment has not been delayed, it has been deleted. The rate limit lives on the phone, since the Watch's haptic engine queues rather than drops and an unfiltered stream of contacts is one continuous buzz. The Fold of the Day is six real folds baked flat - the wrist runs no inference and no geometry either - and the first bake had to be thrown away: built from the bundled trajectories it was an already-folded protein twitching, with 65% of one protein's contacts forming on frame 1. Rebuilt from the structure-based model it starts as a coil and collapses. What still needs a real Watch is everything you can only feel
 - [ ] **Vision Pro.** Volume mode on a desk, an immersive concert hall at room scale, and SharePlay so a department can stand inside the same protein. The volume, the immersive space's lifecycle, the ornament transport and hand interaction are built; spatial audio placement, look-and-pinch, walk-into-the-core and SharePlay are not
-- [ ] **The app icon**, which is blocked on a house-style skill this machine does not have
+- [x] **The app icon.** A real frame of a real fold: trp-cage rendered by the app's own offscreen stage in its own colouring, sliced for four platforms. visionOS will not take a flat icon at all - the stack is 512 pt, at least two layers must carry content, and the layers are 2x - so the protein is separated onto transparency by rendering against black and white and solving `C = F + (1-a)B`, which is exact where a colour key fringes on the shaded ribbon faces
 - [ ] **The human gates.** AirPlay to a real Apple TV, the Lock Screen banner, a VoiceOver audit driven by ear, cold launch on device, and a fold recorded into a DAW to confirm the MIDI is musically usable
 
 ## 📄 Licence
