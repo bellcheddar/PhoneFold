@@ -41,9 +41,14 @@ shot() {
 # the app failing to draw.
 #
 # So the proteins here are the short ones, chosen by their measured fold times (METRICS.md,
-# P5b-06): trp-cage 9 s, WW domain and villin about 30, protein G 77. The settle clears the
-# longest of them with room for the piece to start playing.
-SETTLE="${SETTLE:-115}"
+# P5b-06): trp-cage 9 s, WW domain and villin about 30, protein G 77.
+#
+# **And the app has to be a Release build.** A debug Swift build is about 36x slower for
+# compute-heavy code, and a fold is 2,000,000 integration steps of nothing but arithmetic - so
+# a Debug capture never finishes one however long the settle is. 115 seconds against trp-cage,
+# which folds in 9, still produced five empty stages, and the second failure looked exactly
+# like the first. `archive.sh` builds Release; so must this.
+SETTLE="${SETTLE:-70}"
 
 echo "Capturing PhoneFold from $UDID into $OUT (settle ${SETTLE}s)"
 # The demo structure folding, in the app's own colouring: the picture the app is for.

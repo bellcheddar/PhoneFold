@@ -52,7 +52,6 @@ BUNDLE_IDS = [
     # ".extension" under the same parent are accepted. The error names the
     # identifier, not the reason, so this is worth recording.
     ("com.mdeller.phonefold.watchkitapp.widget", "PhoneFold Watch Widget", "IOS"),
-    ("com.mdeller.phonefold.vision", "PhoneFold for Vision Pro", "IOS"),
 ]
 
 
@@ -136,10 +135,10 @@ PROFILES = [
     ("PhoneFold watchOS App Store", "com.mdeller.phonefold.watchkitapp", "IOS_APP_STORE"),
     ("PhoneFold watchOS Widget App Store",
      "com.mdeller.phonefold.watchkitapp.widget", "IOS_APP_STORE"),
-    # visionOS has its own identifier here, unlike PfamIE: PhoneFold on Vision Pro is a
-    # separate target with its own bundle id because it ships different resources - three
-    # Genie 2 length buckets and no widget extension.
-    ("PhoneFold visionOS App Store", "com.mdeller.phonefold.vision", "IOS_APP_STORE"),
+    # visionOS shares com.mdeller.phonefold, so one app record covers iPhone, iPad and
+    # Vision Pro. It still needs a profile of its own: the identifier is shared, the
+    # provisioning is not.
+    ("PhoneFold visionOS App Store", "com.mdeller.phonefold", "IOS_APP_STORE"),
     # macOS shares the bundle id but needs its own profile type.
     ("PhoneFold macOS App Store", "com.mdeller.phonefold", "MAC_APP_STORE"),
 ]
@@ -200,7 +199,6 @@ APP_GROUP_BUNDLE_IDS = [
 # write and returns nil on the read, silently.
 ICLOUD_BUNDLE_IDS = [
     "com.mdeller.phonefold",
-    "com.mdeller.phonefold.vision",
 ]
 
 

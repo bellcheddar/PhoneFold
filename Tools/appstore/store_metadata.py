@@ -105,7 +105,13 @@ SCREENSHOT_PLAN = {
     # An iOS binary that embeds a watch app must ship a watch screenshot, and
     # App Store Connect only says so at "Add for Review".
     "IOS_WATCH": [("APP_WATCH_SERIES_10", "screenshots/watch")],
-    "MAC_OS": [("APP_DESKTOP", "screenshots/macos")],
+    # **No MAC_OS in 1.0, deliberately.** PLAN.md's Mac surface is "PhoneFold
+    # Studio", a second product with its own identifier, its own listing and
+    # features the phone does not have - batch mode, multi-window, ProRes,
+    # structure comparison. The plain PhoneFold target also builds for macOS,
+    # but that exists so the stage compiles under two entry points rather than
+    # as the Mac product, and shipping it would put a lesser Mac app in the
+    # store under the name of the better one. Studio gets its own record.
 }
 
 

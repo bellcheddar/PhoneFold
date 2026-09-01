@@ -3831,3 +3831,34 @@ asked for 100 generates a different protein and calls it theirs. `Genie2Sampler.
 probes the bundle rather than declaring a list, so the phone offers one length because it
 carries one model and the Studio offers three because it carries three, and nothing has to know
 which app it is compiled into. The picker appears only when there is a choice.
+
+## App Store screenshots: two identical failures, and the second was the tell (2026-09-01)
+
+Every one of the first ten captures - five at a 26-second settle, five at 115 - showed the app
+with an **empty stage** and "Folding on this device". The launch environment plainly worked: the
+colour pills, the style and the highlighted gallery entry all differed correctly between shots.
+Only the protein was missing.
+
+Extending the settle by a factor of four and getting a visually identical failure is the tell,
+and it is the same one the Watch canvas gave earlier: **the change was not on the broken path**.
+
+**The captures were of a Debug build.** A debug Swift build is about 36x slower for
+compute-heavy code, and a fold is 2,000,000 integration steps of nothing but arithmetic, so
+trp-cage - which folds in 9 seconds - does not finish inside any settle worth having. Nothing
+errors; the app is simply still working.
+
+Rebuilt Release, measured on the same device and protein:
+
+| settle | stage mean luminance | bright pixels on the stage |
+|---|---|---|
+| 15 s | 29.8 | 111,404 |
+| 35 s | 33.6 | 164,157 |
+| 70 s | 31.2 | 136,421 |
+
+Against an empty stage, which is flat. The fold arrives well inside 35 seconds and the count
+falls afterwards because the protein has packed. 70 seconds is the settle, and the capture
+script now says why it must be Release.
+
+The resulting screenshot is the app doing the thing it is for: trp-cage folded, native contacts
+100%, radius of gyration 7.0 Å, and the disclosure line - "Simulated on device toward a known
+structure, not a prediction" - in the frame rather than buried in a settings screen.

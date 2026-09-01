@@ -317,7 +317,15 @@ targets:
           UIApplicationSupportsMultipleScenes: true
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.mdeller.phonefold.vision
+        # **The same identifier as iPhone and iPad, deliberately.** Marc's call, 2026-09-01:
+        # one App Store listing rather than two, so PhoneFold is one product with a Vision Pro
+        # version rather than two apps with the same name - one price, one page, and universal
+        # purchase, so somebody who has it on their phone has it on the headset.
+        #
+        # A different identifier per platform is what splits them, and it is easy to reach for
+        # because the visionOS target genuinely ships different resources. It does not need to:
+        # a bundle id spans platforms and the resources are per target regardless.
+        PRODUCT_BUNDLE_IDENTIFIER: com.mdeller.phonefold
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_ENTITLEMENTS: PhoneFold-iOS.entitlements
         CODE_SIGN_STYLE: Automatic
