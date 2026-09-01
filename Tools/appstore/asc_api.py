@@ -105,14 +105,48 @@ def existing_bundle_ids(auth: str) -> dict[str, str]:
     return out
 
 
+def existing_bundle_id_names(auth: str) -> dict[str, str]:
+    """identifier -> the human-readable label shown in the portal's Identifiers list."""
+    out = {}
+    payload = call("GET", "/bundleIds?limit=200", auth=auth)
+    for item in payload.get("data", []):
+        out[item["attributes"]["identifier"]] = item["attributes"].get("name", "")
+    return out
+
+
 def ensure_bundle_ids() -> dict[str, str]:
+    """Register the identifiers, and correct the *name* of any that already exist.
+
+    **The name is not the identifier and it still matters.** An identifier Xcode created for
+    itself - through automatic signing, before any of this ran - is labelled `XC com mdeller
+    phonefold`, Apple's auto-generated form with the dots turned into spaces. Nothing breaks:
+    signing, provisioning and the App Store listing all key on the identifier. But it is the
+    label a human reads in a list of identifiers, and one entry reading `XC com mdeller
+    phonefold` beside four reading `PhoneFold Watch App` is the sort of thing that makes
+    somebody wonder, six months later, whether it is the same app.
+
+    So the names here are declarative: an existing identifier whose label does not match is
+    renamed rather than left alone.
+    """
     auth = token()
     have = existing_bundle_ids(auth)
+    names = existing_bundle_id_names(auth)
     result = {}
     for identifier, name, platform in BUNDLE_IDS:
         if identifier in have:
-            print(f"  present  {identifier}")
             result[identifier] = have[identifier]
+            if names.get(identifier) != name:
+                call("PATCH", f"/bundleIds/{have[identifier]}", {
+                    "data": {
+                        "type": "bundleIds",
+                        "id": have[identifier],
+                        "attributes": {"name": name},
+                    }
+                }, auth=auth)
+                print(f"  renamed  {identifier}  "
+                      f"{names.get(identifier, '')!r} -> {name!r}")
+            else:
+                print(f"  present  {identifier}")
             continue
         created = call("POST", "/bundleIds", {
             "data": {
