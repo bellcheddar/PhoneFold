@@ -3969,3 +3969,25 @@ outside - passes alone, fails in the suite - and was genuinely about concurrency
 time. The distinguishing evidence is in the log either way, and it is one line: an issue that
 says "Time limit was exceeded" is arithmetic that did not finish, and an issue that names an
 expectation is arithmetic that finished and was wrong.
+
+## Both archives build and verify (2026-09-01)
+
+| | iOS | visionOS |
+|---|---|---|
+| archive | succeeds | succeeds |
+| bundle id | `com.mdeller.phonefold` | `com.mdeller.phonefold` |
+| Genie 2 model | 32 MB | 32 MB |
+| trajectories | 13 | 13 |
+| style profiles | 5 | 5 |
+| `CFBundleIconName` | AppIcon | AppIcon |
+| privacy manifest | present | present |
+| embedded | Watch app 2.2 MB, widgets 356 kB | n/a |
+
+Both with the blocked entitlements stripped as a probe and restored immediately, because the
+only thing standing between here and an upload is two capabilities whose containers do not yet
+exist. **Nothing else fails**, which is the useful part of the answer: when the portal work is
+done there is one command to run.
+
+The visionOS archive had never been attempted before this - it is a separate scheme with its own
+profile - and it also confirms the shared identifier end to end, which is what makes it one App
+Store listing rather than two.
