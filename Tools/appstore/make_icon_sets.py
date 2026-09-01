@@ -94,9 +94,13 @@ def solid_image_stack(directory: Path) -> None:
 
     Two things Xcode enforces and neither is in the human-interface guidance:
 
-    - **The stack is 512 x 512, not 1024.** A 1024 layer fails with "must exactly fill the
-      image stack. Its current frame is {{0, 0}, {1024, 1024}} while the visionOS App Icon's
-      size is {512, 512}".
+    - **The stack is 512 x 512 in *points*, and the layers are 2x.** A 1024 px image at 1x is
+      1024 pt and Xcode refuses it: "must exactly fill the image stack. Its current frame is
+      {{0, 0}, {1024, 1024}} while the visionOS App Icon's size is {512, 512}". Shrinking to
+      512 px at 1x silences Xcode and is wrong - the *upload* then refuses it with "90967:
+      must contain a background layer with a scale value of 2". What satisfies both is the
+      original 1024 px image declared at 2x: 512 pt, at 2x, which is what a visionOS icon
+      actually is. Two errors from two tools describing one mistake from opposite ends.
     - **At least two layers must have content.** A flat icon expressed as artwork on `Back`
       with empty layers in front of it is refused: "Although it has 3 layers, only 1 has
       applicable content." So visionOS does not accept a flat icon at all, and the layering is
@@ -121,9 +125,10 @@ def solid_image_stack(directory: Path) -> None:
     # constant: the master has been through the linear-to-sRGB conversion and the layer must
     # match it exactly, or the visionOS icon is a different colour from every other platform's.
     ground = load_master().getpixel((4, 4))
-    back = Image.new("RGB", (VISION_SIZE, VISION_SIZE), ground)
-    protein = Image.open(PROTEIN).convert("RGBA").resize(
-        (VISION_SIZE, VISION_SIZE), Image.LANCZOS)
+    # 2x: the stack is VISION_SIZE points, so the artwork is twice that in pixels.
+    pixels = VISION_SIZE * 2
+    back = Image.new("RGB", (pixels, pixels), ground)
+    protein = Image.open(PROTEIN).convert("RGBA").resize((pixels, pixels), Image.LANCZOS)
 
     for name, image in (("Front", protein), ("Middle", None), ("Back", back)):
         layer = directory / f"{name}.solidimagestacklayer"
@@ -132,13 +137,14 @@ def solid_image_stack(directory: Path) -> None:
         (layer / "Contents.json").write_text(json.dumps(
             {"info": {"author": "xcode", "version": 1}}, indent=2) + "\n")
         if image is None:
-            images = [{"idiom": "universal", "scale": "1x"}]
+            images = [{"idiom": "universal", "scale": "2x"}]
         else:
             image.save(content / "icon.png", format="PNG")
-            images = [{"filename": "icon.png", "idiom": "universal", "scale": "1x"}]
+            images = [{"filename": "icon.png", "idiom": "universal", "scale": "2x"}]
         (content / "Contents.json").write_text(json.dumps(
             {"images": images, "info": {"author": "xcode", "version": 1}}, indent=2) + "\n")
-    print(f"{directory.relative_to(REPO)}  ground {ground}, 512x512, 2 layers with content")
+    print(f"{directory.relative_to(REPO)}  ground {ground}, "
+          f"{pixels}x{pixels} px at 2x = {VISION_SIZE} pt, 2 layers with content")
 
 
 def main() -> None:
