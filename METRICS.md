@@ -3862,3 +3862,45 @@ script now says why it must be Release.
 The resulting screenshot is the app doing the thing it is for: trp-cage folded, native contacts
 100%, radius of gyration 7.0 Å, and the disclosure line - "Simulated on device toward a known
 structure, not a prediction" - in the frame rather than buried in a settings screen.
+
+## Signing: two capabilities that are enabled and carry nothing (2026-09-01)
+
+The first archive attempt failed on iCloud rather than on the App Group, and the error names
+the symptom rather than the cause:
+
+```
+error: Provisioning profile "PhoneFold App Store" doesn't include the iCloud capability.
+error: Provisioning profile "PhoneFold App Store" doesn't include the
+       com.apple.developer.ubiquity-kvstore-identifier entitlement.
+```
+
+`asc_api.py capabilities` had already reported `present ICLOUD on com.mdeller.phonefold`, and
+the profiles were regenerated *after* it - which is the ordering the reference is emphatic
+about, because profiles are immutable snapshots. So the obvious reading is that the refresh did
+not take.
+
+**It took. The capability is genuinely enabled and genuinely carries nothing.** Decoding the
+installed profile - which the reference insists is the only ground truth - the entitlements are:
+
+```
+application-identifier, beta-reports-active, com.apple.developer.team-identifier,
+get-task-allow, keychain-access-groups
+```
+
+Five defaults and no iCloud. This is the App Groups pattern exactly: `APP_GROUPS` reads
+enabled whether or not a *group* is attached, and `ICLOUD` reads enabled whether or not a
+*container* is attached. Both need a second resource that the App Store Connect API cannot
+create, and in both cases the capability's own metadata will tell you it is fine.
+
+**So it is two portal steps, not one**, and the second was invisible until an archive was
+actually attempted - which is the argument for attempting one before it is needed rather than
+as the last step before shipping.
+
+| needed | why | API? |
+|---|---|---|
+| App Group `group.com.mdeller.phonefold` assigned to the two watch identifiers | the complication reads what the phone wrote | no `/appGroups` resource |
+| iCloud container `iCloud.com.mdeller.phonefold` assigned to `com.mdeller.phonefold` | the synced list of folds | no container resource |
+
+Also worth knowing: `install-profiles` writes by UUID, so regenerating leaves the *old* file on
+disk under its own name. There are now two files called "PhoneFold App Store". Xcode resolves
+`PROVISIONING_PROFILE_SPECIFIER` by name and will pick one of them.

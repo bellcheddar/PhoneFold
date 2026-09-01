@@ -114,6 +114,19 @@ targets:
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.education
         ENABLE_HARDENED_RUNTIME: YES
         CODE_SIGN_STYLE: Automatic
+      # **Manual signing, per target, in the Release config.**
+      #
+      # Two things here are each a whole afternoon if got wrong. `CODE_SIGN_IDENTITY` in a
+      # project-wide `configs: Release:` block is shadowed by target settings, and the archive
+      # then silently picks *Apple Development* and fails at export with "provisioning profile
+      # doesn't include signing certificate 'Apple Development'". And `CODE_SIGN_STYLE:
+      # Automatic` together with an explicit identity is a hard conflict rather than a
+      # preference. So: Manual, per target, naming the profile `asc_api.py` created.
+      configs:
+        Release:
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: "Apple Distribution"
+          PROVISIONING_PROFILE_SPECIFIER: "PhoneFold App Store"
 
   # The Live Activity's UI. A widget extension is not optional for this feature: ActivityKit
   # renders the Lock Screen banner and the Dynamic Island out of process, and without an
@@ -143,6 +156,19 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.mdeller.phonefold.widgets
         CODE_SIGN_STYLE: Automatic
         SKIP_INSTALL: YES
+      # **Manual signing, per target, in the Release config.**
+      #
+      # Two things here are each a whole afternoon if got wrong. `CODE_SIGN_IDENTITY` in a
+      # project-wide `configs: Release:` block is shadowed by target settings, and the archive
+      # then silently picks *Apple Development* and fails at export with "provisioning profile
+      # doesn't include signing certificate 'Apple Development'". And `CODE_SIGN_STYLE:
+      # Automatic` together with an explicit identity is a hard conflict rather than a
+      # preference. So: Manual, per target, naming the profile `asc_api.py` created.
+      configs:
+        Release:
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: "Apple Distribution"
+          PROVISIONING_PROFILE_SPECIFIER: "PhoneFold Widgets App Store"
 
   # PLAN.md Phase 5a. Native macOS, not Catalyst, and the same stage as the phone rather than a
   # fork of it: this target compiles Apps/PhoneFold/Sources with its own @main.
@@ -247,6 +273,19 @@ targets:
         CODE_SIGN_ENTITLEMENTS: PhoneFoldWatch.entitlements
         CODE_SIGN_STYLE: Automatic
         SKIP_INSTALL: YES
+      # **Manual signing, per target, in the Release config.**
+      #
+      # Two things here are each a whole afternoon if got wrong. `CODE_SIGN_IDENTITY` in a
+      # project-wide `configs: Release:` block is shadowed by target settings, and the archive
+      # then silently picks *Apple Development* and fails at export with "provisioning profile
+      # doesn't include signing certificate 'Apple Development'". And `CODE_SIGN_STYLE:
+      # Automatic` together with an explicit identity is a hard conflict rather than a
+      # preference. So: Manual, per target, naming the profile `asc_api.py` created.
+      configs:
+        Release:
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: "Apple Distribution"
+          PROVISIONING_PROFILE_SPECIFIER: "PhoneFold watchOS App Store"
 
   # PLAN.md Phase 5b's complication. The identifier ends `.widget`: `.complication` is reserved
   # in Apple's App ID namespace and is rejected at any depth, with an error naming the
@@ -274,6 +313,19 @@ targets:
         CODE_SIGN_ENTITLEMENTS: PhoneFoldWatch.entitlements
         CODE_SIGN_STYLE: Automatic
         SKIP_INSTALL: YES
+      # **Manual signing, per target, in the Release config.**
+      #
+      # Two things here are each a whole afternoon if got wrong. `CODE_SIGN_IDENTITY` in a
+      # project-wide `configs: Release:` block is shadowed by target settings, and the archive
+      # then silently picks *Apple Development* and fails at export with "provisioning profile
+      # doesn't include signing certificate 'Apple Development'". And `CODE_SIGN_STYLE:
+      # Automatic` together with an explicit identity is a hard conflict rather than a
+      # preference. So: Manual, per target, naming the profile `asc_api.py` created.
+      configs:
+        Release:
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: "Apple Distribution"
+          PROVISIONING_PROFILE_SPECIFIER: "PhoneFold watchOS Widget App Store"
 
   # PLAN.md Phase 5c. Compiles the phone's own stage with its own entry point, exactly as
   # PhoneFold Studio does, so FoldCanvas and FoldPlayer have one definition across five surfaces.
@@ -329,6 +381,19 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_ENTITLEMENTS: PhoneFold-iOS.entitlements
         CODE_SIGN_STYLE: Automatic
+      # **Manual signing, per target, in the Release config.**
+      #
+      # Two things here are each a whole afternoon if got wrong. `CODE_SIGN_IDENTITY` in a
+      # project-wide `configs: Release:` block is shadowed by target settings, and the archive
+      # then silently picks *Apple Development* and fails at export with "provisioning profile
+      # doesn't include signing certificate 'Apple Development'". And `CODE_SIGN_STYLE:
+      # Automatic` together with an explicit identity is a hard conflict rather than a
+      # preference. So: Manual, per target, naming the profile `asc_api.py` created.
+      configs:
+        Release:
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: "Apple Distribution"
+          PROVISIONING_PROFILE_SPECIFIER: "PhoneFold visionOS App Store"
 
 # PLAN.md's cross-platform gate: "all five apps build in one `xcodebuild` invocation".
 #

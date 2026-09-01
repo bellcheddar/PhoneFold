@@ -1016,10 +1016,15 @@ the encoded log is a few kilobytes against `NSUbiquitousKeyValueStore`'s 1 MB.
 with the entitlement but nobody signed into iCloud it does exactly the same. The app now says
 which, using `FileManager.ubiquityIdentityToken`, rather than showing an empty list either way.
 
-- [ ] **Enable iCloud on the App IDs in the developer portal** for `com.mdeller.phonefold` and
-      `com.mdeller.phonefold.vision`. The entitlement is in the repo and signing will fail
-      without the capability on the identifier. This is the same class of step as the app group
-      the complication needs, and it is Marc's
+- [ ] **Create the iCloud container `iCloud.com.mdeller.phonefold` and assign it** to
+      `com.mdeller.phonefold` in the developer portal. The `ICLOUD` capability is already
+      enabled through the API and **that is not enough**: verified on 2026-09-01 by decoding the
+      installed profile, which carries five default entitlements and no iCloud at all. A
+      capability with no container attached reads as enabled and produces nothing, exactly as
+      `APP_GROUPS` does with no group attached. The archive fails with "Provisioning profile
+      doesn't include the iCloud capability", which names the symptom
+- [ ] Then re-run `Tools/appstore/asc_api.py refresh-profiles`, because profiles are immutable
+      snapshots and the existing ones were minted before the container existed
 - [ ] Run a fold on two devices signed into one iCloud account and confirm each sees the
       other's in the list, and that a fold run on both appears once rather than twice
 - [ ] Run folds on both devices while one is offline, then reconnect, and confirm neither
