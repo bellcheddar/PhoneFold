@@ -86,6 +86,25 @@ targets:
         CFBundleIconName: AppIcon
         UILaunchScreen: {}
         NSSupportsLiveActivities: true
+        # **Declared, because an app that supports multiple scenes must be.** PhoneFold never
+        # declared any orientation and iOS simply defaulted, so this was invisible at every
+        # stage - it builds, it runs, it rotates - until the upload, which refuses the bundle:
+        # "90474: No orientations were specified in the com.mdeller.phonefold bundle. To
+        # support iPad multitasking, specify..." The trigger is
+        # `UIApplicationSupportsMultipleScenes`, which is there for the external display.
+        #
+        # Upside-down is omitted on iPhone, which is Apple's own convention: a phone rotated
+        # 180 degrees puts the speaker at the bottom. iPad gets all four because multitasking
+        # requires all four, and an iPad has no upright.
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
         # Handoff. Both apps must declare the same type or the continuation never arrives,
         # and there is no error anywhere when they do not.
         NSUserActivityTypes:

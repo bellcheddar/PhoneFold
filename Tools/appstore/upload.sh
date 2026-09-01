@@ -5,11 +5,11 @@
 # Apple's API forbids (POST /v1/apps returns 403 FORBIDDEN_ERROR), so it is
 # created by hand once. Check with:
 #
-#     .venv/bin/python Tools/asc_api.py status
+#     Tools/.venv/bin/python Tools/appstore/asc_api.py status
 set -euo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 
-ARCHIVE="${1:-build/archives/PfamIE-ios.xcarchive}"
+ARCHIVE="${1:-build/archives/PhoneFold-ios.xcarchive}"
 EXPORT_DIR="build/export"
 
 if [ -z "${APPLE_TEAM_ID:-}" ] || [ -z "${ASC_KEY_ID:-}" ]; then
@@ -18,19 +18,22 @@ if [ -z "${APPLE_TEAM_ID:-}" ] || [ -z "${ASC_KEY_ID:-}" ]; then
     exit 1
 fi
 
-./Tools/verify-archive.sh "$ARCHIVE"
+./Tools/appstore/verify-archive.sh "$ARCHIVE"
 
 rm -rf "$EXPORT_DIR"
 mkdir -p "$EXPORT_DIR"
-# Manual signing means the export has to be told which profile belongs to which
-# bundle id. Without the mapping xcodebuild fails with the unhelpful
-# 'exportArchive "PfamIE.app" requires a provisioning profile.'
+# Manual signing means the export has to be told which profile belongs to which bundle id.
+#
+# **Every bundle id in the archive, extensions included.** A missing entry fails the export
+# with 'exportArchive "PhoneFold.app" requires a provisioning profile.', which names the app
+# and not the extension that is actually unmapped.
 case "$ARCHIVE" in
-  *macos*)    PROFILES='<key>com.mdeller.pfamie</key><string>PfamIE macOS App Store</string>' ;;
-  *visionos*) PROFILES='<key>com.mdeller.pfamie</key><string>PfamIE visionOS App Store</string>' ;;
-  *)          PROFILES='<key>com.mdeller.pfamie</key><string>PfamIE App Store</string>
-        <key>com.mdeller.pfamie.watchkitapp</key><string>PfamIE watchOS App Store</string>
-        <key>com.mdeller.pfamie.watchkitapp.widget</key><string>PfamIE watchOS Widget App Store</string>' ;;
+  *macos*)    PROFILES='<key>com.mdeller.phonefold</key><string>PhoneFold macOS App Store</string>' ;;
+  *visionos*) PROFILES='<key>com.mdeller.phonefold</key><string>PhoneFold visionOS App Store</string>' ;;
+  *)          PROFILES='<key>com.mdeller.phonefold</key><string>PhoneFold App Store</string>
+        <key>com.mdeller.phonefold.widgets</key><string>PhoneFold Widgets App Store</string>
+        <key>com.mdeller.phonefold.watchkitapp</key><string>PhoneFold watchOS App Store</string>
+        <key>com.mdeller.phonefold.watchkitapp.widget</key><string>PhoneFold watchOS Widget App Store</string>' ;;
 esac
 
 cat > "$EXPORT_DIR/ExportOptions.plist" <<PLIST
@@ -90,7 +93,7 @@ if [ "$STATUS" -ne 0 ]; then
         cat >&2 <<'HINT'
 
 That error blames the bundle ID and means something else: there is no App
-Store Connect app record for com.mdeller.pfamie yet.
+Store Connect app record for com.mdeller.phonefold yet.
 
 Create it once at https://appstoreconnect.apple.com (Apps -> + -> New App).
 The bundle ID is already registered. The App Store name is globally unique
