@@ -198,7 +198,16 @@ extension StructureBasedModelTests {
     }
 
     /// And it must not change where the fold ends up.
-    @Test("A fold with the cutoff reaches the same state", .timeLimit(.minutes(10)))
+    ///
+    /// **Thirty minutes, not ten, and the limit is a hang detector rather than a budget.**
+    /// This runs two 200,000-step folds of a 76-residue protein. Alone it takes 328 seconds;
+    /// inside the full suite - a hundred suites in parallel, on a machine that may well be
+    /// doing something else - it took 885 and tripped a ten-minute limit, turning the phase
+    /// gate red for a test whose assertion had not been reached, let alone failed. A limit
+    /// that fails on a busy machine is not measuring the code.
+    ///
+    /// Its two siblings that fold were already at thirty for the same reason.
+    @Test("A fold with the cutoff reaches the same state", .timeLimit(.minutes(30)))
     func cutoffDoesNotChangeTheFold() throws {
         let native = try Self.fixture("go_native.xyz")
         let start = UnfoldedChain.build(residues: native.count, seed: 3)
@@ -250,7 +259,9 @@ extension StructureBasedModelTests {
     /// phase gate, and the assertion is the one that holds either way: the chain starts far
     /// from the reference and ends near it. The tight convergence figures are release-only and
     /// the full table is in METRICS.md.
-    @Test("A fold finishes on the reference structure", .timeLimit(.minutes(10)))
+    // Thirty for the same reason as the cutoff test above: a full fold under full-suite
+    // concurrency is minutes, and the limit is there to catch a hang.
+    @Test("A fold finishes on the reference structure", .timeLimit(.minutes(30)))
     func foldArrivesAtTheReference() throws {
         let native = try Self.fixture("go_native.xyz")
         let start = UnfoldedChain.build(residues: native.count, seed: 3)

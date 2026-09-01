@@ -3940,3 +3940,32 @@ that fails silently on a stranger's phone: the Genie 2 model (the Generate butto
 it), twelve trajectories (a missing one is a shorter gallery, not an error), five style profiles
 (the app still folds, it just cannot sing), `CFBundleIconName`, the privacy manifest, and both
 embedded products.
+
+## A gate that went red for a test that never reached its assertion (2026-09-01)
+
+The phase 5 gate came back RED on "A fold with the cutoff reaches the same state", which folds
+ubiquitin twice - once with the exact non-native repulsion, once with the 10 Å neighbour list -
+and asserts both arrive at a comparable fraction of native contacts. That test exists to catch
+the optimisation that took a complete fold from 45.3 s to 20.9 s changing the *destination*
+rather than the speed, so a failure there is worth taking seriously.
+
+It was not a failure of the assertion. Run alone the test passes in **327.8 s**; inside the
+full suite it recorded
+
+```
+Time limit was exceeded: 600.000 seconds
+```
+
+after **885.5 s**. A hundred suites run in parallel, and the machine was also serving screenshot
+captures and archives. The assertion was never reached.
+
+**A time limit is a hang detector, not a budget**, and one that trips on a busy machine is not
+measuring the code - it is measuring the machine, which is the thing CLAUDE.md rule 11 already
+says must never hold up a gate. Raised to thirty minutes, which is where the two Genie 2 folding
+tests and this file's other full-fold test already were: the ten was the outlier.
+
+Worth separating from the CoreMIDI case earlier in the project, which looked identical from the
+outside - passes alone, fails in the suite - and was genuinely about concurrency rather than
+time. The distinguishing evidence is in the log either way, and it is one line: an issue that
+says "Time limit was exceeded" is arithmetic that did not finish, and an issue that names an
+expectation is arithmetic that finished and was wrong.
