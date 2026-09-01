@@ -295,6 +295,94 @@ def ensure_icloud() -> None:
                 print(f"  FAILED   {identifier}: {str(error)[:160]}")
 
 
+# Every identifier this project has ever registered, so an orphan can be told from another
+# app's. Matching on a bare "phonefold" substring would be enough today and would quietly
+# start deleting things if a second PhoneFold-something product ever existed.
+PROJECT_PREFIX = "com.mdeller.phonefold"
+
+
+def orphans(auth: str) -> tuple[list, list]:
+    """Identifiers and profiles that belong to this project and nothing uses.
+
+    An orphan here is specifically **ours and unreferenced**: an identifier under
+    `com.mdeller.phonefold` that is not in `BUNDLE_IDS`, or a profile named `PhoneFold...`
+    that is not in `PROFILES`. Another app's identifiers are never candidates, whatever they
+    are called.
+    """
+    wanted_ids = {i for i, _, _ in BUNDLE_IDS}
+    wanted_profiles = {n for n, _, _ in PROFILES}
+
+    dead_ids = []
+    for b in call("GET", "/bundleIds?limit=200", auth=auth).get("data", []):
+        identifier = b["attributes"]["identifier"]
+        if identifier == PROJECT_PREFIX or identifier.startswith(PROJECT_PREFIX + "."):
+            if identifier not in wanted_ids:
+                dead_ids.append((b["id"], identifier, b["attributes"].get("name", "")))
+
+    dead_profiles = []
+    for p in call("GET", "/profiles?limit=200", auth=auth).get("data", []):
+        name = p["attributes"]["name"]
+        if name.startswith("PhoneFold") and name not in wanted_profiles:
+            dead_profiles.append((p["id"], name))
+    return dead_ids, dead_profiles
+
+
+def delete_orphans(dry_run: bool = True) -> None:
+    auth = token()
+    dead_ids, dead_profiles = orphans(auth)
+    if not dead_ids and not dead_profiles:
+        print("  no orphans")
+    for pid, name in dead_profiles:
+        print(f"  {'would delete' if dry_run else 'deleted'}  profile   {name}")
+        if not dry_run:
+            call("DELETE", f"/profiles/{pid}", auth=auth)
+    for bid, identifier, name in dead_ids:
+        print(f"  {'would delete' if dry_run else 'deleted'}  bundle id {identifier}  ({name})")
+        if not dry_run:
+            call("DELETE", f"/bundleIds/{bid}", auth=auth)
+
+
+def prune_installed_profiles() -> None:
+    """Remove local .mobileprovision files this project no longer uses.
+
+    **Regenerating leaves the old file behind.** `install_profiles` writes by UUID, so a
+    refresh adds a second file with the same *name* and a different UUID, and Xcode resolves
+    `PROVISIONING_PROFILE_SPECIFIER` by name. Two files claiming to be "PhoneFold App Store" is
+    a coin toss over which capabilities the archive is signed against, and the stale one is by
+    definition the one missing whatever was just enabled.
+    """
+    import base64
+    import plistlib
+    import subprocess
+
+    auth = token()
+    live = {}
+    for p in call("GET", "/profiles?limit=200", auth=auth).get("data", []):
+        attributes = p["attributes"]
+        if attributes["name"].startswith("PhoneFold"):
+            live[attributes.get("uuid")] = attributes["name"]
+
+    directory = Path.home() / "Library/MobileDevice/Provisioning Profiles"
+    for path in sorted(directory.glob("*.mobileprovision")):
+        raw = subprocess.run(["security", "cms", "-D", "-i", str(path)],
+                             capture_output=True).stdout
+        if not raw:
+            continue
+        try:
+            payload = plistlib.loads(raw)
+        except Exception:
+            continue
+        name = payload.get("Name", "")
+        if not name.startswith("PhoneFold"):
+            continue
+        uuid = payload.get("UUID")
+        if uuid in live:
+            print(f"  keeping  {name}  [{uuid}]")
+        else:
+            path.unlink()
+            print(f"  removed  {name}  [{uuid}]  (superseded)")
+
+
 def delete_profiles() -> None:
     """
     Profiles are immutable snapshots of the capabilities at creation time, so
@@ -496,6 +584,16 @@ if __name__ == "__main__":
 
     elif command == "install-profiles":
         install_profiles()
+
+    elif command == "orphans":
+        delete_orphans(dry_run=True)
+
+    elif command == "delete-orphans":
+        delete_orphans(dry_run=False)
+        prune_installed_profiles()
+
+    elif command == "prune-installed":
+        prune_installed_profiles()
 
     elif command == "status":
         apps = app_records()

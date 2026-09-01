@@ -3991,3 +3991,43 @@ done there is one command to run.
 The visionOS archive had never been attempted before this - it is a separate scheme with its own
 profile - and it also confirms the shared identifier end to end, which is what makes it one App
 Store listing rather than two.
+
+## Renaming a bundle id invalidates its profiles (2026-09-01)
+
+`com.mdeller.phonefold` was labelled `XC com mdeller phonefold` - Apple's auto-generated form,
+dots turned into spaces - because Xcode created it for itself through automatic signing before
+any of the scripts ran. Renaming it to `PhoneFold` is cosmetic: signing, provisioning and the
+App Store listing all key on the identifier rather than the label.
+
+**It is cosmetic and it is not free.** Immediately afterwards:
+
+| profile | bound to | state |
+|---|---|---|
+| PhoneFold App Store | `com.mdeller.phonefold` | **INVALID** |
+| PhoneFold macOS App Store | `com.mdeller.phonefold` | **INVALID** |
+| PhoneFold visionOS App Store | `com.mdeller.phonefold` | **INVALID** |
+| PhoneFold Widgets App Store | `...widgets` | ACTIVE |
+| PhoneFold watchOS App Store | `...watchkitapp` | ACTIVE |
+| PhoneFold watchOS Widget App Store | `...watchkitapp.widget` | ACTIVE |
+
+Every profile bound to the renamed identifier and no other. Profiles are immutable snapshots of
+the identifier, so changing *anything* about it - including its label - invalidates them, and
+the reference's "enabling a capability after a profile exists does nothing" is the same rule
+seen from the other side. Regenerated; all six ACTIVE.
+
+### Six stale profile files, all duplicates by name
+
+`install_profiles` writes by UUID, so every refresh leaves the previous file on disk. After
+three refreshes there were twelve files for six profiles, and the duplicates share a *name* -
+which is what `PROVISIONING_PROFILE_SPECIFIER` resolves on. Two files claiming to be "PhoneFold
+App Store" is a coin toss over which capabilities an archive is signed against, and the stale
+one is by definition the one missing whatever was most recently enabled. `prune-installed`
+removes any PhoneFold profile on disk whose UUID is not live in the portal.
+
+### The orphan
+
+`com.mdeller.phonefold.vision`, left behind when Vision Pro moved to the shared identifier for
+a single App Store listing. Deleted. `orphans` reports and `delete-orphans` deletes, and an
+orphan is defined narrowly - ours, under `com.mdeller.phonefold`, and unreferenced - because a
+match on a bare "phonefold" substring would be right today and start deleting somebody else's
+identifiers the moment a second PhoneFold-something existed.
