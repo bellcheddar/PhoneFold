@@ -91,6 +91,197 @@ First release.
 """
 
 
+def app_id(auth: str) -> str:
+    for a in call("GET", "/apps?limit=200", auth=auth)["data"]:
+        if a["attributes"].get("bundleId") == BUNDLE_ID:
+            return a["id"]
+    sys.exit(f"No app record for {BUNDLE_ID}. Create it in App Store Connect first.")
+
+
+def set_categories(auth: str, app: str) -> None:
+    info = call("GET", f"/apps/{app}/appInfos", auth=auth)["data"][0]
+    call("PATCH", f"/appInfos/{info['id']}", {
+        "data": {
+            "type": "appInfos",
+            "id": info["id"],
+            "relationships": {
+                "primaryCategory": {
+                    "data": {"type": "appCategories", "id": PRIMARY_CATEGORY}
+                },
+                "secondaryCategory": {
+                    "data": {"type": "appCategories", "id": SECONDARY_CATEGORY}
+                },
+            },
+        }
+    }, auth=auth)
+    print(f"  categories: {PRIMARY_CATEGORY} / {SECONDARY_CATEGORY}")
+
+
+def set_app_info_localisation(auth: str, app: str) -> None:
+    info = call("GET", f"/apps/{app}/appInfos", auth=auth)["data"][0]
+    locs = call("GET", f"/appInfos/{info['id']}/appInfoLocalizations", auth=auth)["data"]
+    target = next((l for l in locs if l["attributes"]["locale"] == LOCALE), None)
+    body = {
+        "subtitle": SUBTITLE,
+        "privacyPolicyUrl": PRIVACY_POLICY_URL,
+    }
+    if target:
+        call("PATCH", f"/appInfoLocalizations/{target['id']}", {
+            "data": {"type": "appInfoLocalizations", "id": target["id"],
+                     "attributes": body}
+        }, auth=auth)
+        print(f"  subtitle + privacy policy set ({LOCALE})")
+    else:
+        call("POST", "/appInfoLocalizations", {
+            "data": {"type": "appInfoLocalizations",
+                     "attributes": {"locale": LOCALE, **body},
+                     "relationships": {"appInfo": {
+                         "data": {"type": "appInfos", "id": info["id"]}}}}
+        }, auth=auth)
+        print(f"  created localisation ({LOCALE})")
+
+
+def versions(auth: str, app: str) -> list[dict]:
+    return call("GET", f"/apps/{app}/appStoreVersions?limit=10", auth=auth)["data"]
+
+
+def set_copyright(auth: str, app: str) -> None:
+    """Copyright sits on the version, so a multiplatform record needs it thrice."""
+    for version in versions(auth, app):
+        call("PATCH", f"/appStoreVersions/{version['id']}", {
+            "data": {"type": "appStoreVersions", "id": version["id"],
+                     "attributes": {"copyright": COPYRIGHT}}
+        }, auth=auth)
+        print(f"  {version['attributes']['platform']}: copyright set")
+
+
+def set_version_localisations(auth: str, app: str) -> None:
+    for version in versions(auth, app):
+        platform = version["attributes"].get("platform")
+        locs = call("GET",
+                    f"/appStoreVersions/{version['id']}/appStoreVersionLocalizations",
+                    auth=auth)["data"]
+        target = next((l for l in locs if l["attributes"]["locale"] == LOCALE), None)
+        body = {
+            "description": DESCRIPTION,
+            "keywords": KEYWORDS,
+            "promotionalText": PROMOTIONAL_TEXT,
+            "supportUrl": SUPPORT_URL,
+            "marketingUrl": MARKETING_URL,
+        }
+        # "What's New" cannot be set on a first release: there is nothing to be
+        # new against, and Apple rejects the attribute outright rather than
+        # ignoring it. WHATS_NEW is kept for version 1.1 onwards.
+        if (version["attributes"].get("versionString") or "1.0") != "1.0":
+            body["whatsNew"] = WHATS_NEW
+        if target:
+            call("PATCH", f"/appStoreVersionLocalizations/{target['id']}", {
+                "data": {"type": "appStoreVersionLocalizations",
+                         "id": target["id"], "attributes": body}
+            }, auth=auth)
+            print(f"  {platform}: description, keywords and URLs set")
+        else:
+            call("POST", "/appStoreVersionLocalizations", {
+                "data": {"type": "appStoreVersionLocalizations",
+                         "attributes": {"locale": LOCALE, **body},
+                         "relationships": {"appStoreVersion": {
+                             "data": {"type": "appStoreVersions",
+                                      "id": version["id"]}}}}
+            }, auth=auth)
+            print(f"  {platform}: created localisation")
+
+
+def set_free(auth: str, app: str) -> None:
+    """
+    Free in every territory.
+
+    The price schedule wants a base territory and a price point on the free
+    tier, which is the one whose customerPrice is 0.0.
+    """
+    points = call("GET",
+                  f"/apps/{app}/appPricePoints?filter[territory]=USA&limit=200",
+                  auth=auth)["data"]
+    free = next((p for p in points
+                 if float(p["attributes"]["customerPrice"]) == 0.0), None)
+    if not free:
+        sys.exit("no free price point offered for this app")
+
+    call("POST", "/appPriceSchedules", {
+        "data": {
+            "type": "appPriceSchedules",
+            "relationships": {
+                "app": {"data": {"type": "apps", "id": app}},
+                "baseTerritory": {"data": {"type": "territories", "id": "USA"}},
+                "manualPrices": {"data": [{"type": "appPrices", "id": "${price}"}]},
+            },
+        },
+        "included": [{
+            "type": "appPrices",
+            "id": "${price}",
+            "relationships": {
+                "appPricePoint": {"data": {"type": "appPricePoints",
+                                           "id": free["id"]}}
+            },
+        }],
+    }, auth=auth)
+    print("  pricing: free in all territories")
+
+
+def set_age_rating(auth: str, app: str) -> None:
+    """
+    A scientific reference tool with no objectionable content of any kind.
+    Every field is declared explicitly rather than left to a default.
+    """
+    info = call("GET", f"/apps/{app}/appInfos", auth=auth)["data"][0]
+    declaration = call("GET", f"/appInfos/{info['id']}/ageRatingDeclaration",
+                       auth=auth)["data"]
+    attributes = {
+        "alcoholTobaccoOrDrugUseOrReferences": "NONE",
+        "contests": "NONE",
+        "gamblingSimulated": "NONE",
+        "horrorOrFearThemes": "NONE",
+        "matureOrSuggestiveThemes": "NONE",
+        "medicalOrTreatmentInformation": "NONE",
+        "profanityOrCrudeHumor": "NONE",
+        "sexualContentGraphicAndNudity": "NONE",
+        "sexualContentOrNudity": "NONE",
+        "violenceCartoonOrFantasy": "NONE",
+        "violenceRealistic": "NONE",
+        "violenceRealisticProlongedGraphicOrSadistic": "NONE",
+        "gambling": False,
+        # The structure viewer is a bundled Mol* build reading a cached file,
+        # not a browser, so this is genuinely false.
+        "unrestrictedWebAccess": False,
+        "kidsAgeBand": None,
+        # Everything below was discovered by asking: the API rejects the
+        # request naming one missing attribute at a time, so the full set is
+        # only visible by iterating. Types are not guessable either, and are
+        # not consistent: ageAssurance is a BOOLEAN despite reading like an
+        # enum, while gunsOrOtherWeapons is an enum despite sitting among the
+        # booleans. Both were found by sending the wrong type and reading the
+        # complaint.
+        "ageAssurance": False,
+        "messagingAndChat": False,
+        "advertising": False,
+        "healthOrWellnessTopics": False,
+        "userGeneratedContent": False,
+        "parentalControls": False,
+        "lootBox": False,
+        "gunsOrOtherWeapons": "NONE",
+    }
+    call("PATCH", f"/ageRatingDeclarations/{declaration['id']}", {
+        "data": {"type": "ageRatingDeclarations", "id": declaration["id"],
+                 "attributes": attributes}
+    }, auth=auth)
+    print("  age rating: no objectionable content declared")
+
+
+# Which folder of captures goes to which display type, per platform version.
+# APP_IPHONE_67 accepts the 6.9 inch 1320x2868 captures, and
+# APP_IPAD_PRO_3GEN_129 accepts the 13 inch 2064x2752 ones: Apple did not add
+# new display types for those sizes, which is not obvious from the names.
+
+
 SCREENSHOT_PLAN = {
     # Both iPhone slots are filled. App Store Connect dims and locks whichever
     # size it decides to derive from another, so supplying only one leaves the
@@ -119,7 +310,12 @@ def upload_screenshots(auth: str, app: str) -> None:
     import hashlib
     import urllib.request
 
-    root = Path(__file__).resolve().parent.parent / "assets"
+    # `parent.parent.parent`, because this file lives in Tools/appstore/ rather than Tools/.
+    # The donor sat one level higher and the path silently resolved to Tools/assets, where
+    # there is nothing: every set reported "no captures" and the run still exited 0, having
+    # set every other field correctly. A missing screenshot is not an error to this API, it
+    # is an empty slot.
+    root = Path(__file__).resolve().parent.parent.parent / "assets"
 
     for version in versions(auth, app):
         platform = version["attributes"].get("platform")
