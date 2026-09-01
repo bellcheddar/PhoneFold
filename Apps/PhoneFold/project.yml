@@ -60,6 +60,17 @@ targets:
       # platforms, and a macOS build that tries to embed an iOS app extension fails outright.
       - target: PhoneFoldWidgets
         destinationFilters: [iOS]
+      # **The watch app has to be embedded, and it was not.** It built, it had an icon, it had
+      # its complication, and nothing put it inside the phone app - so it would never have
+      # installed on a device with PhoneFold and the archive contained no Watch product at all.
+      # `verify-bundle.sh` found it by looking inside a real archive; no build and no test can,
+      # because every part of it is correct on its own. Same shape as the Watch host that was
+      # declared and never constructed, and Handoff that was received and never advertised.
+      #
+      # `embed: true` is the operative word: a plain dependency builds it and links nothing.
+      - target: PhoneFoldWatch
+        embed: true
+        destinationFilters: [iOS]
     info:
       path: Info.plist
       properties:
@@ -254,7 +265,10 @@ targets:
       # a watch app.
       - package: PhoneFoldKit
         products: [FoldSync, FoldCore]
+      # Embedded for the same reason: an extension that is merely depended on is an extension
+      # the system never sees.
       - target: PhoneFoldWatchWidgets
+        embed: true
     info:
       path: PhoneFoldWatch-Info.plist
       properties:

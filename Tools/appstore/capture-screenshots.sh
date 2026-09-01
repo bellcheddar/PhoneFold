@@ -58,7 +58,13 @@ shot "1-fold"       SIMCTL_CHILD_PHONEFOLD_TRAJECTORY=trp_cage
 shot "2-confidence" SIMCTL_CHILD_PHONEFOLD_TRAJECTORY=protein_g_b1 \
                     SIMCTL_CHILD_PHONEFOLD_COLOUR=confidence
 # The generative engine: a backbone that did not exist until the device made it.
-shot "3-generated"  SIMCTL_CHILD_PHONEFOLD_ENGINE=generative
+#
+# **Its own settle, six times the others.** Genie 2 is a thousand denoising steps through Core
+# ML, and in a simulator that is minutes rather than the seconds it takes on a Mac's GPU.
+# Measured on this device: 10,385 bright pixels on the stage at 60 s, 11,885 at 120, 15,053 at
+# 240 and 209,818 at 400 - so it lands between four and seven minutes and nothing before that
+# is a picture of anything.
+SETTLE=420 shot "3-generated" SIMCTL_CHILD_PHONEFOLD_ENGINE=generative
 # Hydrophobicity, which is the core packing made visible.
 shot "4-core"       SIMCTL_CHILD_PHONEFOLD_TRAJECTORY=villin_hp36 \
                     SIMCTL_CHILD_PHONEFOLD_COLOUR=hydrophobicity

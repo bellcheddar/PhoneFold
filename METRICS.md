@@ -3904,3 +3904,39 @@ as the last step before shipping.
 Also worth knowing: `install-profiles` writes by UUID, so regenerating leaves the *old* file on
 disk under its own name. There are now two files called "PhoneFold App Store". Xcode resolves
 `PROVISIONING_PROFILE_SPECIFIER` by name and will pick one of them.
+
+## The Watch app was never embedded (2026-09-01)
+
+**The fourth instance of one pattern in two days**, and the only one that no amount of building
+or testing could have shown.
+
+`PhoneFoldWatch` built, had an icon, had its complication, and embedded its own widget
+extension. Nothing embedded *it* in the phone app. `PhoneFold`'s dependencies listed
+`PhoneFoldWidgets` and the Swift package and stopped there - so the watch app would never have
+installed alongside PhoneFold on a device, and the App Store archive contained no Watch product
+at all. `embed: true` is the operative word: a plain target dependency builds it and links
+nothing.
+
+It was found by looking *inside a real archive*, which is exactly what the App Store reference
+means by "ARCHIVE SUCCEEDED says nothing about the contents". Before:
+
+```
+Embedded:
+  PhoneFoldWatch.app                             MISSING
+  PhoneFoldWidgets.appex                         356K
+```
+
+After: 2.2 MB, with `FoldOfTheDay.json` inside it.
+
+**And the probe that found it was not looking for it.** The archive was failing on the iCloud
+entitlement, which is blocked on a portal step Marc has to take, so the two blocked entitlements
+were stripped temporarily to see *what else* would fail once he had taken it. The answer to that
+question was "nothing" - the signing is otherwise correct - and the answer to a question nobody
+asked was that half the product was not in the box.
+
+`verify-bundle.sh` is PhoneFold's own now; the donor was entirely PfamIE's models, its SQLite
+and Mol*. It checks what the app reads by name at run time, because that is the class of thing
+that fails silently on a stranger's phone: the Genie 2 model (the Generate button throws without
+it), twelve trajectories (a missing one is a shorter gallery, not an error), five style profiles
+(the app still folds, it just cannot sing), `CFBundleIconName`, the privacy manifest, and both
+embedded products.

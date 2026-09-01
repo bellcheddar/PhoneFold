@@ -7,11 +7,11 @@
 # negative-tested, and adds the checks that only matter for a release: the
 # signing authority and the embedded provisioning profile.
 set -uo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 
-ARCHIVE="${1:-build/archives/PfamIE-ios.xcarchive}"
+ARCHIVE="${1:-build/archives/PhoneFold-ios.xcarchive}"
 if [ ! -d "$ARCHIVE" ]; then
-    echo "No archive at $ARCHIVE. Run ./Tools/archive.sh first." >&2
+    echo "No archive at $ARCHIVE. Run ./Tools/appstore/archive.sh first." >&2
     exit 1
 fi
 
@@ -22,7 +22,7 @@ if [ -z "$APP" ]; then
 fi
 
 fail=0
-./Tools/verify-bundle.sh "$APP" || fail=1
+./Tools/appstore/verify-bundle.sh "$APP" || fail=1
 
 echo
 echo "Release checks:"

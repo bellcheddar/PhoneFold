@@ -1,29 +1,26 @@
 #!/usr/bin/env bash
-# Check that a built PfamIE app actually contains what it needs to work.
+# Check that a built PhoneFold app actually contains what it needs to work.
 #
-# BUILD SUCCEEDED says nothing about the contents. An app that ships without
-# its Core ML models or its centroid matrix builds cleanly, signs cleanly, and
-# cannot do the one thing it exists to do. Negative-test this script by
-# deleting a file from a bundle: it must fail.
+# **ARCHIVE SUCCEEDED says nothing about the contents.** An archive missing its Core ML model
+# builds, signs and uploads perfectly, and the app cannot do the one thing it exists to do -
+# the failure arrives on a stranger's phone as a button that does nothing. Everything checked
+# here is a resource the app reads by name at run time, so a rename or a dropped build phase
+# is silent until someone taps.
 set -uo pipefail
+cd "$(dirname "$0")/../.."
 
-APP="${1:?usage: verify-bundle.sh /path/to/PfamIE.app}"
-if [ -d "$APP/Contents/Resources" ]; then
-    RES="$APP/Contents/Resources"          # macOS
-else
-    RES="$APP"                              # iOS, visionOS, watchOS
-fi
+APP="${1:?usage: verify-bundle.sh /path/to/PhoneFold.app}"
+[ -d "$APP" ] || { echo "No app at $APP" >&2; exit 1; }
+RES="$APP"
+[ -d "$APP/Contents/Resources" ] && RES="$APP/Contents/Resources"
 
 fail=0
-note() { printf '  %-42s %s\n' "$1" "$2"; }
+note() { printf "  %-46s %s\n" "$1" "$2"; }
 
-check_file() {
-    local path="$1" min="$2"
-    if [ ! -e "$path" ]; then
-        note "$(basename "$path")" "MISSING"; fail=1; return
-    fi
-    local size
-    size=$(du -sk "$path" | cut -f1)
+check() {
+    local path="$1" min="${2:-1}"
+    if [ ! -e "$path" ]; then note "$(basename "$path")" "MISSING"; fail=1; return; fi
+    local size; size=$(du -sk "$path" | cut -f1)
     if [ "$size" -lt "$min" ]; then
         note "$(basename "$path")" "TOO SMALL (${size} kB < ${min} kB)"; fail=1; return
     fi
@@ -31,81 +28,51 @@ check_file() {
 }
 
 echo "Verifying $(basename "$APP")"
-echo "Models:"
-check_file "$RES/PfamIEProteinEmbedder.mlmodelc" 8000
-check_file "$RES/PfamIETextEmbedder.mlmodelc"    8000
 
-echo "Data:"
-# Sizes come from the manifest the forge wrote, not from constants here.
-# Hard-coded floors were calibrated for float16 and rejected a correct int8
-# bundle the moment the format changed: a check that has to be edited every
-# time the data changes will eventually be edited to pass.
-if [ -e "$RES/bundle/manifest.json" ]; then DATA="$RES/bundle"; else DATA="$RES"; fi
-check_file "$DATA/manifest.json" 1
-check_file "$DATA/pfam.sqlite" 40000
+echo "The generative engine:"
+# Genie2Sampler.bundled() looks for this by name. Without it the Generate engine throws at the
+# moment somebody presses the button, and nothing earlier says a word.
+check "$RES/Genie2Step_L64.mlmodelc" 20000
 
-SIZES=$("$(dirname "$0")/manifest_sizes.py" "$DATA/manifest.json" 2>&1)
-if [ $? -ne 0 ] || [ -z "$SIZES" ]; then
-    # An unreadable manifest must fail loudly. An earlier version let this
-    # path print nothing and still report OK, which passed a bundle with a
-    # deliberately truncated matrix.
-    note "manifest" "UNREADABLE: $SIZES"; fail=1
+echo "The gallery:"
+# PLAN's twelve. The library enumerates .pftraj, so a missing one is a shorter gallery rather
+# than an error - which is exactly why the count is asserted rather than eyeballed.
+count=$(find "$RES" -maxdepth 1 -name "*.pftraj" | wc -l | tr -d ' ')
+if [ "$count" -lt 12 ]; then
+    note "trajectories" "ONLY $count, expected 12"; fail=1
 else
-    while IFS='|' read -r name expected; do
-        [ -z "$name" ] && continue
-        if [ ! -f "$DATA/$name" ]; then
-            note "$name" "MISSING"; fail=1; continue
-        fi
-        actual=$(stat -f%z "$DATA/$name")
-        if [ "$actual" != "$expected" ]; then
-            note "$name" "SIZE $actual, manifest says $expected"; fail=1
-        else
-            note "$name" "$(du -sh "$DATA/$name" | cut -f1) (matches manifest)"
-        fi
-    done <<< "$SIZES"
+    note "trajectories" "$count .pftraj"
 fi
 
-echo "Structure viewer:"
-if [ -e "$RES/bundle/molstar" ]; then MOL="$RES/bundle/molstar"; else MOL="$RES/molstar"; fi
-check_file "$MOL/molstar.js" 3000
-
-echo "Icon:"
-# Where the compiled icon lives differs by platform, and an empty icon set
-# builds cleanly on all of them. visionOS is the awkward one: it takes a
-# layered AppIcon.solidimagestack, not a flat PNG, and compiles the layers into
-# Assets.car rather than writing files at the bundle root.
-if [ -f "$RES/AppIcon.icns" ]; then
-    note "AppIcon.icns" "$(du -sh "$RES/AppIcon.icns" | cut -f1)"          # macOS
-elif ls "$RES"/AppIcon60x60@2x.png >/dev/null 2>&1; then                   # iOS
-    for icon in "$RES"/AppIcon60x60@2x.png "$RES"/AppIcon76x76@2x~ipad.png; do
-        if [ -f "$icon" ]; then
-            note "$(basename "$icon")" "$(du -sh "$icon" | cut -f1)"
-        else
-            note "$(basename "$icon")" "MISSING"; fail=1
-        fi
-    done
-elif [ -f "$RES/Assets.car" ]; then                                        # visionOS
-    LAYERS=$(xcrun assetutil --info "$RES/Assets.car" 2>/dev/null \
-             | grep -oE 'AppIcon[\\/]+(Front|Middle|Back)' | sort -u | wc -l | tr -d ' ')
-    if [ "${LAYERS:-0}" -ge 3 ]; then
-        note "AppIcon.solidimagestack" "3 layers in Assets.car"
-    elif grep -q AppIcon "$RES/Info.plist" 2>/dev/null; then
-        note "app icon" "declared but only $LAYERS layers compiled"; fail=1
-    else
-        note "app icon" "MISSING"; fail=1
-    fi
+echo "The score:"
+# The app still folds and draws without these; it just cannot sing, which is half of what it is.
+styles=$(find "$RES/Styles" -name "*.json" 2>/dev/null | wc -l | tr -d ' ')
+if [ "$styles" -lt 5 ]; then
+    note "Styles" "ONLY $styles style profiles, expected 5"; fail=1
 else
-    note "app icon" "MISSING"; fail=1
+    note "Styles" "$styles style profiles"
 fi
+check "$RES/Notes" 1
 
-echo "Signing:"
-authority=$(codesign -dvv "$APP" 2>&1 | grep "^Authority=" | head -1)
-if [ -n "$authority" ]; then note "authority" "${authority#Authority=}"; else note "authority" "unsigned (fine for a debug build)"; fi
+echo "Required by Apple:"
+check "$RES/Assets.car" 20
+# CFBundleIconName is written by hand because XcodeGen supplies the Info.plist; Xcode injects it
+# only under GENERATE_INFOPLIST_FILE. Without it the upload is refused, and nothing before the
+# upload complains.
+PLIST="$APP/Info.plist"; [ -f "$APP/Contents/Info.plist" ] && PLIST="$APP/Contents/Info.plist"
+icon=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIconName" "$PLIST" 2>/dev/null || echo "")
+[ -n "$icon" ] && note "CFBundleIconName" "$icon" || { note "CFBundleIconName" "MISSING"; fail=1; }
+check "$RES/PrivacyInfo.xcprivacy" 1
+
+echo "Embedded:"
+for kind in "Watch/PhoneFoldWatch.app" "PlugIns/PhoneFoldWidgets.appex"; do
+    if [ -e "$APP/$kind" ]; then note "$(basename "$kind")" "$(du -sh "$APP/$kind" | cut -f1)"
+    else note "$(basename "$kind")" "MISSING"; fail=1; fi
+done
+# The Fold of the Day is the one thing the watch app does with no phone at all.
+WATCH="$APP/Watch/PhoneFoldWatch.app"
+[ -d "$WATCH" ] && check "$WATCH/FoldOfTheDay.json" 100
 
 echo
-if [ "$fail" -eq 0 ]; then
-    echo "OK: $(du -sh "$APP" | cut -f1) bundle, everything present."
-else
-    echo "FAILED: the bundle is missing something it needs to run." >&2
-fi
+if [ "$fail" = 0 ]; then echo "bundle: OK"; else echo "bundle: INCOMPLETE"; fi
 exit "$fail"
