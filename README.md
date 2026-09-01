@@ -14,7 +14,7 @@
 
 ---
 
-![Trp-cage TC5b folded on an iPhone: the pink and cyan ribbon sits on a dark indigo stage above live readouts (Rg 7.0 Å, compactness 1.02, 33 contacts, 100% native, 45/5/50 helix-sheet-coil), with structure and radius-of-gyration traces beneath and the protein gallery along the bottom](docs/screenshots/phonefold-iphone.png)
+![Trp-cage TC5b folded on an iPhone: the pink and cyan ribbon sits on a dark indigo stage under the line "Simulated on device toward a known structure — not a prediction", above live readouts (Rg 6.9 Å, compactness 1.01, 33 contacts, 100% native, 45/15/40 helix-sheet-coil), with structure and radius-of-gyration traces beneath and the protein gallery along the bottom](docs/screenshots/phonefold-iphone.png)
 
 PhoneFold folds a protein on the device in front of you and turns the trajectory into music. Every note comes from the fold itself rather than from the sequence: a contact forming is an onset, how far apart in the chain its two halves are sets how high it sounds, helices are a sustained pad, sheets a staccato figure, coils an arpeggio. As the chain compacts the tempo rises, and when the structure settles the harmony resolves. Confidence is audible, so an uncertain region is dull and out of tune and a disordered protein never resolves at all.
 

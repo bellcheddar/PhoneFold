@@ -474,7 +474,7 @@ if __name__ == "__main__":
             print("  POST /v1/apps returns 403 for every key, including Admin, so this is")
             print("  the one step the API cannot take. Create it once at")
             print("  https://appstoreconnect.apple.com -> Apps -> + -> New App")
-            print("  Bundle ID: com.mdeller.pfamie")
+            print("  Bundle ID: com.mdeller.phonefold, name: PhoneFold")
             print("  The App Store name is globally unique, so it must be chosen "
                   "there and may be taken.")
         print("\n  Existing records:")
