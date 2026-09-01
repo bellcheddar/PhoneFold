@@ -1030,3 +1030,14 @@ which, using `FileManager.ubiquityIdentityToken`, rather than showing an empty l
 
 - [ ] PLAN's cross-platform gate lists "universal purchase configured", which is an App Store
       Connect setting and cannot be done from here
+
+## App Store: two captures need real hardware (2026-09-01)
+
+Everything else in the listing is captured from simulators and is in `assets/screenshots`.
+
+- [ ] **The Watch remote, on a paired phone.** With no phone the Now Playing screen correctly
+      says "Phone not reachable", which is the app being honest and a terrible advertisement, so
+      it is deliberately not in the set. A simulator cannot pair. Two Fold of the Day shots ship
+      instead, which is enough for Apple and undersells the wrist
+- [ ] **Anything on Vision Pro hardware.** The three visionOS captures are simulator shots of a
+      simulated living room. They are legitimate and they are not what the thing looks like

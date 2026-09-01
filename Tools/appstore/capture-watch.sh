@@ -33,5 +33,8 @@ SETTLE=6 shot "1-daily" SIMCTL_CHILD_PHONEFOLD_WATCH_SCREEN=daily \
 # And at rest, so the caption and the invitation are both legible.
 SETTLE=14 shot "2-daily-done" SIMCTL_CHILD_PHONEFOLD_WATCH_SCREEN=daily \
                               SIMCTL_CHILD_PHONEFOLD_WATCH_AUTOPLAY=1
-# The remote, which is what the wrist is for when a phone is present.
-shot "3-remote" SIMCTL_CHILD_PHONEFOLD_WATCH_SCREEN=nowPlaying
+# **No shot of the remote, and that is not an omission.** The remote is what the wrist is for
+# when a phone is present, and with no paired phone the screen says "Phone not reachable" -
+# which is the app being honest and a terrible advertisement. A simulator cannot pair, so the
+# only way to capture it is on Marc's own devices; it is in BLOCKERS.md as a better third shot
+# rather than shipped as an error message.
